@@ -1,27 +1,36 @@
 <!-- AI-PLC START -->
 ## AI-PLC Agent Instructions
 
-### AIPO Workflow
+### 4-Stage Pipeline
 
-| Phase | Skill | Purpose |
+| Stage | Skill | Purpose |
 |-------|-------|---------|
-| Collection | `ai-plc/01-collection` | Goal設定・Context収集・Execution Context確立 |
-| Inception | `ai-plc/02-inception` | Goal分解・Backlog生成 |
-| Construction | `ai-plc/03-construction` | Harness生成・Agent定義 |
-| Operation | `ai-plc/04-operation` | タスク実行・成果物生成 |
+| Collection | `.claude/skills/ai-plc/01-collection/SKILL.md` | Goal設定・Context収集・Execution Context確立 |
+| Inception | `.claude/skills/ai-plc/02-inception/SKILL.md` | Goal分解・Backlog生成 |
+| Construction | `.claude/skills/ai-plc/03-construction/SKILL.md` | Agent定義生成・実行計画策定 |
+| Operation | `.claude/skills/ai-plc/04-operation/SKILL.md` | タスク実行・成果物生成 |
 
 ### Agents
 
-| Agent | Trigger |
-|-------|---------|
-| `researcher` | 「調査して」「リサーチして」 |
-| `quality-reviewer` | 「レビューして」「チェックして」 |
-| `pm-analyst` | 「進捗を分析して」「リスクを評価して」 |
-| `progress-syncer` | 「進捗を同期して」 |
+| Agent | File | Trigger |
+|-------|------|---------|
+| `researcher` | `.claude/agents/researcher.md` | 「調査して」「リサーチして」 |
+| `quality-reviewer` | `.claude/agents/quality-reviewer.md` | 「レビューして」「チェックして」 |
+| `pm-analyst` | `.claude/agents/pm-analyst.md` | 「進捗を分析して」「リスクを評価して」 |
+| `progress-syncer` | `.claude/agents/progress-syncer.md` | 「進捗を同期して」 |
 
 ### Definition of Done
 
 1. Deliverable files exist at the specified path
 2. `backlog.yaml` status is updated to `completed` with `completed_at` date
 3. YAML files parse without error
+4. Post-Deliver Propagation completed (context.yaml, memory.md, wiki/)
+
+### Key Naming (AI-PLC)
+
+| Correct | Legacy (do not use) |
+|---------|-------------------|
+| `intent.yaml` | ~~layer.yaml~~ |
+| `backlog.yaml` | ~~tasks.yaml~~ |
+| Agents/ | ~~Commands/~~ |
 <!-- AI-PLC END -->

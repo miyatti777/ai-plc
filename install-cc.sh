@@ -125,12 +125,12 @@ if [[ "$DRY_RUN" == true ]]; then
 fi
 echo ""
 
-echo "📦 Step 1/6: Installing skills..."
+echo "📦 Step 1/7: Installing skills..."
 safe_copy_dir "$SCRIPT_DIR/core/skills" "$TARGET_DIR/.claude/skills"
 info "Skills installed: .claude/skills/ai-plc/"
 
 echo ""
-echo "📏 Step 2/6: Installing rules..."
+echo "📏 Step 2/7: Installing rules..."
 for rule in "$SCRIPT_DIR"/core/rules/ai-plc-*.md; do
     fname="$(basename "$rule")"
     safe_copy "$rule" "$TARGET_DIR/.claude/rules/$fname"
@@ -138,22 +138,26 @@ done
 info "Rules installed: .claude/rules/ai-plc-*.md"
 
 echo ""
-echo "⌨️  Step 3/6: Installing commands..."
+echo "⌨️  Step 3/7: Installing commands..."
 safe_copy_dir "$SCRIPT_DIR/claude/commands" "$TARGET_DIR/.claude/commands"
 info "Commands installed: .claude/commands/"
 
 echo ""
-echo "🤖 Step 4/6: Installing agents..."
+echo "🤖 Step 4/7: Installing agents..."
 safe_copy_dir "$SCRIPT_DIR/claude/agents" "$TARGET_DIR/.claude/agents"
 info "Agents installed: .claude/agents/"
 
 echo ""
-echo "📝 Step 5/6: Merging CLAUDE.md / AGENTS.md..."
+echo "📝 Step 5/7: Merging CLAUDE.md / AGENTS.md..."
 merge_with_markers "$SCRIPT_DIR/claude/CLAUDE.md.template" "$TARGET_DIR/CLAUDE.md"
 merge_with_markers "$SCRIPT_DIR/claude/AGENTS.md.template" "$TARGET_DIR/AGENTS.md"
 
 echo ""
-echo "🧠 Step 6/6: Installing templates (skip if exists)..."
+echo "🔧 Step 6/7: Installing settings.json (skip if exists)..."
+safe_copy_if_missing "$SCRIPT_DIR/claude/settings.json" "$TARGET_DIR/.claude/settings.json"
+
+echo ""
+echo "🧠 Step 7/7: Installing templates (skip if exists)..."
 safe_copy_if_missing "$SCRIPT_DIR/templates/soul.md" "$TARGET_DIR/.claude/soul.md"
 safe_copy_if_missing "$SCRIPT_DIR/templates/user.md" "$TARGET_DIR/.claude/user.md"
 safe_copy_if_missing "$SCRIPT_DIR/templates/memory.md" "$TARGET_DIR/.claude/memory.md"

@@ -3,19 +3,34 @@
 
 This project uses AI-PLC (AI Product Lifecycle) as the primary workflow system.
 
-### Quick Reference
+### 4-Stage Pipeline
 
-- Workflow: Collection → Inception → Construction → Operation
-- Skills: `.claude/skills/ai-plc/01-collection/SKILL.md` ~ `04-operation/SKILL.md`
-- Rules: `.claude/rules/ai-plc-system.md`, `ai-plc-session.md`, `ai-plc-adaptive.md`
+| Stage | Command | Skill | Purpose |
+|-------|---------|-------|---------|
+| 1. Collection | `/project:01-collection` | `ai-plc/01-collection` | Goal設定・Context収集・Execution Context確立 |
+| 2. Inception | `/project:02-inception` | `ai-plc/02-inception` | Goal分解・Backlog生成 |
+| 3. Construction | `/project:03-construction` | `ai-plc/03-construction` | Agent定義生成・実行計画策定 |
+| 4. Operation | `/project:04-operation` | `ai-plc/04-operation` | タスク実行・成果物生成 |
+
+### Key Files
+
+- `intent.yaml` — Execution Context（旧layer.yaml）
+- `backlog.yaml` — タスク定義（旧tasks.yaml）
+- `context.yaml` — Context Manifest
+- `.claude/rules/ai-plc-*.md` — ルール群
+- `.claude/skills/ai-plc/` — スキル群
 
 ### Working Directory
 
 Create new work in `Flow/[current-month]/[current-date]/`.
+Use sequential shell commands — never `$(subshell)`.
 
-### Key Files
+### Agents
 
-- `AGENTS.md` — Agent operational rules
-- `.claude/rules/` — Modular operational rules
-- `.claude/skills/ai-plc/` — 4-stage pipeline skills
+| Agent | Trigger |
+|-------|---------|
+| `researcher` | 「調査して」「リサーチして」 |
+| `quality-reviewer` | 「レビューして」「チェックして」 |
+| `pm-analyst` | 「進捗を分析して」「リスクを評価して」 |
+| `progress-syncer` | 「進捗を同期して」 |
 <!-- AI-PLC END -->

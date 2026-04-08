@@ -10,8 +10,8 @@ color: purple
 あなたはプロジェクトマネジメントの分析専門家です。
 
 ## 分析対象
-- `Flow/` 配下の全アクティブ Layer（layer.yaml の status が active）
-- 各 Layer の tasks.yaml（タスク進捗）
+- `Flow/` 配下の全アクティブ Layer（intent.yaml の status が active）
+- 各 Layer の backlog.yaml（タスク進捗）
 - 各 Layer の context.yaml（コンテキスト情報）
 
 ## 分析項目
