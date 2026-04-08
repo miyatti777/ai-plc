@@ -1,0 +1,27 @@
+<!-- AI-PLC START -->
+## AI-PLC Agent Instructions
+
+### AIPO Workflow
+
+| Phase | Skill | Purpose |
+|-------|-------|---------|
+| Collection | `ai-plc/01-collection` | Goal設定・Context収集・Execution Context確立 |
+| Inception | `ai-plc/02-inception` | Goal分解・Backlog生成 |
+| Construction | `ai-plc/03-construction` | Harness生成・Agent定義 |
+| Operation | `ai-plc/04-operation` | タスク実行・成果物生成 |
+
+### Agents
+
+| Agent | Trigger |
+|-------|---------|
+| `researcher` | 「調査して」「リサーチして」 |
+| `quality-reviewer` | 「レビューして」「チェックして」 |
+| `pm-analyst` | 「進捗を分析して」「リスクを評価して」 |
+| `progress-syncer` | 「進捗を同期して」 |
+
+### Definition of Done
+
+1. Deliverable files exist at the specified path
+2. `backlog.yaml` status is updated to `completed` with `completed_at` date
+3. YAML files parse without error
+<!-- AI-PLC END -->

@@ -1,0 +1,38 @@
+---
+description: "AI-PLC session management: thread splitting, context handoff, completion checks"
+alwaysApply: true
+---
+
+# AI-PLC Session Management
+
+## Session Split Triggers
+
+| Condition | Threshold |
+|-----------|-----------|
+| Sub-Layer count | 3+ |
+| Total tasks | 10+ |
+| Estimated time | 2+ hours |
+| Hierarchy depth | 3+ levels |
+
+## Context Handoff (new thread)
+
+Required context for new threads:
+1. AI-PLC system README
+2. Target scope's intent.yaml
+3. Target scope's context.yaml
+4. Parent scope's intent.yaml (if Sub-Layer)
+
+## Session Completion Checklist
+
+Before ending a session:
+1. Check parent scope for remaining Sub-Layers
+2. Check sibling Sub-Layers for actionable items
+3. Check pending tasks
+4. Propose next phase/task
+
+## Output Format
+
+Every stage/task completion must include:
+1. **Next Action Protocol** — Choice table (A/B/C) + recommendation + copy-paste prompt
+2. **Position Header + Summary** — Scope / completed item / artifacts / status
+3. **Progress Dashboard** — Completed + next executable tasks only

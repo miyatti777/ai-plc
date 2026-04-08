@@ -1,0 +1,21 @@
+<!-- AI-PLC START -->
+## AI-PLC Pipeline
+
+This project uses AI-PLC (AI Product Lifecycle) as the primary workflow system.
+
+### Quick Reference
+
+- Workflow: Collection → Inception → Construction → Operation
+- Skills: `.claude/skills/ai-plc/01-collection/SKILL.md` ~ `04-operation/SKILL.md`
+- Rules: `.claude/rules/ai-plc-system.md`, `ai-plc-session.md`, `ai-plc-adaptive.md`
+
+### Working Directory
+
+Create new work in `Flow/[current-month]/[current-date]/`.
+
+### Key Files
+
+- `AGENTS.md` — Agent operational rules
+- `.claude/rules/` — Modular operational rules
+- `.claude/skills/ai-plc/` — 4-stage pipeline skills
+<!-- AI-PLC END -->

@@ -1,0 +1,158 @@
+> 🏷️ **Project:** [Project Palma](N/A (Project Palma - Notion))
+
+  **Type:** rule
+
+  **Context:** AI-PLC Adaptive Workflow + Next Action判定ルール。Claude Code の `.claude/rules/workflow.md` に相当。ワークフロー深度判定・次アクション自動提案・モード判定を統合。
+
+---
+
+## 概要
+
+> 🎯 **Claude Code対応:** `.claude/rules/workflow.md`
+
+
+  **旧AIPO対応:** [Untitled](https://www.notion.so/bcd656e03a3b45aa9c158fb09c88d835) + AI-DLC由来の深度判定
+
+
+  **役割:** Adaptive Workflow深度判定 + Next Action自動提案
+
+
+  **ロード方式:** 自動（RUL_plc_systemから参照）
+
+---
+
+## 1. Adaptive Workflow深度判定（全PJ共通）
+
+SKL_plc_01_collection（Stage 1）で自動判定される3段階の深度。**コーディングPJだけでなく、企画・コンテンツ・イベント等全タスクに適用。**検証ステップ（RUL_plc_system §18）と連動する。
+
+| 深度 | 汎用判定条件 | パイプライン挙動 | 検証 Level |
+| --- | --- | --- | --- |
+| Simple | 単一タスク・明確なゴール・既知パターン・1-2日以内 | Stage 1→4直行（Stage 2-3スキップ） | L1のみ |
+| Standard | 複数タスク・タスク分解が必要・SubLayerなし | 全4ステージを順次実行 | L1+L2 |
+| Complex | 再帰的分解が必要・SubLayer生成・チーム連携 | 全4ステージ + SubLayer再帰 + NFRフル検証 | L1+L2+L3 |
+
+### ロール別深度判定基準
+
+| ロール | Simple | Standard | Complex |
+| --- | --- | --- | --- |
+| product_manager | フィードバック収集・定例レポート | 機能企画・UX改善 | 新規事業・大規模ピボット |
+| system_architect | 既存DBにプロパティ追加 | 新規DB設計・Notion構築 | システム全体アーキテクチャ |
+| tech_lead | 単純バグ修正・1ファイル変更 | 機能追加・中規模変更 | 新サービス・アーキテクチャ変更 |
+| developer | バグ修正・ドキュメント修正 | 機能実装・複数ファイル変更 | 大規模リファクタリング |
+| content_strategist | SNS投稿・定型メール | ブログ記事・プレゼン | 書籍・ホワイトペーパー・シリーズ物 |
+| generic | 単純な作業・即実行可能 | 複数ステップが必要 | 大規模・未知の領域 |
+
+### 判定フロー
+
+```mermaid
+flowchart TD
+    START["Goal + Context分析"] --> ROLE{"ロール判定"}
+    ROLE --> Q1{"タスク規模?"}
+    Q1 -->|"1-2日以内・既知パターン"| SIMPLE["Simple"]
+    Q1 -->|"複数タスク・SubLayer不要"| STANDARD["Standard"]
+    Q1 -->|"SubLayer必要・大規模"| COMPLEX["Complex"]
+    SIMPLE --> V1["L1検証のみ"]
+    STANDARD --> V2["L1+L2検証"]
+    COMPLEX --> V3["L1+L2+L3検証 + NFR"]
+    
+    style SIMPLE fill:#e8f5e9
+    style STANDARD fill:#fff3e0
+    style COMPLEX fill:#fce4ec
+```
+
+---
+
+## 2. モード判定
+
+SKL_plc_01_collection実行時にGoalの性質から自動判定。
+
+| モード | 条件 | パイプライン挙動 |
+| --- | --- | --- |
+| Direct Mode | 一度きりの実行（設計書、分析、調査等） | Stage 1-4で完了。Stage 5なし |
+| Platform Builder Mode | 繰り返し実行する仕組みを構築 | Stage 1-5全実行。Stage 4でProduction Skill自動生成→Stage 5で量産 |
+
+---
+
+## 3. Next Action自動提案
+
+各スキル完了時に次のアクションを自動判定し提案する。
+
+### 判定ルール
+
+| 現在の状態 | Next Action | 提案文 |
+| --- | --- | --- |
+| Stage 1完了 | Stage 2（Inception）へ | 「SKL_plc_02_inception を実行してBacklogを作成しましょう」 |
+| Stage 2完了 | Stage 3（Construction）へ | 「SKL_plc_03_construction を実行してSkillsを作成しましょう」 |
+| Stage 3完了 | Stage 4（Operation）へ | 「SKL_plc_04_operation を実行してタスクを実行しましょう」 |
+| Stage 4タスク完了（残あり） | Stage 4ループ | 「次の実行可能タスクはTXXXです」 |
+| Stage 4全完了（Direct） | パイプライン終了 | 「全タスク完了。パイプラインを終了します」 |
+| Stage 4全完了（Platform Builder） | Stage 5へ | 「Production Skillが生成されました。Stage 5で量産を開始しましょう」 |
+| Reinit検出 | Stage 1（Update mode） | 「既存Layerを検出。Update modeで再初期化します」 |
+
+### Next Step Options提示
+
+各ステージ完了後、以下の形式でNext Step Optionsを提示：
+
+> 🔜 **Next Step Options:**
+
+  1. **[推奨]** [次のステージ/タスク]
+  1. [代替アクション]
+  1. セッション終了（進捗保存済み）
+
+---
+
+## 4. Focus Strategy（視点選択）
+
+Stage 1でGoalの性質から自動判定し、最適なRoleを選択。Roles/配下のテンプレートから読み込む。
+
+| Goal性質 | 推奨Role | 判定キーワード |
+| --- | --- | --- |
+| プロダクト開発 | ROL_plc_product_manager | 機能、UX、ユーザー、プロダクト |
+| システム構築 | ROL_plc_system_architect | DB、API、アーキテクチャ、設計 |
+| コンテンツ制作 | ROL_plc_content_strategist | 記事、ブログ、ライティング |
+| その他 | ROL_plc_generic | （上記に該当しない） |
+
+---
+
+## 旧CTX対応表
+
+| RUL_plc_adaptive | 旧AIPO | 変更内容 |
+| --- | --- | --- |
+| Adaptive Workflow深度判定 | AI-DLC由来（新規） | 新規。Simple/Standard/Complex 3段階 |
+| モード判定 | layer.yamlのmode | Direct / Platform Builder に明確化 |
+| Next Action自動提案 | CTX_next_action_rules | Stage名・SKL名をモダン用語に更新 |
+| Focus Strategy | CTX_roles_templates（判定ロジック部分） | 判定ルールのみ。テンプレート本体はRoles/に分離 |
+
+---
+
+## ⚙️ AIへの実行指示
+
+> 🤖 **このルールはSKL_plc_01_collection実行時に特に重要**
+
+### Stage 1での判定
+
+  1. Goal分析 → Adaptive Workflow深度を判定（Simple/Standard/Complex）
+  1. Goal性質 → モードを判定（Direct/Platform Builder）
+  1. Goal性質 → Focus Strategyを判定（Roles/から適切なRoleを選択）
+  1. 判定結果をIntent（旧layer.yaml）に記録
+
+### 各ステージ完了時
+
+  1. Next Action判定テーブルに従い次のアクションを特定
+  1. Next Step Options形式で提示
+  1. ユーザーが選択するまで待機（Mob Checkpoint）
+
+---
+
+## 参照元
+
+- [Untitled](https://www.notion.so/bcd656e03a3b45aa9c158fb09c88d835) — 旧版ルール（対応元）
+- [AI-DLC → AI-PLC 比較整理書](https://www.notion.so/6a0c7ab9d8284f8b9609d4b3bc7b5130) — Adaptive Workflow概念
+
+---
+
+**作成日:** 2026-04-07
+
+**ステータス:** Active
+
+**バージョン:** 1.0

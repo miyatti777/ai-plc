@@ -1,0 +1,32 @@
+---
+description: "AI-PLC Adaptive Workflow: depth detection (Simple/Standard/Complex) and next action routing"
+alwaysApply: true
+---
+
+# AI-PLC Adaptive Workflow
+
+## Workflow Depth Detection
+
+| Depth | Criteria | Pipeline Behavior | Verification |
+|-------|----------|-------------------|-------------|
+| Simple | Single domain, 1-2 tasks, known pattern | Stage 1→4 direct | L1 only |
+| Standard | Multiple tasks, no Sub-Layer needed | All 4 stages sequential | L1+L2 |
+| Complex | Recursive decomposition needed, large scale | All 4 stages + Sub-Layer recursion | L1+L2+L3+NFR |
+
+## Mode Detection
+
+| Mode | Condition | Pipeline |
+|------|-----------|----------|
+| Direct | One-time execution | Stage 1-4, complete |
+| Platform Builder | Building reusable system | Stage 1-4 + Production Skill generation |
+
+## Next Action Routing
+
+| Current State | Next Action |
+|---------------|-------------|
+| Stage 1 complete | → Stage 2 (Inception) |
+| Stage 2 complete | → Stage 3 (Construction) |
+| Stage 3 complete | → Stage 4 (Operation) |
+| Task complete (more remain) | → Next executable task |
+| All tasks complete (Direct) | → Pipeline end |
+| All tasks complete (Platform Builder) | → Production Skill generation |

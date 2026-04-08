@@ -1,0 +1,59 @@
+---
+description: "AI-PLC root system rules: Context Cascade, artifact structure, verification, propagation"
+alwaysApply: true
+---
+
+# AI-PLC System Rules
+
+This project uses AI-PLC (AI Product Lifecycle) pipeline.
+
+## Core Principles
+
+1. **Context Cascade** — Parent→Child scope context propagation (immutable / overridable / local)
+2. **Fractal Decomposition** — Recursive goal decomposition into Sub-Agent Scopes
+3. **Adaptive Workflow** — Simple / Standard / Complex depth auto-detection
+4. **Self-Describing Task** — Context-attached task delegation
+
+## Skills Location
+
+- `.cursor/skills/ai-plc/01-collection/SKILL.md` — Stage 1: Collection
+- `.cursor/skills/ai-plc/02-inception/SKILL.md` — Stage 2: Inception
+- `.cursor/skills/ai-plc/03-construction/SKILL.md` — Stage 3: Construction
+- `.cursor/skills/ai-plc/04-operation/SKILL.md` — Stage 4: Operation
+
+## Rules
+
+- `.cursor/rules/ai-plc-system.mdc` — This file (root system rules)
+- `.cursor/rules/ai-plc-session.mdc` — Session management
+- `.cursor/rules/ai-plc-adaptive.mdc` — Adaptive Workflow depth
+
+## Working Directory
+
+Create new work in `Flow/[YYYYMM]/[YYYY-MM-DD]/`.
+
+## Naming Conventions
+
+| Prefix | System | Example |
+|--------|--------|---------|
+| SKL_plc_* | Skills | SKL_plc_01_collection |
+| RUL_plc_* | Rules | RUL_plc_system |
+| TPL_* | Templates | TPL_role_developer |
+
+## File Names (mandatory)
+
+| File | Purpose |
+|------|---------|
+| intent.yaml | Execution Context metadata |
+| context.yaml | Context Manifest |
+| backlog.yaml | Task definitions |
+| Context/ | Context Store |
+| Documents/ | Artifact Store |
+
+## Post-Deliver Propagation (mandatory after task completion)
+
+After completing each task, execute the following checklist:
+1. backlog.yaml — Update status to completed + output link
+2. context.yaml — Add artifact entry
+3. memory.md — Check for new knowledge
+4. user.md — Check for new preferences
+5. Wiki update — Propagate new knowledge to related topics
