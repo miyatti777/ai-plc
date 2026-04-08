@@ -33,6 +33,13 @@ if [[ -z "$TARGET_DIR" ]]; then
     TARGET_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 fi
 
+BACKUP_SUFFIX=".bak.$(date +%Y%m%d)"
+
+info()  { echo "  ✅ $1"; }
+warn()  { echo "  ⚠️  $1"; }
+skip()  { echo "  ⏭️  $1 (already exists, skipping)"; }
+dry()   { echo "  🔍 [dry-run] $1"; }
+
 if ! git -C "$TARGET_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
     warn "Target is not a git repository. Claude Code requires git."
     echo "   Run: cd $TARGET_DIR && git init && git add -A && git commit -m 'init'"
@@ -43,13 +50,6 @@ if ! git -C "$TARGET_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
         info "git initialized in $TARGET_DIR"
     fi
 fi
-
-BACKUP_SUFFIX=".bak.$(date +%Y%m%d)"
-
-info()  { echo "  ✅ $1"; }
-warn()  { echo "  ⚠️  $1"; }
-skip()  { echo "  ⏭️  $1 (already exists, skipping)"; }
-dry()   { echo "  🔍 [dry-run] $1"; }
 
 safe_copy() {
     local src="$1" dst="$2"
