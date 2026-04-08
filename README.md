@@ -94,7 +94,7 @@ ai-plc/
 │   ├── skills/ai-plc/        # 4ステージスキル + テンプレート
 │   └── rules/                # 3つのルールファイル
 │
-├── claude-code/              # Claude Code固有
+├── claude/                   # Claude Code固有
 │   ├── CLAUDE.md.template
 │   ├── AGENTS.md.template
 │   ├── commands/             # スラッシュコマンド

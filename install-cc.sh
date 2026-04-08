@@ -139,18 +139,18 @@ info "Rules installed: .claude/rules/ai-plc-*.md"
 
 echo ""
 echo "⌨️  Step 3/6: Installing commands..."
-safe_copy_dir "$SCRIPT_DIR/claude-code/commands" "$TARGET_DIR/.claude/commands"
+safe_copy_dir "$SCRIPT_DIR/claude/commands" "$TARGET_DIR/.claude/commands"
 info "Commands installed: .claude/commands/"
 
 echo ""
 echo "🤖 Step 4/6: Installing agents..."
-safe_copy_dir "$SCRIPT_DIR/claude-code/agents" "$TARGET_DIR/.claude/agents"
+safe_copy_dir "$SCRIPT_DIR/claude/agents" "$TARGET_DIR/.claude/agents"
 info "Agents installed: .claude/agents/"
 
 echo ""
 echo "📝 Step 5/6: Merging CLAUDE.md / AGENTS.md..."
-merge_with_markers "$SCRIPT_DIR/claude-code/CLAUDE.md.template" "$TARGET_DIR/CLAUDE.md"
-merge_with_markers "$SCRIPT_DIR/claude-code/AGENTS.md.template" "$TARGET_DIR/AGENTS.md"
+merge_with_markers "$SCRIPT_DIR/claude/CLAUDE.md.template" "$TARGET_DIR/CLAUDE.md"
+merge_with_markers "$SCRIPT_DIR/claude/AGENTS.md.template" "$TARGET_DIR/AGENTS.md"
 
 echo ""
 echo "🧠 Step 6/6: Installing templates (skip if exists)..."
