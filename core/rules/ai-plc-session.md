@@ -283,12 +283,29 @@ Task: [タスクID]
 
 プロンプト: `@SKL_plc_04_operation を実行してください Layer: @[Layerページ] Task: [次のTask ID]`
 
+**Stage 4 — Adaptive Backtrack検知時（条件付き追加）:**
+
+Phase 5.5bまたはPhase 6bでBacktrack Trigger条件に該当した場合、上記A/B/Cに加えて以下を出力:
+
+```
+🔄 **Adaptive Backtrack 検知:**
+| 選択肢 | アクション | 理由 |
+| D | Re-Inception（タスク再分解） | [BT-X: 検知理由] |
+| E | Re-Collection（ゴール再確認/GAP分析） | [BT-X: 検知理由] |
+
+推奨: [A or D/E] — [推奨理由]
+```
+
+D/E選択肢は**BT条件に該当した場合のみ出力する**。該当しない場合は追加しない（ノイズ防止）。
+BT条件の詳細は RUL_plc_adaptive §5 を参照。
+
 **全タスク完了時:**
 
 | 選択肢 | アクション | 説明 |
 | --- | --- | --- |
 | A | 親ScopeBacklogを更新し次のSub-Layerへ | 親Backlogの該当項目をdoneに更新（⭐ 推奨） |
 | B | パイプライン完了 | 親ScopeBacklog更新のみ行い、作業終了 |
+| D | Goal-Gap Re-Collection | ゴール達成度を検証（BT-7該当時のみ） |
 
 プロンプト: `親ScopeBacklogの[SG ID]をdoneに更新し、次のSub-Layer @[SGページ] のCollectionを開始してください`
 

@@ -357,6 +357,56 @@ inheritance_rules:
 
 ---
 
+## Re-Collection（Adaptive Backtrack対応）
+
+> 🔄 **Operation Stage（Phase 6b）からBacktrack Trigger条件に基づいて呼び出される再実行モード。**
+> 既存のExecution Contextを保持したまま、ゴール再確認・Context再収集を実施する。
+
+### Re-Collectionのトリガー条件
+
+| BT ID | トリガー名 | 検知フェーズ | Re-Collectionで行うこと |
+|---|---|---|---|
+| BT-4 | **Goal Drift Detection** | Phase 6b | ゴールと実績のドリフト分析 → Intent.goal再定義 |
+| BT-7 | **Goal-Gap Analysis** | Phase 6b | 全タスク完了後のGAP分析 → 追加ゴール or 完了宣言 |
+
+### Re-Collection実行フロー
+
+1. **既存Intentの読み込み** — 現在の`intent.yaml`を確認（scope_type = `scope_reinit`）
+2. **ゴール達成度の評価** — Backlog完了タスクの成果物 vs 元ゴールの到達度を分析
+3. **GAP分析レポート出力** — 達成済み / 未達成 / 新規発見の3カテゴリで整理
+4. **ゴール更新判定** — GAP分析に基づき:
+   - GAPなし → 「ゴール達成。パイプライン完了を推奨」
+   - GAPあり → Intent.goalを更新し、Re-Inceptionを推奨
+   - ドリフト検知 → ゴール再定義 → Context再収集 → Re-Inception推奨
+5. **Context Store追加収集** — ゴール変更がある場合、新ゴールに基づく追加Context収集
+6. **Context Manifest更新** — 新規Context参照を追加
+
+### Re-Collection出力形式
+
+```
+🔄 Re-Collection（BT-X トリガー）
+📍 Scope: [Scope ID]
+
+## GAP分析
+| カテゴリ | 内容 |
+|---|---|
+| 達成済み | [完了タスクの成果] |
+| 未達成 | [元ゴールとのGAP] |
+| 新規発見 | [パイプライン中に発見された新要件] |
+
+## 判定
+- [ゴール達成 / ゴール更新 / ゴール再定義]
+- 推奨アクション: [パイプライン完了 / Re-Inception / 追加Context収集]
+```
+
+### scope_reinitとの関係
+
+Re-Collectionは既存の`scope_reinit`パスを使用する。Phase 0のScope判定で`existing_scope`が指定されるため、ディレクトリ構造は保持される。差分は:
+- **通常のscope_reinit:** ユーザーが手動で新Goalを指定
+- **Re-Collection:** Backtrack Triggerに基づきAIがGAP分析を起点にゴール再評価を主導
+
+---
+
 ## → 次ステージ接続
 
 Intent + Context Manifest + Context Store を **Stage 2: SKL_plc_02_inception** に渡す
@@ -398,6 +448,16 @@ Intent + Context Manifest + Context Store を **Stage 2: SKL_plc_02_inception** 
   Mode: platform_builder
 
 → Parameter Storeも生成され、量産用パイプラインとして構築
+
+### 例4: Re-Collection（Backtrackトリガー）
+
+> 💡 SKL_plc_01_collection を実行してください
+
+  Scope: L-0409-ABT（既存）
+
+  モード: Re-Collection（BT-7: Goal-Gap Analysis）
+
+→ 既存Intentを保持しつつGAP分析を実施。ゴール達成度を評価し次アクションを提案
 
 ---
 
