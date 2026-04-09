@@ -20,6 +20,10 @@
 > **AI-DLC対応:** Construction Phase（Domain Design + Logical Design + コード生成）
 Backlogの各タスクに対して、**実行可能なスキル定義**（Harness）を生成するステージ。既存のSkill Template（旧command_templates）からの**Progressive Context Loading**と、タスク固有コンテキストに基づく動的生成を組み合わせる。
 > **Backlogを渡すだけで、各タスクの実行用スキルページを自動生成します**
+### v1.1 軽量化改修（2026-04-09）
+- **Agent定義ティア制:** Lite（4セクション）/ Full（6セクション）をタスクtypeで使い分け
+- **Mob CP統合:** Phase 4（設計承認）を廃止し、Phase 5生成後のPhase 6のみで承認
+- **一括生成モード:** Task未指定時に全commandありタスクのAgentを一括生成
 ### AI-DLC Construction対応
 > ⚡ **AI-DLCのConstruction Phaseに直接対応**
 >
@@ -42,38 +46,41 @@ Backlogの各タスクに対して、**実行可能なスキル定義**（Harnes
 ```mermaid
 flowchart TD
     START["Backlog"] --> READ["Phase 1: Backlog読み込み
-commandフィールド確認"]
++ ティア判定"]
     READ --> SEARCH["Phase 2: Template探索
 Progressive Context Loading"]
     SEARCH --> L1["Level 1: Skill Templates"]
     SEARCH --> L2["Level 2: Existing Skills"]
     SEARCH --> L3["Level 3: Domain Knowledge"]
-    L1 --> PLAN["Phase 3: スキル生成計画提案"]
-    L2 --> PLAN
-    L3 --> PLAN
-    PLAN --> MOB["Phase 4: Mob Checkpoint
-設計承認"]
-    MOB -->|"Approved"| GEN["Phase 5: Agents生成
-Agents/フォルダに配置"]
-    MOB -->|"Adjusted"| PLAN
-    GEN --> EXIT["Phase 6: Mob Checkpoint
+    L1 --> GEN["Phase 3: 生成計画
++ Agent一括生成"]
+    L2 --> GEN
+    L3 --> GEN
+    GEN --> MOB["Phase 4: Mob Checkpoint
+生成結果確認"]
+    MOB -->|"Approved"| EXIT["Phase 5: Mob Checkpoint
 次ステージ提案"]
+    MOB -->|"Adjusted"| GEN
     
     style START fill:#fff3e0
     style MOB fill:#fff9c4
     style EXIT fill:#fff9c4
 ```
-### Phase 1: Backlog読み込み
-各タスクのcommandフィールドとcommand_template_refを確認。
+### Phase 1: Backlog読み込み + ティア判定
+各タスクのcommandフィールドとcommand_template_refを確認し、**Agent定義ティア**を自動判定。
+### Agent定義ティア制（Lite / Full）
+| **ティア** | **対象タスクtype** | **含むセクション** | **省略するもの** |
+| --- | --- | --- | --- |
+| **Lite** | design, research, content, planning | Goal + Input + Output + Guardrails | Execution Flow詳細, Agent Instructions（テンプレートから暗黙適用） |
+| **Full** | implementation, validation, complex, coding | 全6セクション（Goal/Input/Output/Flow/Guardrails/Instructions） | なし |
+**判定ルール:** `agent_tier`はbacklog.yamlの`type`フィールドから自動判定。ユーザーが明示指定した場合はそちらを優先。
 ### Phase 2: Template探索（Progressive Context Loading）
 3段階の探索：
 - **Level 1:** Agent Template Library（`.notion/Templates/Agents_template/`配下のTPL_\*）
 - **Level 2:** 既存Skills（過去のハーネス定義）
 - **Level 3:** ドメイン知識テンプレート（AIPMコマンド群等）
-### Phase 3: スキル生成計画の提案
-各タスクに対する参考テンプレートとPhase構造を提案。
-### Phase 4: Mob Checkpoint — 設計承認
-参考テンプレートの選択とPhase構造の確認。
+### Phase 3: スキル生成計画 + Agent一括生成
+テンプレートマッチングとAgent定義を一括生成。**旧Phase 4（設計承認）は廃止し、生成後のPhase 4で結果確認。**
 ### コーディングPJでのAgent生成
 > 💻 **コーディングPJでも特別フェーズは不要。テンプレートの違いだけ。**
 >
@@ -87,8 +94,13 @@ Agents/フォルダに配置"]
 | **Standard** | 機能追加・中規模変更 | Collection → Inception（FD設計）→ Construction（Code Gen Plan）→ Operation（実行+テスト） |
 | **Complex** | 新サービス・アーキテクチャ変更 | フル4ステージ（NFR + Infrastructure Design含む） |
 ロール: [TPL_role_tech_lead](../templates/roles/TPL_role_tech_lead.md)（SubLayer分割・統括） / [TPL_role_developer](../templates/roles/TPL_role_developer.md)（実装）
-### Phase 5: Agents生成
-Agents/フォルダを作成し、各タスクのAgent定義ページを生成。
+### Phase 4: Mob Checkpoint — 生成結果確認
+一括生成されたAgent定義の確認。修正指示があれば反映。
+### 一括生成モード
+| **モード** | **トリガー** | **動作** |
+| --- | --- | --- |
+| **単体** | `Task: T002` 指定 | そのタスクのみAgent生成 |
+| **一括** | Task未指定（デフォルト） | 全commandありタスクのAgentを一括生成。Mob CPは1回のみ |
 ### Agent定義の標準構造
 | **セクション** | **内容** | **役割** |
 | --- | --- | --- |
@@ -115,7 +127,7 @@ Agents生成中に以下のパターンを検出:
 1. [RUL_plc_system](../../../rules/ai-plc-system.md) §9のSelf-Describing Task構造でチケットを生成
 2. 「スコープ外タスクを発見しました。外部DBに書き出しますか？」と確認
 3. 承認後、sync_targetsに従ってpush
-### Phase 6: Mob Checkpoint — 次ステージ提案
+### Phase 5: Mob Checkpoint — 次ステージ提案
 スキル生成完了を確認し、Stage 4: SKL_plc_04_operation への遷移を提案。
 ---
 ## 出力インターフェース
@@ -126,9 +138,8 @@ Agents生成中に以下のパターンを検出:
 ## ガードレール・ゲート
 | **ゲート名** | **タイミング** | **条件** | **旧CMD対応** |
 | --- | --- | --- | --- |
-| **Template Match Gate** | Phase 3 | テンプレート探索結果の人間確認 | Step 3: 生成計画提案 |
-| **Skill Design Gate** | Phase 4 | 各スキルのPhase構造の承認 | Step 4: Human Approves |
-| **Exit Gate** | Phase 6 | commandフィールドを持つ全タスクにスキル定義が生成されていること | Step 5: 生成完了 |
+| **Generation Result Gate** | Phase 4 | 一括生成されたAgent定義の確認・承認 | Step 4: Human Approves |
+| **Exit Gate** | Phase 5 | commandフィールドを持つ全タスクにスキル定義が生成されていること | Step 5: 生成完了 |
 ---
 ## 旧CMD対応表
 | **SKL_plc_03_construction** | **CMD_aipo_03_discover** | **変更内容** |
@@ -137,7 +148,7 @@ Agents生成中に以下のパターンを検出:
 | Phase 2: Template探索 | Step 2: テンプレート・既存コマンド探索 | Progressive Context Loading 3段階を明文化 |
 | Phase 3: スキル生成計画提案 | Step 3: コマンド生成計画の提案 | Skill Library→Skills。語彙変更 |
 | Phase 4: Mob Checkpoint | Step 4: Human Approves | HITL→Mob。チーム検証を標準オプション化 |
-| Phase 5: Skills生成 | Step 5: コマンド生成 | Commands/→Skills/。HITL統合型構造を維持 |
+| Phase 5: Agents生成 | Step 5: コマンド生成 | Commands/→Agents/。HITL統合型構造を維持 |
 | Phase 6: Mob Checkpoint | Step 6: Next Step | 語彙変更 + SKL名での案内 |
 ---
 ## → 次ステージ接続
@@ -163,25 +174,44 @@ Agents を **Stage 4: SKL_plc_04_operation** に渡す
 > - [RUL_plc_adaptive](../../../rules/ai-plc-adaptive.md)（Adaptive Workflow判定）
 > ---
 > **AIへの指示（このスキルが@メンションされたとき）**
-> ### Phase 1: Backlog読み込み
+> ### Phase 1: Backlog読み込み + ティア判定
 > 1. 対象LayerのBacklog（旧tasks.yaml）を読み込む
 > 2. 各タスクのcommandフィールドとcommand_template_refを確認
+> 3. 各タスクのtypeからagent_tierを自動判定（Lite: design/research/content/planning、Full: implementation/validation/complex/coding）
 > ### Phase 2: Template探索（Progressive Context Loading）
 > 1. Level 1: `.notion/Templates/`配下のAgent生成テンプレートを探索
 > 2. Level 2: 既存Agents/配下の過去Agent定義を探索
 > 3. Level 3: ドメイン知識テンプレート（AIPMコマンド群等）を探索
-> ### Phase 3: スキル生成計画提案
+> ### Phase 3: 生成計画 + Agent一括生成
 > 1. 各タスクに最適な参考テンプレートを特定
-> 2. Phase構造（Autonomous + Mob Checkpoint）を設計
-> 3. ユーザーに提案
-> ### Phase 4: Mob Checkpoint
-> 1. 参考テンプレートとPhase構造を確認してもらう
-> 2. 調整があれば反映
-> ### Phase 5: Agents生成
-> 1. Agents/フォルダを作成（存在しない場合）
-> 2. 各タスクのAgent定義ページをMob Checkpoint統合型で生成
-> 3. 各ページにGoal/Input/Output/Flow/Guardrails/Agent Instructionsを記載
-> ### Phase 6: Mob Checkpoint
+> 2. ティアに応じたAgent定義を生成（Lite: 4セクション / Full: 6セクション）
+> 3. **Task未指定時は全commandありタスクのAgentを一括生成**
+> 4. Agents/フォルダに配置
+> 5. **以下のフォーマットでユーザーに提示（省略禁止）:**
+> ```javascript
+> ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+> 【発見されたテンプレート・参考Agent】
+> ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+> [テンプレート一覧]
+>
+> ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+> 【生成対象Agent】
+> ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+> ✅ [TaskID]: AGT_[タスク名]
+> 参考: [テンプレート名]
+> 構造: Phase 1(Autonomous) → Mob CP 1 → Phase 2 → ...
+> Goal: [概要]
+>
+> ⏭️ [TaskID]: [タスク名]（commandフィールドなし → スキップ）
+> ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+> ```
+> ### Phase 4: Mob Checkpoint — 生成結果確認
+> **🚨 Phase 4では必ず停止し、ユーザーの承認を待つ。**
+> 1. Phase 3で一括生成されたAgent定義の一覧を提示
+> 2. 各Agentのティア（Lite/Full）・参考テンプレート・Goal概要を表示
+> 3. 修正指示があれば反映
+> 4. 🙋承認待ちブロックを出力: `→ OK / 修正: [指示] / 差し戻し`
+> ### Phase 5: Mob Checkpoint — 次ステージ提案
 > 1. 生成完了を通知
 > 2. Stage 4: SKL_plc_04_operation への遷移を案内
 > ---
@@ -190,12 +220,14 @@ Agents を **Stage 4: SKL_plc_04_operation** に渡す
 > - **テンプレートがあれば必ずコピーして使用**
 > - **各スキルページは実行可能な詳細度で作成**
 > - **HITL統合型（Autonomous + Mob Checkpoint交互）** を標準構造とする
+> - **Liteティア:** Goal + Input + Output + Guardrails の4セクションのみ。Execution FlowとAgent Instructionsはテンプレートから暗黙適用
+> - **Fullティア:** 全6セクション（Goal/Input/Output/Flow/Guardrails/Instructions）を必ず記載
 > ---
 > **📝 出力フォーマット規約（必ず遵守）**
 > **Phase遷移通知（セクション8）:** 各Phase完了時に📍簡易通知を必ず出力すること。Autonomous Phaseでも「✅ Phase X 完了 → Phase X+1 に進みます」を表示し、ユーザーが途中で割り込めるタイミングを作る。
 > [RUL_plc_session](../../../rules/ai-plc-session.md) セクション7-9に従い、**Phase 4 / Phase 6 の Mob Checkpoint** 出力には必ず以下を含める：
-> - **Phase 4（設計承認）:** 📍現在位置 + スキル設計テーブル + 🙋承認待ちコールアウト
-> - **Phase 6（完了）:** 📍現在位置 + 完了サマリテーブル + 📊進捗ダッシュボード + 🔜**Next Action Protocol**（[RUL_plc_session](../../../rules/ai-plc-session.md) 7.4: 選択肢テーブル + 推奨理由 + コピペ用プロンプト。Stage 3完了後テンプレートは7.4.4参照。即実行禁止）
+> - **Phase 4（生成結果確認）:** 📍現在位置 + 生成されたAgent一覧テーブル（ティア・参考TPL・Goal） + 🙋承認待ちコールアウト
+> - **Phase 5（完了）:** 📍現在位置 + 完了サマリテーブル + 📊進捗ダッシュボード + 🔜**Next Action Protocol**（[RUL_plc_session](../../../rules/ai-plc-session.md) 7.4: 選択肢テーブル + 推奨理由 + コピペ用プロンプト。Stage 3完了後テンプレートは7.4.4参照。即実行禁止）
 > ---
 > **⚠️ AI-PLC 新命名規則（必ず遵守）**
 > | 旧AIPO（❌使用禁止） | AI-PLC（✅正しい名称） |
@@ -214,4 +246,4 @@ Agents を **Stage 4: SKL_plc_04_operation** に渡す
 ---
 **作成日:** 2026-04-07
 **ステータス:** Active
-**バージョン:** 1.0
+**バージョン:** 1.1（v1.1 軽量化改修: ティア制 + Mob CP統合 + 一括生成モード + Phase番号整合）

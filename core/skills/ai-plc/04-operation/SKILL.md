@@ -178,8 +178,8 @@ L1/L2/L3検証の結果を受けて、以下のBacktrack Trigger条件を判定:
 **各項目の詳細:**
 1. ✅ **backlog.yaml更新** — タスクstatus → completed + Outputリンク（Phase 6で実施済み）
 2. ✅ **context.yaml更新** — 成果物エントリ追加（ドキュメント名 + サマリー）
-3. ✅ **[memory.md](../../../memory.md)チェック** — セッション中に学んだ知見があれば追記。なければ「新規知見なし」と明示
-4. ✅ **[user.md](../../../user.md)チェック** — 新しい好み・パターンがあれば更新。なければ「変更なし」と明示
+3. ✅ **[memory.md](https://www.notion.so/e96fb8b4f56146b4b5a5a946262d710d)チェック** — セッション中に学んだ知見があれば追記。なければ「新規知見なし」と明示
+4. ✅ **[user.md](https://www.notion.so/ab17cd3d928c4a3696849cebcd922072)チェック** — 新しい好み・パターンがあれば更新。なければ「変更なし」と明示
 5. ✅ **External Sync** — intent.yamlの`sync_targets`を**必ず読み込んで確認**。結果をログ出力:
 	- sync_targets未定義 → `「sync_targets未定義 → スキップ」`と出力
 	- sync_targets定義あり → 同期実行し結果を出力
@@ -195,11 +195,11 @@ L1/L2/L3検証の結果を受けて、以下のBacktrack Trigger条件を判定:
 >
 > 詳細: [RUL_plc_system](../../../rules/ai-plc-system.md) §10
 **実行フロー:**
-1. [index.md](../../../wiki/index.md) を読み込み、wiki配下の全トピックページを走査
+1. [index.md](https://www.notion.so/f3e4522534ae439e8fdf798c47de0358) を読み込み、wiki配下の全トピックページを走査
 2. **5項目のLintチェックリスト**を実行（[RUL_plc_system](../../../rules/ai-plc-system.md) §10参照）
 3. Lintレポートを`.notion/wiki/lint-report-YYYY-MM.md`として作成
 4. 🔴重要度の問題があればオーナーに通知
-5. [log.md](../../../wiki/log.md) に`lint`エントリを追加
+5. [log.md](https://www.notion.so/39918cbba9624a9c9488458786956bf0) に`lint`エントリを追加
 **手動実行:**
 ```javascript
 SKL_plc_04_operation Phase 8 Knowledge Lintを実行してください
@@ -365,6 +365,13 @@ SKL_plc_04_operation Phase 8 Knowledge Lintを実行してください
 > - **Context収集は必須**（実行前に追加情報を収集）
 > - **各Mob Checkpointでは必ず人間のアクションを待つ**
 > - **成果物は具体的に記録**（「〇〇ページを作成」「ステータスを更新」等）
+> ---
+> **🚨 Mob Checkpoint停止強制ルール（全Phase共通）**
+> - **Agent定義内のMob Checkpointでは必ず停止し、ユーザーの応答を待つ。** ユーザーの返答があるまで次のPhaseに進まない。
+> - **Phase 2（タスク選択）でタスクIDが入力で指定されていても、Agent定義内のMob Checkpointは省略しない。**
+> - **ショートカット禁止:** タスクID指定があっても、Phase 5.5（Verification）とPhase 7（Propagation）は省略しない。Agent定義にMob Checkpointがある場合、そこで必ず停止する。
+> - 停止時は必ず🙋承認待ちブロック（具体的な応答例: OK / 修正 / 差し戻し）を出力する。
+> - **「重要: 各Mob Checkpointでは必ず人間のアクションを待つ。人間の返答があるまで次のフェーズに進まない。」**
 > ---
 > **📝 出力フォーマット規約（必ず遵守）**
 > **Phase遷移通知（セクション8）:** 各Phase完了時に📍簡易通知を必ず出力すること。Skill ExecutionのAutonomous Phaseでも「✅ Phase X 完了 → Phase X+1 に進みます」を表示し、ユーザーが途中で割り込めるタイミングを作る。

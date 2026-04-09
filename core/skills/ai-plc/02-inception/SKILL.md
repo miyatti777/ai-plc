@@ -284,6 +284,12 @@ Backlog + Sub-Agent Registry を **Stage 3: SKL_plc_03_construction** に渡す
 > - **mode継承**: 親のmodeを全SubLayerに継承
 > - **Backlog生成時の検証**: focus_strategy / focus_strategy_reason / focus_strategy_confirmed_by を必須記録
 > ---
+> **🚨 Mob Checkpoint停止強制ルール（全Phase共通）**
+> - **Phase 4（分解承認）では必ず停止し、ユーザーの応答を待つ。** ユーザーの返答があるまでPhase 5（Backlog生成）に進まない。
+> - **Phase 6（次ステージ提案）でも必ず停止し、Next Action Protocolを出力してユーザーの選択を待つ。**
+> - **ショートカット禁止:** Layer指定やタスク数が少なくても、Phase 4のMob Checkpointは省略しない。
+> - 停止時は必ず🙋承認待ちブロック（具体的な応答例: OK / 修正: \[指示\] / 差し戻し）を出力する。
+> ---
 > **📝 出力フォーマット規約（必ず遵守）**
 > **Phase遷移通知（セクション8）:** 各Phase完了時に📍簡易通知を必ず出力すること。Autonomous Phaseでも「✅ Phase X 完了 → Phase X+1 に進みます」を表示し、ユーザーが途中で割り込めるタイミングを作る。
 > [RUL_plc_session](../../../rules/ai-plc-session.md) セクション7-9に従い、**Phase 4 / Phase 6 の Mob Checkpoint** 出力には必ず以下を含める：
