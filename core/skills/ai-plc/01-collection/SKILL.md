@@ -490,14 +490,17 @@ elif existing_scope is not None:
   Goalの複雑度を分析し、workflow_depthを判定：
 
 ```python
-# 判定ロジック
+# 判定ロジック（出力値は必ず以下3値のいずれか）
 if goal_is_single_domain and estimated_tasks <= 2:
     workflow_depth = "simple"
 elif goal_requires_multi_domain or estimated_tasks >= 8:
     workflow_depth = "complex"
 else:
     workflow_depth = "standard"
+# ❌ "multi", "basic", "advanced" 等の非スキーマ値は使用禁止
 ```
+
+  **正規化ルール:** workflow_depthは必ず `simple` / `standard` / `complex` の3値のいずれかで出力すること。内部思考で別の表現を使っても、intent.yamlへの記録と報告は正規値のみ。
 
   判定結果をユーザーに報告。ユーザーが変更した場合はそれに従う。
 

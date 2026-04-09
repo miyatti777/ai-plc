@@ -538,6 +538,41 @@ Mob Checkpoint（ユーザー承認・選択ポイント）では、以下の形
 
 ---
 
+## 10. Conversational Backtrack Monitor
+
+> 🔄 **パイプライン外の通常会話でも、新事実や進捗訂正をパイプラインプロセスに接続する軽量監視レイヤー。**
+
+RUL_plc_adaptive §5.5で定義されたBT-9/BT-10を、セッション管理の一部として運用する。
+
+### 10.1 検知パターンと出力
+
+**BT-9 State Correction（進捗訂正）:**
+
+検知キーワード: 「嘘でした」「間違い」「実はまだ」「訂正」「取り消し」等
+
+```
+💡 進捗訂正を検知しました。計画前提を再確認するためRe-Inceptionしますか？ / このまま続行
+```
+
+**BT-10 Ad-hoc Discovery（アドホック発見）:**
+
+検知キーワード: 「〜すべきでは？」「〜が足りない」「〜は検証した？」「〜が気になる」「〜も必要」等
+
+```
+💡 この発見はパイプラインに取り込む価値がありそうです。
+→ Re-Collectionで正式にContext化 / Re-Inceptionでタスク追加 / このまま続行
+```
+
+### 10.2 運用ルール
+
+1. **発火条件:** intent.yamlのstatus = activeのパイプラインが存在する場合のみ
+2. **出力形式:** 1行ヒント形式（会話フローを妨げない）。回答の末尾に付記
+3. **抑制ルール:** ユーザーが「このまま続行」を選択した場合、同一トピックでは再提案しない
+4. **Phase境界BTとの関係:** Phase 5.5b / Phase 6b のBTが先に発火する場合はそちらが優先。Conversational BTは補完的な役割
+5. **記録:** Conversational BTが発火しユーザーがRe-Collection/Re-Inceptionを選択した場合、backlog.yamlのrefactoring_logに記録
+
+---
+
 ## 旧CTX対応表
 
 | RUL_plc_session | CTX_session_rules | 変更内容 |
@@ -559,4 +594,4 @@ Mob Checkpoint（ユーザー承認・選択ポイント）では、以下の形
 
 **ステータス:** Active
 
-**バージョン:** 1.0
+**バージョン:** 1.1（§10 Conversational Backtrack Monitor追加）

@@ -191,6 +191,7 @@ L1/L2/L3検証の結果を受けて、以下のBacktrack Trigger条件を判定:
 | BT-3 | **Milestone Checkpoint** | root tasks or SubLayer完了率が50%または100%到達 | 「残タスクの妥当性を再評価しますか？ (Re-Inception)」 |
 | BT-4 | **Goal Drift Detection** | セッション中の完了タスク数 > 5、またはad-hocタスクが2つ以上追加されている | 「ゴールを再確認しますか？ (Re-Collection)」 |
 | BT-7 | **Goal-Gap Analysis** | backlog内の全タスクがcompleted | 「ゴール達成度のGAP分析を実施しますか？ (Re-Collection)」 |
+| BT-8 | **Conditional Go Gap** | Phase 5.5でConditional Go（important残あり）判定 | 「検証タスクを追加するため Re-Inception しますか？」 |
 
 **出力形式（BT該当時のみ、Next Action Protocolに統合）:**
 
@@ -462,7 +463,8 @@ SKL_plc_04_operation Phase 8 Knowledge Lintを実行してください
 
 ### Phase 6b: Pipeline-Level Backtrack Check
 
-  1. BT-3/BT-4/BT-7条件を判定（RUL_plc_adaptive §5参照）
+  1. BT-3/BT-4/BT-7/BT-8条件を判定（RUL_plc_adaptive §5参照）
+  1. **BT-8判定:** Phase 5.5でConditional Go（important残あり）だった場合、検証タスク追加のRe-Inceptionを提案
   1. 該当あり → Next Action ProtocolにBacktrack選択肢(D/E)を統合
   1. 該当なし → 通常のNext Action Protocolのみ
 
