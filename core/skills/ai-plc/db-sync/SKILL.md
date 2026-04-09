@@ -1,6 +1,6 @@
 # AI-PLC DB Sync
 
-Notion DB (AI-PLC Projects / AI-PLC Tasks) と `.claude/db/ai_plc.db` を直接API経由で双方向同期する。
+`.claude/db/ai_plc.db` をローカルの正本として扱い、`projects` / `tasks` テーブルを Notion と双方向同期する。
 
 ## When to Use
 
@@ -29,16 +29,16 @@ python3 .claude/db/sync.py push --dry-run    # dry-run (変更なし)
 
 ## Sync Logic
 
-- **Pull**: Notion DB を query → `notion_last_edited` で差分検出 → ローカルを更新
+- **Pull**: Notion 側を query → `notion_last_edited` で差分検出 → `.claude/db/ai_plc.db` を更新
 - **Push**: `updated_at > last_sync_at` の行を検出 → Notion API で PATCH/POST
 - **Conflict**: Pull時にローカルも変更されている行は CONFLICT としてスキップ（安全側）
 
 ## Data Model
 
-| テーブル | Notion DB | 用途 |
-|---------|-----------|------|
-| projects | AI-PLC Projects (`8f5680ac-...`) | プロジェクト管理 |
-| tasks | AI-PLC Tasks (`a4df4cf0-...`) | タスク管理 |
+| テーブル | ローカルDB | 同期先Notion DB | 用途 |
+| --- | --- | --- | --- |
+| projects | `.claude/db/ai_plc.db` | AI-PLC Projects (`8f5680ac-...`) | プロジェクト管理 |
+| tasks | `.claude/db/ai_plc.db` | AI-PLC Tasks (`a4df4cf0-...`) | タスク管理 |
 
 ## Typical Workflow
 
