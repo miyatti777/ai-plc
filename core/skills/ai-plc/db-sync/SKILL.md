@@ -42,8 +42,8 @@ python3 .claude/db/sync.py push --dry-run    # dry-run (変更なし)
 
 | テーブル | ローカルDB | 同期先Notion DB | 用途 |
 | --- | --- | --- | --- |
-| projects | `.claude/db/ai_plc.db` | AI-PLC Projects (`8f5680ac-...`) | プロジェクト管理 |
-| tasks | `.claude/db/ai_plc.db` | AI-PLC Tasks (`a4df4cf0-...`) | タスク管理 |
+| projects | `.claude/db/ai_plc.db` | Notion: Projects DB（`AI_PLC_PROJECTS_DB_ID` で指定） | プロジェクト管理 |
+| tasks | `.claude/db/ai_plc.db` | Notion: Tasks DB（`AI_PLC_TASKS_DB_ID` で指定） | タスク管理 |
 
 ## Typical Workflow
 
