@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": "src",
+    "paths": {
+      "@domain/*": ["domain/*"],
+      "@services/*": ["services/*"],
+      "@infra/*": ["infra/*"],
+      "@components/*": ["components/*"],
+      "@stores/*": ["stores/*"]
+    }
+  },
+  "include": ["src"]
+}

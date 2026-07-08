@@ -54,6 +54,6 @@ Create new work in `Flow/[YYYYMM]/[YYYY-MM-DD]/`.
 After completing each task, execute the following checklist:
 1. backlog.yaml — Update status to completed + output link
 2. context.yaml — Add artifact entry
-3. memory.md — Check for new knowledge
-4. user.md — Check for new preferences
-5. Wiki update — Propagate new knowledge to related topics
+3. native memory — Update user model/preferences (Claude Code native memory; or skip)
+4. Wiki update — Propagate new knowledge to .claude/wiki/
+5. External Sync / log.md / Project Registry — see rules/ai-plc-system.md §8

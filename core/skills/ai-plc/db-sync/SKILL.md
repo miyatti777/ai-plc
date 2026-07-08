@@ -1,3 +1,8 @@
+---
+name: ai_plc_db_sync
+description: ai_plc_db_sync - AI-PLCのローカルDBとNotion DBをpull、push、sync、statusで双方向同期する。
+---
+
 # AI-PLC DB Sync
 
 `.claude/db/ai_plc.db` をローカルの正本として扱い、`projects` / `tasks` テーブルを Notion と双方向同期する。

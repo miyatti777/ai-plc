@@ -1,7 +1,6 @@
 # AI-PLC (AI Product Lifecycle) System
 
-AI-PLCは、PMBOKの知識体系をAIエージェント向けに再設計した4ステージパイプライン。
-Claude Code / Cursor 環境で動作するスキル群として提供される。
+Notion版AI-PLCパイプラインをClaude Code / Cursor環境に移植したスキル群。
 
 ## 4ステージパイプライン
 
@@ -16,8 +15,8 @@ Claude Code / Cursor 環境で動作するスキル群として提供される�
 
 ### Persistent Memory（`.claude/` 直下）
 - `soul.md` — AIの行動原則・アイデンティティ
-- `user.md` — ユーザーモデル
-- `memory.md` — 蓄積型知見 → wiki/ へのポインタ
+- `wiki/` — プロジェクト横断の知見ベース（LLM Wiki型: 概念ページ / sources / queries）
+- CC native memory（`~/.claude/projects/<repo>/memory/`）— ユーザーモデル・進行中PJ状態（system §7の2系統ルール参照）
 
 ### Rules（`.claude/rules/`）
 - `ai-plc-system.md` — ルートシステムルール（§1〜§20）
@@ -41,9 +40,11 @@ Claude Code / Cursor 環境で動作するスキル群として提供される�
 | TPL_* | Templates | TPL_role_developer |
 | AGT_plc_* | Agents | AGT_plc_linter |
 
-## コア原理
+## 正本
 
-- **Context Cascade** — 親→子スコープへの3分類コンテキスト伝播（immutable / overridable / local）
-- **Fractal Decomposition** — Goalの再帰的分解とSub-Agent Scope生成
-- **Adaptive Workflow** — Simple / Standard / Complex の3段階深度自動判定
-- **Self-Describing Task** — コンテキスト付きタスク委譲構造
+Notion上の `.notion` ルートページ（Explaza WS）が正本。
+このCC/Cursor版は nsync 同期スナップショットから変換・配置したミラー。
+
+- 同期元: `de91333c-2473-4cbd-a93b-05e6eac6a606`
+- 移植日: 2026-04-08
+- 移植ガイド: Cursor移植ガイド v1.3（修正版）

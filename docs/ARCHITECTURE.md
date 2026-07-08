@@ -67,11 +67,11 @@ Parent Scope
 
 1. backlog.yaml更新
 2. context.yaml更新
-3. memory.md チェック
-4. user.md チェック
-5. External Sync
-6. Wiki波及更新
-7. log.md更新
+3. native memory（ユーザーモデル・好み。Claude Code native memory）
+4. External Sync
+5. Wiki波及更新
+6. log.md更新
+7. Project Registry DB更新
 
 ## Knowledge Wiki（Karpathy Second Brain）
 

@@ -105,7 +105,7 @@ safe_remove "$TARGET_DIR/.ai-plc-version"
 
 echo ""
 echo "⚠️  The following files were NOT removed (may contain your customizations):"
-echo "   .claude/soul.md, .claude/user.md, .claude/memory.md, .claude/wiki/"
+echo "   .claude/soul.md, .claude/wiki/"
 echo "   .claude/commands/, .claude/agents/"
 echo ""
 echo "✨ AI-PLC uninstalled."

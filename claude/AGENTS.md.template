@@ -24,7 +24,7 @@
 1. Deliverable files exist at the specified path
 2. `backlog.yaml` status is updated to `completed` with `completed_at` date
 3. YAML files parse without error
-4. Post-Deliver Propagation completed (context.yaml, memory.md, wiki/)
+4. Post-Deliver Propagation completed (context.yaml, wiki/, native memory)
 
 ### Key Naming (AI-PLC)
 

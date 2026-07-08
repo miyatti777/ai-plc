@@ -1,0 +1,29 @@
+{
+  "name": "kotonoha-store",
+  "version": "0.1.0",
+  "private": true,
+  "description": "コトノハストア — D2Cライフスタイル雑貨EC（Shopify基盤）のアプリケーション骨格",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "tsc --noEmit && eslint src",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@shopify/shopify-api": "^11.0.0",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.5.0",
+    "vite": "^5.0.0",
+    "vitest": "^2.0.0"
+  }
+}
