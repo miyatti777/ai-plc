@@ -136,47 +136,95 @@ Goal: <達成したいことを1〜2文で>
 
 > 「答え」（完成済みStory/Spec）は**あえて入れていません**。あなたがその場で生成する体験になります。
 
-### ステップ①: 発散 — OKRに効く施策を広げて1本選ぶ
+> このチュートリアルは **実際にスキルを発動**させて回します。各コマンドを打つと AI が動き、要所（Mob Checkpoint）で止まってあなたの承認を待ちます。承認は `OK`、直したいときは `修正: 〜`、やり直しは `差し戻し`。
 
-コトノハを clone した状態（または examples/kotonoha を開いた状態）で、チャットに:
+---
+
+### パートA｜発散: 施策を出す（4ステージを回す）
+
+**A-1. Collection を起動**（発散の入口）。チャットに:
 
 ```
-examples/kotonoha/context/ の4ファイル（会社概要・OKR・議事録・現状データ）を読んで、
-今QuarterのObjective「リピート起点でLTVを底上げ」とKR1〜3に効く施策を5〜8個 発散して。
-そのうえで、効果 / 実現コスト / 撤退容易性で加重スコアを付けて最有力の1本を選定して。
-選定理由と、狙うKR・想定KPIツリー上の位置づけも添えて。
+/01-collection を実行してください
+
+Goal: コトノハストアのPMとして、今QuarterのOKR（KR1 リピート率 32→38% / KR2 AOV 6,800→7,500円 / KR3 メルマガ・LINE再訪率 15→22%）に効く施策を発散→収束し、最初に着手する1本を根拠付きで選定する。前提コンテキストは examples/kotonoha/context/ の4ファイル（会社概要・OKR・議事録・現状データ）にあります。
+Mode: direct
 ```
 
-**期待される結果:** 施策が5〜8個 表形式で並び、加重スコアで1本が選定される（例: 「補充リマインド配信」）。なぜそれを選んだかの根拠付き。
+→ **何が起きる:** AI が `context/` を読み込み、状況を構造化し、深度判定（standard）と「成功条件」を提示して**停止**します。内容を確認して:
 
-### ステップ②: 収束 — 選んだ施策を Story + Spec 化する
+```
+OK
+```
 
-`/spec-story-starter` スキルで、選定施策を**対象リポの実構造にground**したエンジニア向け Story+Spec に落とします:
+**A-2. Inception へ**（Goalをタスクに分解）。承認後に案内されるプロンプト、または直接:
+
+```
+/02-inception を実行してください
+Scope: （A-1でAIが採番した scope_id を貼る。`L-MMDD` 形式）
+```
+
+> ⚠️ `Scope:` はA-1でAIが表示した実際の scope_id に置き換えます（そのままでは動きません）。以降のコマンドも同じ。
+
+→ **何が起きる:** Goal が「発散タスク」「評価タスク」「収束・選定タスク」等に分解され `backlog.yaml` になる。→ `OK`
+
+**A-3. Construction**（各タスクの実行役を定義）:
+
+```
+/03-construction を実行してください
+Scope: （同じ scope_id）
+```
+
+→ **何が起きる:** 各タスクに Agent（実行役）が割り当てられる。「AIに何を任せるか」が決まる。→ `OK`
+
+**A-4. Operation で発散を実行**:
+
+```
+/04-operation を実行してください
+Scope: （同じ scope_id）
+Task: （最初のP0タスク＝施策発散のID。例: T001）
+```
+
+→ **何が起きる:** AI が OKR に効く施策を**大量に発散**する（型のグラデーションで幅出し）。
+
+**A-5. 収束・選定まで流す**:
+
+```
+次のタスクを実行してください
+```
+
+→ **何が起きる:** 発散した施策を評価軸でスコアリングし、**最初の1本を根拠付きで選定**（例: 「補充リマインド配信」）。maker≠checker の独立検証も走る。各段の停止で `OK`。
+
+✅ **パートA完了:** 「何をやるか」が根拠付きで1本に決まりました。
+
+---
+
+### パートB｜収束: 選んだ施策をエンジニア仕様に落とす
+
+**B-1. Story + Spec を生成して起票**（`/spec-story-starter`）。選定結果を入力に:
 
 ```
 /spec-story-starter
-source: ①で選定した施策（施策名と選定メモ）
-feature_label: <施策名（例: 補充リマインド配信）>
+source: （パートAで選定した施策名と選定理由。決定ドキュメントがあればそのパス）
+feature_label: 補充リマインド配信
 target_repo: examples/kotonoha/kotonoha-store
 backlog: examples/kotonoha/kotonoha-backlog
 detail_level: standard
 ```
 
-**期待される結果:** AIがまず `kotonoha-store` を探索し「どのファイルに実装するか」を特定 → **Story起草とSpec起草が並列**で走り → 別AIが整合レビュー → `kotonoha-backlog/stories/` に `ST-KTN-004_*.md` が起票され、Specも生成される。Specの「実装箇所」は `src/services/ReminderService.ts` など**実在ファイル**を指します。
+→ **何が起きる:** AI がまず `kotonoha-store` を探索し「どのファイルに実装するか」（例: `src/services/ReminderService.ts`）を特定 → **Story起草とSpec起草が並列**で走り → 別AIが整合レビュー → `kotonoha-backlog/stories/` に `ST-KTN-004_*.md` が**起票**され、Specも生成される。→ `OK`
 
-### ステップ③: 仕様化 — 画面のワイヤフレームを描く
-
-`/wire-aa-authoring` で、②のStory/Specと対象リポから、画面UIの**現状→変更後**をASCIIアートで描きます:
+**B-2. 画面のワイヤフレームを描く**（`/wire-aa-authoring`）:
 
 ```
 /wire-aa-authoring
-story: examples/kotonoha/kotonoha-backlog/stories/ST-KTN-004_<②のfeature名>.md
+story: examples/kotonoha/kotonoha-backlog/stories/ST-KTN-004_<B-1で付いたfeature名>.md
 target_repo: examples/kotonoha/kotonoha-store
 screens: NotificationSettings, MyPage
 tier: full
 ```
 
-**期待される結果:** AIがcomponentを調査し、`現状` と `変更後` のワイヤフレームをコードブロックで対に描く。Storyに「設計決定ログ」が追記される。
+→ **何が起きる:** AI が component を調査し、画面の**現状→変更後**をASCIIアートで対に描く。Storyに「設計決定ログ」が追記される。→ `OK`
 
 ```
 +------------------------------------------+
@@ -188,11 +236,27 @@ tier: full
 +------------------------------------------+
 ```
 
+✅ **パートB完了:** 抽象的な施策が、**実装箇所付きのStory+Spec＋画面ワイヤフレーム**になり、エンジニアに渡せる状態に。
+
+---
+
+### 応用: 途中で方向を変える（差し込みプロンプト）
+
+AI-PLC の本領は「回しながら直せる」こと。どの段でも、こう割り込めます:
+
+| やりたいこと | 打つプロンプト |
+| --- | --- |
+| もっと広く発散 | `もっと違う切り口の施策も発散して（例: 休眠顧客の掘り起こし）` |
+| 評価軸を足す | `評価軸に「実装スピード」を追加して見直して` |
+| **軌道修正（Backtrack）** | `やっぱりKR3（再訪率）を主軸に考え直したい` → AIが前段に戻る Re-Inception を提案 |
+| 仕様を厚く | `detail_level を deep にして、バリデーションとエラーケースを厚く` |
+| 段階分け | `このStoryをMVPと第2版にTier分割して` |
+
 ### 一周し終えたら
 
 - `kotonoha-backlog/board.md` に新しいStory行が増え、`stories/` にStory、必要ならSpec・wireframe が生成されています
-- **別の施策を選び直して②③をやり直す**と、収束の当たり外れを比較できます
-- これがそのまま、あなたの実プロジェクトでの使い方の雛形になります（`target_repo` を自分のリポに変えるだけ）
+- **別の施策を選び直して**パートB をやり直すと、収束の当たり外れを比較できます
+- これがそのまま、あなたの実プロジェクトでの使い方の雛形です（`target_repo` を自分のリポに変えるだけ）
 
 ---
 
