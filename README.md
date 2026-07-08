@@ -19,6 +19,7 @@ Collection  →  Inception  →  Construction  →  Operation
 
 ## 目次
 
+- [🎥 デモ動画で見る](#-デモ動画で見る)
 - [なぜ AI-PLC なのか](#なぜ-ai-plc-なのか)
 - [ループエンジニアリングとの関係](#ループエンジニアリングとの関係)
 - [インストール](#-インストール5分)
@@ -30,6 +31,19 @@ Collection  →  Inception  →  Construction  →  Operation
 - [FAQ](#-faq)
 - [単なるループと違う点](#単なるループと違う5点)
 - [インストール内容・安全性・構造](#-インストール内容--安全性)
+
+---
+
+## 🎥 デモ動画で見る
+
+架空EC「コトノハストア」を題材に、AI-PLC が **発散→収束** を回す様子。サムネイルをクリックで再生。
+
+| 🔵 発散 — 施策を広げて1本選ぶ | 🟢 収束 — 選んだ施策をエンジニア仕様に落とす |
+|:---:|:---:|
+| [![発散デモ](https://img.youtube.com/vi/vTga5VbFbGw/hqdefault.jpg)](https://www.youtube.com/watch?v=vTga5VbFbGw) | [![収束デモ](https://img.youtube.com/vi/RuswfXNe-Pk/hqdefault.jpg)](https://www.youtube.com/watch?v=RuswfXNe-Pk) |
+| `/01-collection`→`/04-operation` で施策を発散→選定 | `/spec-story-starter`→`/wire-aa-authoring` で Story/Spec→ワイヤフレーム |
+
+> このあとの[チュートリアル](#-チュートリアル-コトノハで一周する発散収束仕様化)は、動画と同じ流れを自分の手で回せます。
 
 ---
 
@@ -142,6 +156,8 @@ Goal: <達成したいことを1〜2文で>
 
 ### パートA｜発散: 施策を出す（4ステージを回す）
 
+▶ [発散デモ動画](https://www.youtube.com/watch?v=vTga5VbFbGw)（このパートの流れを動画で）
+
 **A-1. Collection を起動**（発散の入口）。チャットに:
 
 ```
@@ -200,6 +216,8 @@ Task: （最初のP0タスク＝施策発散のID。例: T001）
 ---
 
 ### パートB｜収束: 選んだ施策をエンジニア仕様に落とす
+
+▶ [収束デモ動画](https://www.youtube.com/watch?v=RuswfXNe-Pk)（このパートの流れを動画で）
 
 **B-1. Story + Spec を生成して起票**（`/spec-story-starter`）。選定結果を入力に:
 
