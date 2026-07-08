@@ -91,6 +91,20 @@ Addy Osmani（原理）「プロンプトするのをやめ、ループを設計
 
 **前提:** インストール先は **git リポジトリ**であること（Claude Code / Cursor の要件）。`python3`（DB初期化に使用）。
 
+### いちばん簡単: AI にお願いする ⭐
+
+導入したいプロジェクトを Claude Code / Cursor で開き、チャットに**このURLを貼ってお願いするだけ**:
+
+```
+https://github.com/miyatti777/ai-plc をこのプロジェクトにインストールして。
+リポジトリを clone して install-cc.sh --target . を実行して。
+（Cursor を使っているなら install-cursor.sh）
+```
+
+AI が clone → インストールまで実行してくれます。オプションを覚える必要はありません。終わったら Claude Code / Cursor を**リロード**して `/01-collection` が使えれば完了です。
+
+### 手動（CLI でやる場合）
+
 ```bash
 # 1. clone
 git clone https://github.com/miyatti777/ai-plc.git
