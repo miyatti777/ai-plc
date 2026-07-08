@@ -1,5 +1,5 @@
 ---
-name: 02_inception
+name: 02-inception
 description: ai_plc_inception - AI-PLC Stage 2。Goalを分析し、BacklogとSub-Agent Registryを生成する。
 ---
 

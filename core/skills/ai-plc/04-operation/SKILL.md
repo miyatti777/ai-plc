@@ -1,5 +1,5 @@
 ---
-name: 04_operation
+name: 04-operation
 description: ai_plc_operation - AI-PLC Stage 4。Agent定義に従ってタスクを実行し、成果物をArtifact Storeに格納する。
 ---
 

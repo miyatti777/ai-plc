@@ -1,5 +1,5 @@
 ---
-name: 01_collection
+name: 01-collection
 description: ai_plc_collection - AI-PLC Stage 1。Execution Contextを確立し、外部・内部情報源からコンテキストを収集・構造化する。
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: 03_construction
+name: 03-construction
 description: ai_plc_construction - AI-PLC Stage 3。Backlogの各タスクに対して実行可能なスキル定義と実行計画を生成する。
 ---
 
