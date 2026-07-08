@@ -85,6 +85,22 @@ done
 info "Rules installed: .cursor/rules/ai-plc-*.mdc"
 
 echo ""
+echo "🧠 Step 2.5/3: Memory (wiki) + local DB..."
+if [[ "$DRY_RUN" != true ]]; then
+    mkdir -p "$TARGET_DIR/.cursor/wiki" "$TARGET_DIR/.cursor/db" 2>/dev/null || true
+    for w in wiki.md index.md log.md; do
+        [ -f "$TARGET_DIR/.cursor/wiki/$w" ] || cp "$SCRIPT_DIR/templates/wiki/$w" "$TARGET_DIR/.cursor/wiki/$w" 2>/dev/null || true
+    done
+    cp "$SCRIPT_DIR/core/db/init_db.py" "$SCRIPT_DIR/core/db/plc_query.py" "$SCRIPT_DIR/core/db/sync.py" "$SCRIPT_DIR/core/db/README.md" "$TARGET_DIR/.cursor/db/" 2>/dev/null || true
+    if command -v python3 >/dev/null 2>&1; then
+        python3 "$TARGET_DIR/.cursor/db/init_db.py" >/dev/null 2>&1 && info "DB ready: .cursor/db/ai_plc.db" || info "DB init skipped — run: python3 .cursor/db/init_db.py"
+    fi
+    info "Memory: .cursor/wiki/  |  DB: .cursor/db/ai_plc.db"
+else
+    echo "  [dry-run] would install .cursor/wiki/ + .cursor/db/ (init ai_plc.db)"
+fi
+
+echo ""
 echo "📌 Step 3/3: Version marker..."
 if [[ "$DRY_RUN" != true ]]; then
     cp "$SCRIPT_DIR/.ai-plc-version" "$TARGET_DIR/.ai-plc-version"
@@ -96,7 +112,7 @@ echo "✨ AI-PLC for Cursor installed successfully!"
 echo "   Version: $VERSION"
 echo ""
 echo "Next steps:"
-echo "  1. Skills are at: .cursor/skills/ai-plc/"
+echo "  1. Skills are at: .cursor/skills/ai-plc/  |  Memory: .cursor/wiki/  |  DB: .cursor/db/"
 echo "  2. Rules are at: .cursor/rules/ai-plc-*.mdc"
 echo "  3. Reload Cursor, then run the slash command /01-collection to start your first pipeline"
 echo "     (In Cursor, '/' invokes commands; '@' is only for file/symbol mentions.)"

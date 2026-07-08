@@ -175,6 +175,20 @@ safe_copy_if_missing "$SCRIPT_DIR/templates/wiki/wiki.md" "$TARGET_DIR/.claude/w
 safe_copy_if_missing "$SCRIPT_DIR/templates/wiki/index.md" "$TARGET_DIR/.claude/wiki/index.md"
 safe_copy_if_missing "$SCRIPT_DIR/templates/wiki/log.md" "$TARGET_DIR/.claude/wiki/log.md"
 
+# Local DB (Project Registry / Tasks). Scripts are refreshed; the .db (your data) is never overwritten.
+echo "🗄  Installing local DB (Project Registry / Tasks)..."
+mkdir -p "$TARGET_DIR/.claude/db" 2>/dev/null || true
+if [[ "$DRY_RUN" != true ]]; then
+    cp "$SCRIPT_DIR/core/db/init_db.py" "$SCRIPT_DIR/core/db/plc_query.py" "$SCRIPT_DIR/core/db/sync.py" "$SCRIPT_DIR/core/db/README.md" "$TARGET_DIR/.claude/db/" 2>/dev/null || true
+    if command -v python3 >/dev/null 2>&1; then
+        python3 "$TARGET_DIR/.claude/db/init_db.py" >/dev/null 2>&1 && echo "  ✅ .claude/db/ai_plc.db ready" || echo "  ⚠️  DB init skipped — run: python3 .claude/db/init_db.py"
+    else
+        echo "  ⚠️  python3 not found — run later: python3 .claude/db/init_db.py"
+    fi
+else
+    echo "  [dry-run] would install .claude/db/ (init_db.py, plc_query.py, sync.py) + init ai_plc.db"
+fi
+
 if [[ "$DRY_RUN" != true ]]; then
     cp "$SCRIPT_DIR/.ai-plc-version" "$TARGET_DIR/.ai-plc-version"
 fi

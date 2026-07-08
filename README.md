@@ -175,14 +175,23 @@ Bizも創作も家のイベントも、**同じ型（ループ×分解）**で�
 
 ## 📦 インストール内容 / 安全性
 
-**Claude Code:** `.claude/skills/ai-plc/`（4ステージ+テンプレート）・`.claude/skills/utility/`（新スキル2本）・`.claude/rules/ai-plc-*.md`・`.claude/commands/`・`.claude/agents/`・`CLAUDE.md`/`AGENTS.md`（マージ）・`.claude/soul.md`・`.claude/wiki/`
-**Cursor:** `.cursor/skills/`（同上）・`.cursor/rules/ai-plc-*.mdc`（alwaysApply）
+**Claude Code:** `.claude/skills/ai-plc/`（4ステージ+テンプレート）・`.claude/skills/utility/`（新スキル2本）・`.claude/rules/ai-plc-*.md`・`.claude/commands/`・`.claude/agents/`・`CLAUDE.md`/`AGENTS.md`（マージ）・`.claude/soul.md`・`.claude/wiki/`・`.claude/db/`（空DB初期化）
+**Cursor:** `.cursor/skills/`（同上）・`.cursor/rules/ai-plc-*.mdc`（alwaysApply）・`.cursor/wiki/`・`.cursor/db/`
 
 - **既存ファイルは上書きしない** — バックアップ（`.bak.YYYYMMDD`）を作成
 - **CLAUDE.md / AGENTS.md はマーカーでマージ**（`<!-- AI-PLC START/END -->`）
-- **テンプレートはスキップ** — `soul.md` 等は既存がなければのみ配置
-- **記憶は2系統** — プロジェクト知見は `.claude/wiki/`、ユーザーモデル/好みは Claude Code の native memory（自動管理）
-- **dry-run / アンインストール可能** — `--dry-run` で事前確認、`./uninstall.sh` で除去（カスタム済みは残す）
+- **テンプレートはスキップ** — `soul.md`・`wiki/` 等は既存がなければのみ配置
+- **dry-run / アンインストール可能** — `--dry-run` で事前確認、`./uninstall.sh` で除去（カスタム済み・DBは残す）
+
+### 記憶とデータ（どこに何が残るか）
+
+| 種別 | 置き場 | 中身 |
+|------|--------|------|
+| **プロジェクト知見（wiki）** | `.claude/wiki/` | バグパターン・設計判断など横断知見。育てて使う |
+| **ユーザーモデル/好み** | Claude Code の native memory（自動管理） | あなたの判断パターン・好み。Cursorには無い |
+| **Project Registry / Tasks** | `.claude/db/ai_plc.db`（インストール時に空生成） | PJ横断の台帳＋既定の External Sync 先。核ループはDB無しでも動く任意機能 |
+
+> Notion と同期したい場合のみ `.claude/db/sync.py` を使います（`NOTION_API_TOKEN` と自分の DB ID を環境変数で指定）。詳細は `.claude/db/README.md`。
 
 <details>
 <summary>ディレクトリ構造</summary>
@@ -194,7 +203,8 @@ ai-plc/
 ├── core/
 │   ├── skills/ai-plc/     # 4ステージスキル + テンプレート
 │   ├── skills/utility/    # spec-story-starter / wire-aa-authoring
-│   └── rules/             # system / session / adaptive
+│   ├── rules/             # system / session / adaptive
+│   └── db/                # init_db.py / plc_query.py / sync.py（Registry/Tasks DB）
 ├── claude/                # Claude Code固有（commands / agents / *.template / settings）
 ├── cursor/                # Cursor固有（.mdc rules）
 ├── templates/             # soul.md / wiki
