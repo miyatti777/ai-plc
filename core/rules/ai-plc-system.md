@@ -171,7 +171,9 @@ wiki配下の知識ベース健全性を月次で検証する（SKL_plc_04_opera
 
 ## 16. 🔍 コンテキスト収集優先順位
 
-🔴 Flow日付フォルダ → 🔴 Stock/programs → 🟡 チームスペース → 🟡 Slack → 🔵 GitHub → 🔵 Web検索。内部情報を最優先し、外部は不足時のみ。
+🔴 Flow日付フォルダ → 🔴 Stock/programs → 🔴 Local横断検索（Grep/Glob/serena） → 🔴 Project Registry照会（plc_query） → 🔴 wiki（設計知見・過去の学び） → 🟡 native memory（ユーザーモデル・進行中PJ） → 🟡 接続済みMCP検索（Notion/Drive/Gmail/GitHub等） → 🟡 チームスペース/Slack → 🔵 Web検索。
+
+**内部・既存資産を最優先**し、外部は不足時のみ。**利用可能なものだけ使う**（未接続MCP・未導入ツール・serena無しは黙ってスキップし、エラーにしない）。各収集は §17 に従い件数を絞る。
 
 ## 17. ⚠️ 実行エラー回避原則
 

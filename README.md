@@ -27,6 +27,7 @@ Collection  →  Inception  →  Construction  →  Operation
 - [こんな使い方ができる](#-こんな使い方ができる)
 - [チュートリアル: コトノハで一周する](#-チュートリアル-コトノハで一周する発散収束仕様化)
 - [メモリの仕組み](#-メモリの仕組みwiki--native-memory)
+- [Collection が賢く集める（MCP）](#-collection-が賢く集めるmcpを繋ぐほど強くなる)
 - [DB の使い方](#-db-の使い方project-registry--tasks)
 - [同梱スキル](#-同梱スキル)
 - [FAQ](#-faq)
@@ -367,6 +368,32 @@ AI-PLC の「記憶」は **2系統**です。役割で使い分けます。
 
 > **振り分けの原則:** バグ・技術知見・PJ横断パターン → wiki ／ あなたの好み・判断のクセ → native memory。両方に重複させない。
 > Cursor には native memory 機能が無いため、wiki が主な記憶になります。
+
+---
+
+## 🔎 Collection が賢く集める（MCPを繋ぐほど強くなる）
+
+`/01-collection` は、Goalを渡すと **自分の記憶と手持ちのツールを総動員**してコンテキストを集めます。内部・既存資産を最優先し、**利用可能なものだけ使う**（未接続は黙ってスキップ）:
+
+| 集める先 | 何を拾うか |
+|---|---|
+| **ワークスペース横断検索**（Grep/Glob） | プロジェクト内の関連ファイル。`serena` があれば意味的に近い過去成果物も |
+| **Project Registry**（`.claude/db`） | 関連PJ・親PJ・同ドメインの過去プロジェクト |
+| **wiki** | 過去の設計判断・学び・バグパターン |
+| **native memory** | あなたの好み・進行中PJの状態（Claude Code） |
+| **接続済みMCP検索** | Notion / Google Drive / Gmail / serena 等を検出して検索。GitHubは `gh` CLI |
+| **Web検索** | 内部で足りないときだけ外部を補う |
+
+### 💡 検索系MCPをたくさん繋ぐほど、収集は賢くなる
+
+議事録・仕様・過去資料が **Notion / Google Drive** にあるなら、それらのMCPを繋いでおくと、Collectionが**あなたの知識ベースまで横断して**文脈を集めてくれます。おすすめの繋ぎ先:
+
+- **Notion**（`@notionhq/notion-mcp-server`）— 議事録・PRD・PJページ。トークン1つで繋がる
+- **Google Drive / Gmail**（Claude Code の Connectors、または各MCP）— 資料・メール
+- **serena** — コードベースのセマンティック検索
+- **GitHub** — `gh` CLI（`gh search ...`）が確実（auth済みなら追加設定不要）
+
+繋ぎ方はプロジェクト直下の `.mcp.json` に定義（**トークンは env 参照で。平文で書かない**）→ Claude Code をリロード。繋がっていないものは自動でスキップされるので、**まず持っているものから繋げばOK**です。
 
 ---
 

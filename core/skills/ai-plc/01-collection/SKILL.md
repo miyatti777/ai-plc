@@ -70,10 +70,16 @@ sync_targets: []              # Phase 6.5で設定（スキーマ: RUL_plc_syste
 
 ### Phase 4: Context Collection
 
-1. ワークスペース検索で関連情報を収集（優先順位: RUL_plc_system §16）
-2. Standard/Complex では外部情報源（Web検索等）も活用
-3. sub_agent_scope では親のContext Storeを読み込み、Context Cascade 3分類（RUL_plc_system §2）で継承
-4. `Context/` にカテゴリ別ドキュメントとして格納（例: 01_チーム構成.md, 02_関連リンク集.md, 03_技術スタック.md, 04_制約条件.md — Goalに応じて調整）
+RUL_plc_system §16 の優先順位で収集する。**内部・既存資産を最優先**し、利用可能なものだけ使う（未接続MCP・未導入ツールは黙ってスキップ）。各収集は §17 に従い件数を絞る（LIMIT必須）。
+
+1. **ワークスペース横断検索** — Flow日付フォルダ・Stock/programs を起点に、Grep/Glob で全域を串刺し検索。`serena` 等のセマンティック検索が使えれば意味的に近い過去成果物も拾う
+2. **Project Registry照会** — `.claude/db/plc_query.py` で `projects` を Goalキーワード検索し、関連PJ・親PJ・同ドメインの過去PJ（scope_id/goal/status）を引く
+3. **wiki検索** — `.claude/wiki/index.md` を読み、Goalに関連する概念ページ（設計知見・学び・バグパターン・矛盾フラグ）を拾う
+4. **native memory参照** — ユーザーモデル・好み・進行中PJの状態を踏まえる（§7準拠）
+5. **接続済みMCP/検索ツールの動的活用** — 環境に接続された検索系（Notion / Drive / Gmail / serena 等のMCP）を検出して使う。無ければスキップ。GitHubは `gh` CLI（`gh search ...`）が確実（MCPは環境依存でトークン伝播に失敗しうる）
+6. Standard/Complex で内部が不足する場合のみ **外部Web検索**で補う
+7. sub_agent_scope では親のContext Storeを読み込み、Context Cascade 3分類（RUL_plc_system §2）で継承
+8. `Context/` にカテゴリ別ドキュメントとして格納（例: 01_関連PJ・既存知見.md / 02_技術・制約.md / 03_関連リンク集.md — Goalに応じて調整）。各Context冒頭に**収集元**（Registry/wiki/横断/MCP/Web）を明記する
 
 ### Phase 5: Context Manifest生成（context.yaml）
 
