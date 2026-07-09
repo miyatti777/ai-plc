@@ -53,7 +53,7 @@ intent.yamlのworkflow_depthに応じて3層検証（RUL_plc_system §18）を�
 
 P0-P1相当の問題はPhase 4に戻って必ず修正する（同格・例外なし）。P2は原則その場で対応し、影響が限定的なら後続タスクへの持ち越しをMaker判断で選べる（持ち越し先タスクのdescriptionに反映）。P3は差し戻し対象外（語彙: RUL_plc_system §18）。タスク内で修正できない前提崩壊・外部依存・設計矛盾は Phase 5.5b のBT-A判定に委ねる。
 
-**独立検証（maker≠checker・全タスク既定動作）:** Phase 5.5の自己検証チェックリストを出力した直後、「する/しない」を質問せず原則毎回、作成文脈から独立したreviewerによる検証を実施（または提示）する — maker≠checkerの原則はコードに限らない（企画書・記事・設計書も作った本人は自分の欠陥に盲目）。検証は作成した文脈から分離する — CC / Cursor=Subagent reviewer（Agent tool・delegableなreviewer AGT、`TPL_review_agent`）/ Codex=sub-agent / Notion AI等サブエージェント機能のない環境=`@SKL_plc_checker`を別チャットで起動（成果物のみを入力にした別会話）。共通規定: reviewerには成果物と検証に必要な定義（Goal/Output・受け入れ基準・検証Level・該当typeのレンズ・snapshot）のみ渡し、作成文脈・会話履歴は渡さない / 出力は P0-P3 のフラットリスト or「No findings」（語彙: RUL_plc_system §18）/ 対象スナップショット（commit / ファイル更新時刻）を1行記録する（版ズレ重複指摘の防止）。reviewer結果はチェックリストの該当Level欄に転記する（例: `- [x] L1: 独立reviewer検証（snapshot: …）— No findings`）。reviewer出力が得られない場合はセルフ検証（L1/L2）にフォールバックし、その旨を1行記録して進む（silent skip禁止）。並列委譲（Phase 4）されたタスクでは、独立reviewer検証をもって親のL1裏取りに代えてよい（reviewerは実行Subagentと別文脈のため）。
+**独立検証（maker≠checker・全タスク既定動作）:** Phase 5.5の自己検証チェックリストを出力した直後、「する/しない」を質問せず原則毎回、作成文脈から独立したreviewerによる検証を実施（または提示）する — maker≠checkerの原則はコードに限らない（企画書・記事・設計書も作った本人は自分の欠陥に盲目）。検証は作成した文脈から分離する — CC / Cursor=Subagent reviewer（Agent tool・delegableなreviewer AGT、`TPL_review_agent`）/ Codex=sub-agent / Notion AI等サブエージェント機能のない環境=別チャットで独立reviewerを起動（成果物のみを入力にした別会話）。共通規定: reviewerには成果物と検証に必要な定義（Goal/Output・受け入れ基準・検証Level・該当typeのレンズ・snapshot）のみ渡し、作成文脈・会話履歴は渡さない / 出力は P0-P3 のフラットリスト or「No findings」（語彙: RUL_plc_system §18）/ 対象スナップショット（commit / ファイル更新時刻）を1行記録する（版ズレ重複指摘の防止）。reviewer結果はチェックリストの該当Level欄に転記する（例: `- [x] L1: 独立reviewer検証（snapshot: …）— No findings`）。reviewer出力が得られない場合はセルフ検証（L1/L2）にフォールバックし、その旨を1行記録して進む（silent skip禁止）。並列委譲（Phase 4）されたタスクでは、独立reviewer検証をもって親のL1裏取りに代えてよい（reviewerは実行Subagentと別文脈のため）。
 
 **発動強度（上から順に判定。レンズ表で対象外のtypeは常に対象外）:** 必須=complexのL3検証／受け手に渡る最終成果物（外部向け資料・公開コンテンツ・意思決定文書）→ reviewer結果を得るまで完了しない。既定=workflow_depth standard以上 → 毎回実施（または提示）し、reviewer出力が返らなければセルフ検証にフォールバック。省略可=simple・内部メモ・中間生成物・management/coordination・レビュー対象のない意思決定オンリー → セルフ検証L1でよい（省略時は「独立レビュー省略（基準: …）」と1行出力）。
 
@@ -65,6 +65,7 @@ P0-P1相当の問題はPhase 4に戻って必ず修正する（同格・例外�
 | content（記事・資料） | 事実確認・引用の裏取り / 読者視点で最後まで読めるか（L3）/ トーン一貫性 / 専門外への可読性（NFR） |
 | planning / design（企画・設計書） | 論理の飛躍・根拠 / 実現可能性・工数妥当性 / 意思決定者が判断できるか（L3）/ 矛盾検出（L2） |
 | research | ソースの信頼性・反証可能性 / 主張とエビデンスの対応 / 欠落した対立見解 |
+| goal / plan（Re-Collection GAP分析・Re-Inception残タスク再評価） | 元goal+success_criteriaとの充足・未達 / スコープ逸脱（ドリフト） / 見落とされた前提・欠落タスク / 完了宣言の妥当性 |
 | management / coordination | 対象外（独立レビュー不要・セルフチェックで可） |
 
 backlog.yamlの`type`値が表にない場合は最近縁の行を適用する（例: validation→implementation行 / operation→実行対象成果物のtype行）。
@@ -79,7 +80,7 @@ backlog.yamlを更新（status → completed + 成果物リンク）し、contex
 
 ### Phase 6b: Backtrack判定（パイプライン単位）
 
-BT-B（節目再評価: 完了率50% / ゴールドリフト）と BT-C（全完了GAP分析）を判定する（RUL_plc_adaptive §5）。該当時のみNext ActionにD/E選択肢を統合する。
+BT-B（節目再評価: 完了率50% / ゴールドリフト）と BT-C（全完了GAP分析）を判定する（RUL_plc_adaptive §5）。**この判定は独立checkerに通すのが既定**（maker≠checker。実行してきた本人はドリフト・未達に最も盲目）: 作成文脈から独立したreviewer（CC=Subagent / Notion AI等サブエージェント機能のない環境=別スレッド）に、元intent.yamlのgoal+success_criteria+成果物リストを渡し（実行ナラティブは剥ぐが元ゴールは渡す）、上表の`goal/plan`レンズで「達成/未達/スコープ逸脱/見落とし前提」を判定させる。checker出力が返らなければmaker自己判定にフォールバックし1行記録。該当時のみNext ActionにD/E選択肢を統合する。
 
 ### Phase 7: Propagation（省略禁止）
 
@@ -102,4 +103,4 @@ RUL_plc_session §7 の4パート（📍現在位置 / ✅完了サマリ / 📊
 Documents/（成果物） / Context Store・context.yaml（更新） / backlog.yaml（更新） / Production Skills（platform_builder時のみ）。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-07-08 ｜ **バージョン:** 2.3（独立検証をNotion v2.3-Nとハイブリッド統合: 全タスク既定動作〔常時提示+セルフフォールバック・silent skip禁止〕+ type別レンズ表 + 発動強度、P0-P1差し戻し/P2持ち越し可に整合、reviewer実現手段を追記。2.2: 独立検証の全type化。2.1: AGT-Subagent並列委譲。2.0: Fable観点軽量化・Lint/PB分離・BT 3種統合）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-07-09 ｜ **バージョン:** 2.4（Phase 6b BT-B/BT-C判定に独立checker既定化 + goal/planレンズ追加 — Re-Collection/Re-Inceptionにもmaker≠checkerを適用。2.3: 独立検証を全タスク既定動作化〔常時提示+セルフフォールバック・silent skip禁止〕+ type別レンズ表 + 発動強度、P0-P1差し戻し/P2持ち越し可。2.2: 独立検証の全type化。2.1: AGT-Subagent並列委譲。2.0: Fable観点軽量化・Lint/PB分離・BT 3種統合）

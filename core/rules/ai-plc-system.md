@@ -120,25 +120,26 @@ sync_targets:
 
 ## 10. 🧹 Knowledge Lint ルール
 
-wiki配下の知識ベース健全性を月次で検証する（SKL_plc_04_operationから手動/定期発動。実行手順詳細は `.claude/skills/ai-plc/04-operation/knowledge-lint.md`）。
+wiki配下の知識ベース健全性を検証する（SKL_plc_04_operationからイベント駆動・手動/定期発動。実行手順詳細は `.claude/skills/ai-plc/04-operation/knowledge-lint.md`）。
 
-チェック5項目: 🔴矛盾検出（CONTRADICTIONフラグ） / 🟡孤立ページ（バックリンクなし） / 🟡引用なし主張（Source未記載） / 🔵未説明概念 / 🔵欠落相互参照。
+チェック6項目: 🔴矛盾検出（CONTRADICTIONフラグ） / 🟡孤立ページ（バックリンクなし） / 🟡引用なし主張（Source未記載） / 🟡非ASCIIファイル名（wiki.md ASCIIスラッグ規約違反） / 🔵未説明概念 / 🔵欠落相互参照。
+トリガーは状態ベース（+5概念ページ / CONTRADICTION open 2件）を主・時間ベース（月次）を従とし、Operation Phase 7から自然発火する（3択トリガー・後処理フロー・規模連動の詳細は knowledge-lint.md）。
 レポートは `wiki/lint-report-YYYY-MM.md` に Errors/Warnings/Info/Summary + 推奨アクション3件 + 読むべき3記事の形式で出力する。
 
 ## 11. 🌊 Wiki波及更新ルール（Ingest Ripple — LLM Wiki準拠）
 
-新しい知見を得たら、LLM Wikiのページタイプ型（概念ページ=wiki直下 / sources/ / queries/ — Schema定義はwiki.md）で波及更新する。**発動タイミング: SKL_plc_04_operation Phase 7 Propagation時**（Collection段階では発動しない）。
+新しい知見を得たら、LLM Wikiのページタイプ型（概念ページ=wiki直下 / sources/ / queries/ — Schema定義はwiki.md）で波及更新する。**発動タイミング: SKL_plc_04_operation Phase 7 Propagation時**（Collection段階では発動しない）。**唯一の例外はQuery capture（下記「Query結果の還元」発火点②）** — 会話中の問いの queries/ へのファイリングは即時可（curated層である概念ページを触らないため）。ただしその**概念ページ還元は Phase 7 に従う**。
 
 **Ingest手順:**
 ①外部1次ソース由来の知見は、まず `sources/YYYY-MM-DD_[slug].md` にサマリーページを作成（1ソース=1ページ。テンプレはsources/README）。作業中の内部知見はサマリー不要で③へ
 ②index.mdを読み、関連する概念ページを特定
-③概念ページに追記 `- [YYYY-MM-DD] [Source: [[ソース名]] or 実測] [内容]`
-④`[[wikilink]]`で相互リンク（A→Bを足したらB→Aも確認。新規ページは関連既存ページ全てに）
-⑤必要なら新規概念ページ作成 + index.md更新（タイプ別カタログの該当表へ）
+③概念ページに追記 `- [YYYY-MM-DD] [Source: [[source-slug]] or 実測] [内容]`
+④`[[ascii-slug]]`（プレーンwikilink）で相互リンク（A→Bを足したらB→Aも確認。新規ページは関連既存ページ全てに）。エイリアス記法 `[[slug|表示名]]` は現行拡張で非対応のため使わない
+⑤必要なら新規概念ページ作成 + index.md更新（タイプ別カタログの該当表へ）。**新規ページのファイル名はASCIIスラッグ（kebab-case）必須**（日本語名はwikilink非解決。表示名はH1+index表示名列で保持（frontmatter titleは任意）。詳細はwiki.md規約）。非ASCII名はknowledge-lintで検出（§10の🟡非ASCIIファイル名項目）
 ⑥log.mdに `| YYYY-MM-DD | ingest | [ソース] | [影響数] |`
 ⑦frontmatterのlast_updated/source_count更新
 
-**Query結果の還元:** Deliver中のQuery結果のうち 🔴比較分析 / 🟡新見解 / 🔵接続発見 に該当するものは `queries/YYYY-MM-DD_[slug].md` にQ&Aをファイリングし、概念ページへ還元する（log種別: `query-return`）。単純な事実確認・既存知見の範囲内・PJ固有ローカル情報はスキップ。
+**Query結果の還元:** 発火点は2種 — ①Deliver中（Phase 7 Propagation）のQuery結果 ②タスク外の調査・相談で得た結論（会話中にAIが「query化候補」と1行**提案のみ**。Backtrack会話監視（RUL_plc_adaptive §5）と同じ軽さ＝**承認後にファイリング／ユーザーが見送ったら同一トピックで再提案しない**）。いずれも 🔴比較分析 / 🟡新見解 / 🔵接続発見 に該当するものを `queries/YYYY-MM-DD_[slug].md` にQ&Aファイリングし、概念ページへ還元する（log種別: `query-return`。概念ページ還元は Phase 7 Propagationの Wiki波及チェック §8 に従う）。単純な事実確認・既存知見の範囲内・PJ固有ローカル情報はスキップ。詳細は queries/README。
 
 **スキップ条件:** 既存wiki知見の範囲内で新規性がない場合（その旨を出力する）。
 
