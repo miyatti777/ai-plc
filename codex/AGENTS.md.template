@@ -1,0 +1,37 @@
+<!-- AI-PLC CODEX START -->
+# AI-PLC for Codex
+
+This repository uses the AI-PLC four-stage workflow. For Codex, invoke project skills with `$skill-name`:
+
+1. `$01-collection` — establish the execution context and Scope.
+2. `$02-inception` — decompose the Goal into an executable backlog.
+3. `$03-construction` — generate task Agent definitions and execution plans.
+4. `$04-operation` — execute one backlog task, verify it, update status, and propagate results.
+
+Codex skill entrypoints are under `.agents/skills/ai-plc/`. They are thin adapters. The canonical AI-PLC runtime, Rules, DB, Wiki, and templates are installed under `.claude/`; `.claude` is a compatibility runtime here, not Codex configuration.
+
+## Required behavior
+
+- Before changing project state, read the selected adapter and every canonical file it requires.
+- If a canonical Skill or any required Rule is missing or unreadable, report the exact path and stop without changing files.
+- Follow every Mob Checkpoint and wait for human approval where required.
+- Use a Codex sub-agent only when the user or an applicable instruction authorizes or requires it. Stage 4 independent review follows the canonical maker-not-checker rule.
+- In Codex-facing guidance, use `$01-collection` through `$04-operation`, not Claude Code slash-command notation.
+- Resolve AI-PLC DB, Wiki, Rules, and templates through the installed `.claude/` compatibility runtime.
+- Never resolve canonical Claude Code native-memory references to `~/.claude`; Codex must not read or modify another tool's global native memory and records that propagation item as skipped.
+
+## Definition of Done
+
+A task is complete only when its declared deliverables exist, required validation passes, backlog/context status is updated when applicable, and no unresolved P0/P1/P2 verification finding remains.
+
+## Safety
+
+- Preserve existing user content outside AI-PLC managed files or managed marker regions.
+- Do not overwrite user-data seeds such as AI-PLC SQLite databases or Wiki pages.
+- Do not commit, push, tag, publish, or perform destructive Git operations without explicit user authorization.
+- Never copy private absolute paths, customer data, credentials, internal Scope IDs, or secrets into public artifacts.
+
+When both Claude Code and Codex AI-PLC sections exist, this section takes precedence only for Codex paths, launch notation, and Codex sub-agent behavior.
+
+AI_PLC_CODEX_DIAGNOSTIC=codex-adapter-v1
+<!-- AI-PLC CODEX END -->

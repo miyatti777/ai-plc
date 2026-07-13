@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "minimum_total": 183,
+  "required_contract_refs": [
+    "T001:60",
+    "T001:101",
+    "T001:139",
+    "T001:202",
+    "T001:218",
+    "T001:243",
+    "T001:313",
+    "T001:336",
+    "T001:367",
+    "T001:391",
+    "T001:402",
+    "T001:408",
+    "T001:440"
+  ],
+  "case_groups": [
+    {"prefix":"INV","count":15,"batch":1,"contract_ref":["T001:60","T001:101","T001:139","T001:440"],"fixture":"fresh distribution and target inventory","operation":"inventory, adapter diagnostics, seed checks","expected_state":"normative relative paths and rule diagnostics match; seed remains user-data","cleanup":"target and source snapshot unchanged"},
+    {"prefix":"CLI","count":15,"batch":1,"contract_ref":["T001:202","T001:440"],"fixture":"fresh git and non-git targets","operation":"all modes, help, unknown option, prompt, dry-run and plan-only","expected_state":"documented exit status and target delta zero for advisory modes","cleanup":"no lock, journal, temp or child process"},
+    {"prefix":"TGT","count":12,"batch":1,"contract_ref":["T001:202","T001:218","T001:440"],"fixture":"root, subdirectory, symlink and special-file targets","operation":"target selection and descriptor containment","expected_state":"writes stay below pinned target or operation fails with delta zero","cleanup":"external sentinel unchanged"},
+    {"prefix":"REG","count":10,"batch":1,"contract_ref":["T001:440"],"fixture":"empty, existing, duplicated and edited marker files","operation":"CC and Codex region install/update/uninstall","expected_state":"managed regions change independently and outside text is preserved","cleanup":"fixture tree removed"},
+    {"prefix":"OWN","count":15,"batch":2,"contract_ref":["T001:336","T001:440"],"fixture":"all environment installation orders","operation":"install and uninstall owner transitions","expected_state":"eligible owner, component and environment invariants hold","cleanup":"manifest parsed and target removed"},
+    {"prefix":"VER","count":12,"batch":2,"contract_ref":["T001:313","T001:440"],"fixture":"SemVer, downgrade, mutable and stale inventories","operation":"install/update with changed distribution inventory","expected_state":"valid upgrade commits; invalid version or stale conflict changes zero","cleanup":"temporary distribution copy removed"},
+    {"prefix":"LEG","count":15,"batch":2,"contract_ref":["T001:367","T001:391","T001:440"],"fixture":"historical release catalog and partial/corrupt variants","operation":"explicit migration and manifestless uninstall modes","expected_state":"only complete verified catalog inventory migrates or deletes","cleanup":"temporary legacy worktree count zero"},
+    {"prefix":"LCK","count":18,"batch":3,"contract_ref":["T001:218","T001:243","T001:440"],"fixture":"live, dead, incomplete, foreign and PID-reuse lock states","operation":"acquire, recover and retry","expected_state":"identity-owned recovery only; indeterminate states change zero","cleanup":"expected lock policy and process count zero"},
+    {"prefix":"RACE","count":10,"batch":3,"contract_ref":["T001:218","T001:243","T001:440"],"fixture":"ancestor rename, symlink swap and concurrent target mutation","operation":"race during snapshot, lock and publish boundaries","expected_state":"target outside pinned descriptor remains unchanged","cleanup":"sentinels, child processes and worktrees removed"},
+    {"prefix":"TX","count":24,"batch":4,"contract_ref":["T001:243","T001:440"],"fixture":"isolated instrumented distribution copy","operation":"fault injection at lock, journal, backup, file, directory, manifest and cleanup boundaries","expected_state":"recovery produces exact rollback or commit-completion snapshot","cleanup":"source hash unchanged and transaction artifacts zero"},
+    {"prefix":"RES","count":10,"batch":4,"contract_ref":["T001:402","T001:440"],"fixture":"modified file, region, legacy-unknown and detached manifests","operation":"uninstall, retry, cleanup, adopt and purge transitions","expected_state":"only active-detached-active/deleted transitions occur and tracking is retained","cleanup":"residual state asserted before fixture removal"},
+    {"prefix":"TMB","count":12,"batch":4,"contract_ref":["T001:408","T001:440"],"fixture":"tombstone publish and cleanup crash states","operation":"fault before/after tombstone, manifest/version unlink, committed journal and next transaction","expected_state":"rollback before commit point or deterministic delete completion after it","cleanup":"valid tombstone policy and artifacts asserted"},
+    {"prefix":"RGR","count":15,"batch":5,"contract_ref":["T001:60","T001:101","T001:202","T001:440"],"fixture":"clean CC, Cursor, Codex and coexistence repositories","operation":"full lifecycle and preservation regression","expected_state":"all entrypoints work and Flow, Context, Documents, DB, Wiki, user skills and outside text remain","cleanup":"all temporary resources and processes zero"}
+  ]
+}

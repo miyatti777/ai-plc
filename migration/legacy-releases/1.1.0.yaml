@@ -1,0 +1,306 @@
+schema_version: 1
+release_version: "1.1.0"
+source_ref: "refs/tags/v1.1.0"
+source_commit: "e61f99759a58af2ca7bb51095ce51ff978ffd3d1"
+hash_algorithm: sha256
+environments:
+  cc:
+    authoritative_markers:
+      - type: file
+        path: ".claude/commands/01-collection.md"
+        source_sha256: "7a4752578a4d9b7e038aa23cb2049dee1e63b520b3632d5f1cefa68a46ec5264"
+      - type: region
+        id: "CLAUDE.md#ai-plc-cc"
+        start_marker: "<!-- AI-PLC START -->"
+        end_marker: "<!-- AI-PLC END -->"
+      - type: region
+        id: "AGENTS.md#ai-plc-cc"
+        start_marker: "<!-- AI-PLC START -->"
+        end_marker: "<!-- AI-PLC END -->"
+    managed_files:
+      ".ai-plc-version":
+        source: ".ai-plc-version"
+        source_revision: "v1.1.0"
+        source_sha256: "7fbd210ebec11f65a97190ef900795c4b8da3805af3f5a1b8d1d272556b292ca"
+      ".claude/agents/pm-analyst.md":
+        source: "claude/agents/pm-analyst.md"
+        source_revision: "v1.1.0"
+        source_sha256: "c9cd960417954fb26035514916ce288bc17af5c215865d4b99c8d1cbec61cb74"
+      ".claude/agents/progress-syncer.md":
+        source: "claude/agents/progress-syncer.md"
+        source_revision: "v1.1.0"
+        source_sha256: "9f252204ab96dd593cf05510c9d163a1ed342bfd494a906719148aa7ecc57f50"
+      ".claude/agents/quality-reviewer.md":
+        source: "claude/agents/quality-reviewer.md"
+        source_revision: "v1.1.0"
+        source_sha256: "d6ef7a55b892546ebdfeb69b51bb36a6109535991205b3884ee3a490b3bfc5e1"
+      ".claude/agents/researcher.md":
+        source: "claude/agents/researcher.md"
+        source_revision: "v1.1.0"
+        source_sha256: "4f4a4015355d15e522f23c9c583cfc80bd2ed1698ba9195dbee658240c540b79"
+      ".claude/commands/01-collection.md":
+        source: "claude/commands/01-collection.md"
+        source_revision: "v1.1.0"
+        source_sha256: "7a4752578a4d9b7e038aa23cb2049dee1e63b520b3632d5f1cefa68a46ec5264"
+      ".claude/commands/02-inception.md":
+        source: "claude/commands/02-inception.md"
+        source_revision: "v1.1.0"
+        source_sha256: "ee955946c42208a8af3232a7d853a9994c23cea80782a7b4c7a38fe3d5edfbd8"
+      ".claude/commands/03-construction.md":
+        source: "claude/commands/03-construction.md"
+        source_revision: "v1.1.0"
+        source_sha256: "d21e43b740a2b09b5ed2d1ba8cc3a92d65b7f1b99dd8863b4bc792aff602eb66"
+      ".claude/commands/04-operation.md":
+        source: "claude/commands/04-operation.md"
+        source_revision: "v1.1.0"
+        source_sha256: "f08141830276b54e9790a4c4bd20d4e3c6ed143ed20b2ddec7bcd3e11bdbaba9"
+      ".claude/commands/status.md":
+        source: "claude/commands/status.md"
+        source_revision: "v1.1.0"
+        source_sha256: "71155716973368b02d74694b4e58b0565e7b3302cbd6e63e8bc82f8ec113af75"
+      ".claude/rules/ai-plc-adaptive.md":
+        source: "core/rules/ai-plc-adaptive.md"
+        source_revision: "v1.1.0"
+        source_sha256: "af1f0c8efd8bd737d3e0928d7d2ebe5fd1e4cab1862cdc1d395dc673e2eafc1a"
+      ".claude/rules/ai-plc-session.md":
+        source: "core/rules/ai-plc-session.md"
+        source_revision: "v1.1.0"
+        source_sha256: "15ae0c963f8f468f890be787bb64704a1bc14ed97e690b82fa9c223a19e14322"
+      ".claude/rules/ai-plc-system.md":
+        source: "core/rules/ai-plc-system.md"
+        source_revision: "v1.1.0"
+        source_sha256: "7e5b5aa9008b670bfaa77ae891e3672f4f152425e9274dd1d741411ad11a6d32"
+      ".claude/skills/ai-plc/01-collection/SKILL.md":
+        source: "core/skills/ai-plc/01-collection/SKILL.md"
+        source_revision: "v1.1.0"
+        source_sha256: "39309a9af0d3e51fb47998cdb2bfdd93b2564a2723e84568d297c1debe09037b"
+      ".claude/skills/ai-plc/02-inception/SKILL.md":
+        source: "core/skills/ai-plc/02-inception/SKILL.md"
+        source_revision: "v1.1.0"
+        source_sha256: "745358b6faa80c6b7b3c3b59f4574e7a4d5f2d09c3bf355ede3f7ab5e57d7c9e"
+      ".claude/skills/ai-plc/03-construction/SKILL.md":
+        source: "core/skills/ai-plc/03-construction/SKILL.md"
+        source_revision: "v1.1.0"
+        source_sha256: "c3b82fec5a302344e6faf10d8e531ab14145d5d6824d4f995160aa4556553003"
+      ".claude/skills/ai-plc/04-operation/knowledge-lint.md":
+        source: "core/skills/ai-plc/04-operation/knowledge-lint.md"
+        source_revision: "v1.1.0"
+        source_sha256: "ea5201b5f0e451110915b505e1e747985f2ba8138f753681682153d09d47f92f"
+      ".claude/skills/ai-plc/04-operation/platform-builder.md":
+        source: "core/skills/ai-plc/04-operation/platform-builder.md"
+        source_revision: "v1.1.0"
+        source_sha256: "429381654ec42f160a78ebe85e51f1e7c2eb66b17b2b04589344db861059a82e"
+      ".claude/skills/ai-plc/04-operation/SKILL.md":
+        source: "core/skills/ai-plc/04-operation/SKILL.md"
+        source_revision: "v1.1.0"
+        source_sha256: "e2b8fd2c2310ca7fcafb86d375e0566fec635889ae05a89436a071447a339ddc"
+      ".claude/skills/ai-plc/db-sync/SKILL.md":
+        source: "core/skills/ai-plc/db-sync/SKILL.md"
+        source_revision: "v1.1.0"
+        source_sha256: "97ab35a443f5cc88ca3b594fdd66373008f7cbb83f965917f84871658999ef12"
+      ".claude/skills/ai-plc/README.md":
+        source: "core/skills/ai-plc/README.md"
+        source_revision: "v1.1.0"
+        source_sha256: "6b13497e96b438db2f772d447aa9e5dfe5d771a8920b9bfea4313ca876c876a2"
+      ".claude/skills/ai-plc/templates/agents/TPL_coding_agent.md":
+        source: "core/skills/ai-plc/templates/agents/TPL_coding_agent.md"
+        source_revision: "v1.1.0"
+        source_sha256: "51f8cfc54af657956abea21b80c864c180988b3cda91bb03f4553a4fb03ebd64"
+      ".claude/skills/ai-plc/templates/agents/TPL_content_agent.md":
+        source: "core/skills/ai-plc/templates/agents/TPL_content_agent.md"
+        source_revision: "v1.1.0"
+        source_sha256: "6df8875697365bca3b19d051e58825766364f0d43f67477e861854f6276c3a3c"
+      ".claude/skills/ai-plc/templates/agents/TPL_implementation_agent.md":
+        source: "core/skills/ai-plc/templates/agents/TPL_implementation_agent.md"
+        source_revision: "v1.1.0"
+        source_sha256: "0da52acd3fb883210870ee71d37c44b9e031366acab71d11b0280196cd60f22c"
+      ".claude/skills/ai-plc/templates/agents/TPL_operation_agent.md":
+        source: "core/skills/ai-plc/templates/agents/TPL_operation_agent.md"
+        source_revision: "v1.1.0"
+        source_sha256: "a0d6f2410a849302ab42194ee8be5270a53bbebffb36dd3bdca497b9ab580291"
+      ".claude/skills/ai-plc/templates/agents/TPL_research_agent.md":
+        source: "core/skills/ai-plc/templates/agents/TPL_research_agent.md"
+        source_revision: "v1.1.0"
+        source_sha256: "b64f6f383ac1cbae2a659b960b3bc8f74e1bfc9d4fd24ed13e5dc626b5443fb2"
+      ".claude/skills/ai-plc/templates/agents/TPL_review_agent.md":
+        source: "core/skills/ai-plc/templates/agents/TPL_review_agent.md"
+        source_revision: "v1.1.0"
+        source_sha256: "4f62a84ef276656e2586ed34319a753b5b9eecbf951ea1e9de0544b1ba7560b1"
+      ".claude/skills/ai-plc/templates/agents/TPL_task_patterns.md":
+        source: "core/skills/ai-plc/templates/agents/TPL_task_patterns.md"
+        source_revision: "v1.1.0"
+        source_sha256: "9cfd68488992cd69ef49052d527217fc9cfddd82b134ae6ab7e637afccf69967"
+      ".claude/skills/ai-plc/templates/roles/TPL_role_content_strategist.md":
+        source: "core/skills/ai-plc/templates/roles/TPL_role_content_strategist.md"
+        source_revision: "v1.1.0"
+        source_sha256: "599256679600e38adce7dc3b9905a8fac90f0437be609e8f5e2bfb968cadb7e4"
+      ".claude/skills/ai-plc/templates/roles/TPL_role_developer.md":
+        source: "core/skills/ai-plc/templates/roles/TPL_role_developer.md"
+        source_revision: "v1.1.0"
+        source_sha256: "9fbbafd5882583ad75d69d22a5929389a9f3203e889988f26c21342826f54ce7"
+      ".claude/skills/ai-plc/templates/roles/TPL_role_generic.md":
+        source: "core/skills/ai-plc/templates/roles/TPL_role_generic.md"
+        source_revision: "v1.1.0"
+        source_sha256: "827bb8d99bf40bfab09dd2f0b36eb85c64a493b24cf145d89a4c64676489b914"
+      ".claude/skills/ai-plc/templates/roles/TPL_role_product_manager.md":
+        source: "core/skills/ai-plc/templates/roles/TPL_role_product_manager.md"
+        source_revision: "v1.1.0"
+        source_sha256: "4657375c765071edb8ccdd617e8014331d1729509bd7212d167142c2095f2ff0"
+      ".claude/skills/ai-plc/templates/roles/TPL_role_system_architect.md":
+        source: "core/skills/ai-plc/templates/roles/TPL_role_system_architect.md"
+        source_revision: "v1.1.0"
+        source_sha256: "ee77a1c5a958301ed1eced36db866112c84b8cc4d831c7a4ba38969c0d069050"
+      ".claude/skills/ai-plc/templates/roles/TPL_role_tech_lead.md":
+        source: "core/skills/ai-plc/templates/roles/TPL_role_tech_lead.md"
+        source_revision: "v1.1.0"
+        source_sha256: "3b3496b4f0a2c597fb913b8ebbfb80b8573967bea0eaeaf6ec7e53e439c0f216"
+      ".claude/skills/utility/spec-story-starter/SKILL.md":
+        source: "core/skills/utility/spec-story-starter/SKILL.md"
+        source_revision: "v1.1.0"
+        source_sha256: "a25c483da78bf64431d929f982228f1adc5d83e0004e1d0b982a4058b59af54d"
+      ".claude/skills/utility/wire-aa-authoring/SKILL.md":
+        source: "core/skills/utility/wire-aa-authoring/SKILL.md"
+        source_revision: "v1.1.0"
+        source_sha256: "166f5c22b0a03f4d0f0c17d1c26161ff5a7cce237763acba246e4af1db9832c3"
+    managed_regions:
+      "CLAUDE.md#ai-plc-cc":
+        path: "CLAUDE.md"
+        source: "claude/CLAUDE.md.template"
+        source_revision: "v1.1.0"
+        start_marker: "<!-- AI-PLC START -->"
+        end_marker: "<!-- AI-PLC END -->"
+        content_sha256: "b4dfc3cffa4f3be29a786cdadaddcc4c28f41ca6157a4c49de68a2c028b618fa"
+      "AGENTS.md#ai-plc-cc":
+        path: "AGENTS.md"
+        source: "claude/AGENTS.md.template"
+        source_revision: "v1.1.0"
+        start_marker: "<!-- AI-PLC START -->"
+        end_marker: "<!-- AI-PLC END -->"
+        content_sha256: "1ece2a0fcc5df122b2345006723642c9a74be1119d3565dcb5e98ea2bdba9e87"
+    user_data_exclusions:
+      - ".claude/settings.json"
+      - ".claude/soul.md"
+      - ".claude/wiki/**"
+  cursor:
+    authoritative_markers:
+      - type: file
+        path: ".cursor/skills/ai-plc/01-collection/SKILL.md"
+        source_sha256: "39309a9af0d3e51fb47998cdb2bfdd93b2564a2723e84568d297c1debe09037b"
+      - type: file
+        path: ".cursor/rules/ai-plc-system.mdc"
+        source_sha256: "a8bf9df71d17460c2bbde82c49b26f7753592d28324015cab81792e971a54db5"
+    managed_files:
+      ".ai-plc-version":
+        source: ".ai-plc-version"
+        source_revision: "v1.1.0"
+        source_sha256: "7fbd210ebec11f65a97190ef900795c4b8da3805af3f5a1b8d1d272556b292ca"
+      ".cursor/rules/ai-plc-adaptive.mdc":
+        source: "cursor/rules/ai-plc-adaptive.mdc"
+        source_revision: "v1.1.0"
+        source_sha256: "98a84463d86d287142c192586acc7ddedf634f13e3befbdb9c3f57324d786b6a"
+      ".cursor/rules/ai-plc-session.mdc":
+        source: "cursor/rules/ai-plc-session.mdc"
+        source_revision: "v1.1.0"
+        source_sha256: "d419008fb1670229967a54a8af230dc2da81ad573519961493153a02ce3cdb7e"
+      ".cursor/rules/ai-plc-system.mdc":
+        source: "cursor/rules/ai-plc-system.mdc"
+        source_revision: "v1.1.0"
+        source_sha256: "a8bf9df71d17460c2bbde82c49b26f7753592d28324015cab81792e971a54db5"
+      ".cursor/skills/ai-plc/01-collection/SKILL.md":
+        source: "core/skills/ai-plc/01-collection/SKILL.md"
+        source_revision: "v1.1.0"
+        source_sha256: "39309a9af0d3e51fb47998cdb2bfdd93b2564a2723e84568d297c1debe09037b"
+      ".cursor/skills/ai-plc/02-inception/SKILL.md":
+        source: "core/skills/ai-plc/02-inception/SKILL.md"
+        source_revision: "v1.1.0"
+        source_sha256: "745358b6faa80c6b7b3c3b59f4574e7a4d5f2d09c3bf355ede3f7ab5e57d7c9e"
+      ".cursor/skills/ai-plc/03-construction/SKILL.md":
+        source: "core/skills/ai-plc/03-construction/SKILL.md"
+        source_revision: "v1.1.0"
+        source_sha256: "c3b82fec5a302344e6faf10d8e531ab14145d5d6824d4f995160aa4556553003"
+      ".cursor/skills/ai-plc/04-operation/knowledge-lint.md":
+        source: "core/skills/ai-plc/04-operation/knowledge-lint.md"
+        source_revision: "v1.1.0"
+        source_sha256: "ea5201b5f0e451110915b505e1e747985f2ba8138f753681682153d09d47f92f"
+      ".cursor/skills/ai-plc/04-operation/platform-builder.md":
+        source: "core/skills/ai-plc/04-operation/platform-builder.md"
+        source_revision: "v1.1.0"
+        source_sha256: "429381654ec42f160a78ebe85e51f1e7c2eb66b17b2b04589344db861059a82e"
+      ".cursor/skills/ai-plc/04-operation/SKILL.md":
+        source: "core/skills/ai-plc/04-operation/SKILL.md"
+        source_revision: "v1.1.0"
+        source_sha256: "e2b8fd2c2310ca7fcafb86d375e0566fec635889ae05a89436a071447a339ddc"
+      ".cursor/skills/ai-plc/db-sync/SKILL.md":
+        source: "core/skills/ai-plc/db-sync/SKILL.md"
+        source_revision: "v1.1.0"
+        source_sha256: "97ab35a443f5cc88ca3b594fdd66373008f7cbb83f965917f84871658999ef12"
+      ".cursor/skills/ai-plc/README.md":
+        source: "core/skills/ai-plc/README.md"
+        source_revision: "v1.1.0"
+        source_sha256: "6b13497e96b438db2f772d447aa9e5dfe5d771a8920b9bfea4313ca876c876a2"
+      ".cursor/skills/ai-plc/templates/agents/TPL_coding_agent.md":
+        source: "core/skills/ai-plc/templates/agents/TPL_coding_agent.md"
+        source_revision: "v1.1.0"
+        source_sha256: "51f8cfc54af657956abea21b80c864c180988b3cda91bb03f4553a4fb03ebd64"
+      ".cursor/skills/ai-plc/templates/agents/TPL_content_agent.md":
+        source: "core/skills/ai-plc/templates/agents/TPL_content_agent.md"
+        source_revision: "v1.1.0"
+        source_sha256: "6df8875697365bca3b19d051e58825766364f0d43f67477e861854f6276c3a3c"
+      ".cursor/skills/ai-plc/templates/agents/TPL_implementation_agent.md":
+        source: "core/skills/ai-plc/templates/agents/TPL_implementation_agent.md"
+        source_revision: "v1.1.0"
+        source_sha256: "0da52acd3fb883210870ee71d37c44b9e031366acab71d11b0280196cd60f22c"
+      ".cursor/skills/ai-plc/templates/agents/TPL_operation_agent.md":
+        source: "core/skills/ai-plc/templates/agents/TPL_operation_agent.md"
+        source_revision: "v1.1.0"
+        source_sha256: "a0d6f2410a849302ab42194ee8be5270a53bbebffb36dd3bdca497b9ab580291"
+      ".cursor/skills/ai-plc/templates/agents/TPL_research_agent.md":
+        source: "core/skills/ai-plc/templates/agents/TPL_research_agent.md"
+        source_revision: "v1.1.0"
+        source_sha256: "b64f6f383ac1cbae2a659b960b3bc8f74e1bfc9d4fd24ed13e5dc626b5443fb2"
+      ".cursor/skills/ai-plc/templates/agents/TPL_review_agent.md":
+        source: "core/skills/ai-plc/templates/agents/TPL_review_agent.md"
+        source_revision: "v1.1.0"
+        source_sha256: "4f62a84ef276656e2586ed34319a753b5b9eecbf951ea1e9de0544b1ba7560b1"
+      ".cursor/skills/ai-plc/templates/agents/TPL_task_patterns.md":
+        source: "core/skills/ai-plc/templates/agents/TPL_task_patterns.md"
+        source_revision: "v1.1.0"
+        source_sha256: "9cfd68488992cd69ef49052d527217fc9cfddd82b134ae6ab7e637afccf69967"
+      ".cursor/skills/ai-plc/templates/roles/TPL_role_content_strategist.md":
+        source: "core/skills/ai-plc/templates/roles/TPL_role_content_strategist.md"
+        source_revision: "v1.1.0"
+        source_sha256: "599256679600e38adce7dc3b9905a8fac90f0437be609e8f5e2bfb968cadb7e4"
+      ".cursor/skills/ai-plc/templates/roles/TPL_role_developer.md":
+        source: "core/skills/ai-plc/templates/roles/TPL_role_developer.md"
+        source_revision: "v1.1.0"
+        source_sha256: "9fbbafd5882583ad75d69d22a5929389a9f3203e889988f26c21342826f54ce7"
+      ".cursor/skills/ai-plc/templates/roles/TPL_role_generic.md":
+        source: "core/skills/ai-plc/templates/roles/TPL_role_generic.md"
+        source_revision: "v1.1.0"
+        source_sha256: "827bb8d99bf40bfab09dd2f0b36eb85c64a493b24cf145d89a4c64676489b914"
+      ".cursor/skills/ai-plc/templates/roles/TPL_role_product_manager.md":
+        source: "core/skills/ai-plc/templates/roles/TPL_role_product_manager.md"
+        source_revision: "v1.1.0"
+        source_sha256: "4657375c765071edb8ccdd617e8014331d1729509bd7212d167142c2095f2ff0"
+      ".cursor/skills/ai-plc/templates/roles/TPL_role_system_architect.md":
+        source: "core/skills/ai-plc/templates/roles/TPL_role_system_architect.md"
+        source_revision: "v1.1.0"
+        source_sha256: "ee77a1c5a958301ed1eced36db866112c84b8cc4d831c7a4ba38969c0d069050"
+      ".cursor/skills/ai-plc/templates/roles/TPL_role_tech_lead.md":
+        source: "core/skills/ai-plc/templates/roles/TPL_role_tech_lead.md"
+        source_revision: "v1.1.0"
+        source_sha256: "3b3496b4f0a2c597fb913b8ebbfb80b8573967bea0eaeaf6ec7e53e439c0f216"
+      ".cursor/skills/utility/spec-story-starter/SKILL.md":
+        source: "core/skills/utility/spec-story-starter/SKILL.md"
+        source_revision: "v1.1.0"
+        source_sha256: "a25c483da78bf64431d929f982228f1adc5d83e0004e1d0b982a4058b59af54d"
+      ".cursor/skills/utility/wire-aa-authoring/SKILL.md":
+        source: "core/skills/utility/wire-aa-authoring/SKILL.md"
+        source_revision: "v1.1.0"
+        source_sha256: "166f5c22b0a03f4d0f0c17d1c26161ff5a7cce237763acba246e4af1db9832c3"
+    managed_regions: {}
+    user_data_exclusions: []
+composition:
+  cc_only: [cc]
+  cursor_only: [cursor]
+  both: [cc, cursor]

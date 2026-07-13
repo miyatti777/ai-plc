@@ -1,7 +1,7 @@
 # AI-PLC — AI Product Lifecycle Pipeline
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Platform](https://img.shields.io/badge/Platform-Claude_Code%20%7C%20Cursor-green)](https://claude.com/claude-code)
+[![Platform](https://img.shields.io/badge/Platform-Claude_Code%20%7C%20Cursor%20%7C%20Codex-green)](https://github.com/miyatti777/ai-plc)
 
 > ## Build the loop. Stay the engineer.
 > **AI-PLC は「ループエンジニアリング」の汎用版。**
@@ -91,19 +91,25 @@ Addy Osmani（原理）「プロンプトするのをやめ、ループを設計
 
 ## 🚀 インストール（5分）
 
-**前提:** インストール先は **git リポジトリ**であること（Claude Code / Cursor の要件）。`python3`（DB初期化に使用）。
+**前提:** インストール先は **git リポジトリ**であること。安全なinstallerとDB初期化に`python3`を使用します。
 
 ### いちばん簡単: AI にお願いする ⭐
 
-導入したいプロジェクトを Claude Code / Cursor で開き、チャットに**このURLを貼ってお願いするだけ**:
+導入したいプロジェクトを Claude Code / Cursor / Codex で開き、チャットに**このURLを貼ってお願いするだけ**:
 
 ```
 https://github.com/miyatti777/ai-plc をこのプロジェクトにインストールして。
-リポジトリを clone して install-cc.sh --target . を実行して。
-（Cursor を使っているなら install-cursor.sh）
+リポジトリを clone して、使っている環境向けのinstallerを --target . で実行して。
+Claude Codeはinstall-cc.sh、Cursorはinstall-cursor.sh、Codexはinstall-codex.sh。
 ```
 
-AI が clone → インストールまで実行してくれます。オプションを覚える必要はありません。終わったら Claude Code / Cursor を**リロード**して `/01-collection` が使えれば完了です。
+AI が clone → インストールまで実行してくれます。終わったら対象プロジェクトを開き直し、環境ごとの形式でCollectionを開始できれば完了です。
+
+| 環境 | 起動形式 |
+| --- | --- |
+| Claude Code | `/01-collection` |
+| Cursor | `/01-collection` |
+| Codex | `$01-collection` |
 
 ### 手動（CLI でやる場合）
 
@@ -115,16 +121,29 @@ cd ai-plc
 # 2. あなたのプロジェクトにインストール
 ./install-cc.sh --target /path/to/your/project        # Claude Code
 ./install-cursor.sh --target /path/to/your/project     # Cursor
-./install.sh --target /path/to/your/project both       # 両方
+./install-codex.sh --target /path/to/your/project      # Codex
+./install.sh --target /path/to/your/project both       # Claude Code + Cursor
+./install.sh --target /path/to/your/project all        # 3環境すべて
 
 # まず何が起きるか見たいだけ → --dry-run
 ./install-cc.sh --dry-run --target /path/to/your/project
+./install-codex.sh --dry-run --target /path/to/your/project
 ```
 
-インストールされたら、そのプロジェクトを Claude Code / Cursor で開いて確認:
+インストールされたら、そのプロジェクトを利用するAI環境で開いて確認:
 
 - Claude Code: チャットで `/01-collection` と打つ
 - Cursor: **リロード後**、`/01-collection`（`/`で起動。`@`はファイル参照用なので注意）
+- Codex: チャットで `$01-collection` と入力する（CLI/IDEでは`$`またはSkill一覧から選択）
+
+Codexでは次の2点も確認できます:
+
+```bash
+test -f /path/to/your/project/.agents/skills/ai-plc/01-collection/SKILL.md
+grep -q '<!-- AI-PLC CODEX START -->' /path/to/your/project/AGENTS.md
+```
+
+Codex向けSkillは`.agents/skills/`、永続指示は既存本文を保持した`AGENTS.md`のmanaged regionに配置されます。Skillが表示されない場合は、インストール先のプロジェクトを開いているか確認してCodexを再起動してください。
 
 > うまくコマンドが出ないときは [FAQ](#-faq) を参照。
 
@@ -133,6 +152,8 @@ cd ai-plc
 ## 🟢 はじめての AI-PLC（自分のGoalで）
 
 一番シンプルな使い方は、**Goalを1つ渡すだけ**です。
+
+> 以下のチュートリアルはClaude Code/Cursorの`/skill-name`表記です。Codexでは4ステージを`$01-collection`、`$02-inception`、`$03-construction`、`$04-operation`として起動します。utility Skillも`$spec-story-starter`、`$wire-aa-authoring`のように`$skill-name`で起動してください。
 
 ```
 /01-collection を実行してください
@@ -514,13 +535,25 @@ AI-PLC は深度（Simple/Standard/Complex）を自動判定し、**要らない
 <details>
 <summary><b>Q. 既存の設定（CLAUDE.md 等）を壊さない？</b></summary>
 
-壊しません。既存ファイルは**バックアップ**（`.bak.YYYYMMDD`）してから更新し、`CLAUDE.md`/`AGENTS.md` は `<!-- AI-PLC START/END -->` マーカーで**マージ**します。`--dry-run` で事前確認、`./uninstall.sh` で除去できます。
+壊しません。更新対象はtransaction内で`.bak.<timestamp>.<sequence>`へ退避し、`CLAUDE.md`/`AGENTS.md`は環境別managed markerで**マージ**します。Codexのmarkerは`<!-- AI-PLC CODEX START/END -->`です。`--dry-run`で事前確認し、環境を指定した`./uninstall.sh`で除去できます。
 </details>
 
 <details>
 <summary><b>Q. Cursor でコマンドが出てこない</b></summary>
 
 **Cursorをリロード**してください（コマンドの読み込みに必要）。起動は **`/01-collection`**（スラッシュ）です。`@` はファイル/シンボルのメンション用なので、コマンド起動には使いません。
+</details>
+
+<details>
+<summary><b>Q. CodexでAI-PLC Skillが見つからない</b></summary>
+
+対象プロジェクトに`.agents/skills/ai-plc/01-collection/SKILL.md`があること、別のリポジトリを開いていないことを確認してください。明示起動は **`$01-collection`** です。配置済みでも候補に出ない場合はCodexを再起動します。Claude Code/Cursor用の`/01-collection`とは起動形式が異なります。
+</details>
+
+<details>
+<summary><b>Q. Codex Pluginとしてインストールするの？</b></summary>
+
+現時点の完成範囲は、このGitHubリポジトリのShell installerでプロジェクト共有Skillと`AGENTS.md`を配置する方式です。Codex Plugin化は将来候補であり、今回のinstallerには含まれません。
 </details>
 
 <details>
@@ -544,7 +577,7 @@ DBは**任意**（複数PJ横断の台帳・外部同期用。核ループはDB�
 <details>
 <summary><b>Q. アンインストールしたい</b></summary>
 
-`./uninstall.sh --target /path/to/your/project`。カスタマイズ済みの `soul.md`/`wiki/`/`db/`（あなたのデータ）は削除されません。
+環境を指定して実行します。Codexだけなら`./uninstall.sh --target /path/to/your/project codex`、3環境すべてなら末尾を`all`にします。変更済みのmanaged fileや`wiki/`・`db/`などのユーザーデータは保持され、残存物がある場合はmanifestがdetached状態として記録します。
 </details>
 
 ---
@@ -566,15 +599,20 @@ DBは**任意**（複数PJ横断の台帳・外部同期用。核ループはDB�
 <details>
 <summary>配置されるもの・安全性・ディレクトリ構造</summary>
 
-**Claude Code:** `.claude/skills/ai-plc/`・`.claude/skills/utility/`・`.claude/rules/`・`.claude/commands/`・`.claude/agents/`・`CLAUDE.md`/`AGENTS.md`(マージ)・`.claude/soul.md`・`.claude/wiki/`・`.claude/db/`(空DB)
+**Claude Code:** `.claude/skills/`・`.claude/rules/`・`.claude/commands/`・`.claude/agents/`・`CLAUDE.md`/`AGENTS.md`のmanaged region・`.claude/wiki/`・`.claude/db/`
+
 **Cursor:** `.cursor/skills/`・`.cursor/rules/*.mdc`・`.cursor/wiki/`・`.cursor/db/`
 
-- 既存ファイルは上書きせずバックアップ／テンプレート(soul/wiki)は既存がなければのみ配置
-- `--dry-run` で事前確認／`./uninstall.sh` で除去（あなたのデータは残す）
+**Codex:** `.agents/skills/ai-plc/`・`.agents/skills/utility/`・`AGENTS.md`のCodex managed region。AI-PLCの共通Rules・DB・Wikiは`.claude/`互換runtimeを共有しますが、Claude Codeのnative memoryは読み書きしません。
+
+- 既存のmanaged外本文、変更済みfile、wiki、DB、成果物は保持
+- `AGENTS.md`は環境別markerで統合し、Claude CodeとCodexが共存可能
+- `--dry-run`で事前確認、`--plan-only`で機械可読planを出力
+- manifestのowner情報に基づいて環境別にuninstall
 
 ```
 ai-plc/
-├── install.sh / install-cc.sh / install-cursor.sh / uninstall.sh
+├── install.sh / install-cc.sh / install-cursor.sh / install-codex.sh / uninstall.sh
 ├── core/
 │   ├── skills/ai-plc/     # 4ステージスキル + テンプレート
 │   ├── skills/utility/    # spec-story-starter / wire-aa-authoring
@@ -582,6 +620,8 @@ ai-plc/
 │   └── db/                # init_db.py / plc_query.py / sync.py
 ├── claude/                # Claude Code固有（commands / agents / templates）
 ├── cursor/                # Cursor固有（.mdc rules）
+├── codex/                 # Codex adapter Skills / AGENTS template
+├── lib/                   # transaction・owner対応の共通installer実装
 ├── templates/             # soul.md / wiki
 ├── examples/kotonoha/     # 試せるサンプル
 └── docs/                  # ARCHITECTURE.md

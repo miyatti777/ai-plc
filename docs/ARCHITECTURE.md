@@ -3,7 +3,46 @@
 ## 概要
 
 AI-PLC (AI Product Lifecycle) は、PMBOKのプロジェクト管理知識体系を
-AIエージェント環境（Claude Code / Cursor）向けに再設計したパイプラインシステム。
+AIエージェント環境（Claude Code / Cursor / Codex）向けに再設計したパイプラインシステム。
+
+## 環境別アダプターと共有runtime
+
+配布物は、環境固有の起動面を薄いadapterに分離し、AI-PLCの正本を共有する。
+
+| 環境 | Skill / command | 永続指示 | 起動 |
+| --- | --- | --- | --- |
+| Claude Code | `.claude/skills/`・`.claude/commands/` | `CLAUDE.md` / `AGENTS.md` managed region | `/01-collection` |
+| Cursor | `.cursor/skills/`・`.cursor/rules/` | Cursor rules | `/01-collection` |
+| Codex | `.agents/skills/` | `AGENTS.md` Codex managed region | `$01-collection` |
+
+Codex adapterの`SKILL.md`は、正本である`.claude/skills/ai-plc/`と`.claude/rules/`を参照する。
+このためCodex modeは共有`.claude` runtime（Skills、Rules、DB、Wiki seed）も配置するが、
+Claude Code固有のcommands/agentsやnative memoryは利用しない。
+
+```
+target repository/
+├── AGENTS.md                         # 既存本文 + 環境別managed region
+├── .agents/skills/ai-plc/            # Codex adapter
+├── .agents/skills/utility/           # Codex共有utility Skill
+├── .claude/skills/ai-plc/            # CC/Codex共有の正本runtime
+├── .claude/rules/                     # CC/Codex共有Rules
+├── .claude/wiki/                      # 初回seed後はユーザーデータ
+├── .claude/db/                        # helper + local SQLite
+├── .ai-plc-install-manifest           # component / owner / hash
+└── .ai-plc-version                    # 配布version
+```
+
+## Installer transaction model
+
+`install.sh`は`cc`・`cursor`・`codex`を環境別wrapperへdispatchし、`both`・`all`は
+multi-environment plannerで処理する。すべての経路は共通のtransaction・manifest modelを使う。
+manifestはfileとmanaged regionごとにcomponent、owner、hashを記録し、共有資産を別環境の
+uninstallから保護する。writeはlock・journal・temporary publish・rollbackを使い、
+`--dry-run`はtargetを変更せず、`--plan-only`は機械可読planを返す。
+
+`AGENTS.md`は通常本文を置換せず、Claude CodeとCodexで別々のmarker regionを所有する。
+uninstallは指定ownerだけを外し、変更済みfileやユーザーデータを残す。残存物があれば
+manifestをdetached状態にして、追跡情報を失わない。
 
 ## 4ステージパイプライン
 
@@ -48,7 +87,7 @@ Parent Scope
 ├── context.yaml     # Context Storeの索引
 ├── backlog.yaml     # タスク定義
 ├── Context/         # 収集したコンテキスト文書群
-├── Skills/          # 生成されたスキル定義
+├── Agents/          # タスクごとのAgent定義
 ├── sublayers/       # Sub-Agent Scope群
 └── Documents/       # 成果物
 ```
