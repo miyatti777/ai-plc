@@ -103,7 +103,9 @@ https://github.com/miyatti777/ai-plc をこのプロジェクトにインスト�
 Claude Codeはinstall-cc.sh、Cursorはinstall-cursor.sh、Codexはinstall-codex.sh。
 ```
 
-AI が clone → インストールまで実行してくれます。終わったら対象プロジェクトを開き直し、環境ごとの形式でCollectionを開始できれば完了です。
+AI が clone → インストールまで実行してくれます。
+
+> **重要:** インストールを実行した同じチャット／スレッドでは、新しく配置したSkillやcommandが候補に出ないことがあります。**インストール完了後は、対象プロジェクトで新しいチャット／スレッドを開始してから**Collectionを呼び出してください。まだ表示されない場合はClaude Code/Codexを再起動し、Cursorはウィンドウをリロードします。
 
 | 環境 | 起動形式 |
 | --- | --- |
@@ -130,7 +132,7 @@ cd ai-plc
 ./install-codex.sh --dry-run --target /path/to/your/project
 ```
 
-インストールされたら、そのプロジェクトを利用するAI環境で開いて確認:
+インストールされたら、そのプロジェクトで**新しいチャット／スレッドを開始して**確認:
 
 - Claude Code: チャットで `/01-collection` と打つ
 - Cursor: **リロード後**、`/01-collection`（`/`で起動。`@`はファイル参照用なので注意）
@@ -143,7 +145,7 @@ test -f /path/to/your/project/.agents/skills/ai-plc/01-collection/SKILL.md
 grep -q '<!-- AI-PLC CODEX START -->' /path/to/your/project/AGENTS.md
 ```
 
-Codex向けSkillは`.agents/skills/`、永続指示は既存本文を保持した`AGENTS.md`のmanaged regionに配置されます。Skillが表示されない場合は、インストール先のプロジェクトを開いているか確認してCodexを再起動してください。
+Codex向けSkillは`.agents/skills/`、永続指示は既存本文を保持した`AGENTS.md`のmanaged regionに配置されます。同じスレッドでSkillが表示されない場合は、まず新しいスレッドを開始します。それでも表示されなければ、インストール先のプロジェクトを開いているか確認してCodexを再起動してください。
 
 > うまくコマンドが出ないときは [FAQ](#-faq) を参照。
 
@@ -545,9 +547,15 @@ AI-PLC は深度（Simple/Standard/Complex）を自動判定し、**要らない
 </details>
 
 <details>
+<summary><b>Q. インストール直後、同じスレッドでCollectionが出てこない</b></summary>
+
+Claude CodeとCodexでは、インストール直後のSkill・command追加が現在のチャット／スレッドへ反映されないことがあります。**対象プロジェクトで新しいチャット／スレッドを開始してから**、Claude Codeは`/01-collection`、Codexは`$01-collection`を呼び出してください。それでも見つからない場合はアプリを再起動します。Cursorはウィンドウをリロードして新しいチャットから試します。
+</details>
+
+<details>
 <summary><b>Q. CodexでAI-PLC Skillが見つからない</b></summary>
 
-対象プロジェクトに`.agents/skills/ai-plc/01-collection/SKILL.md`があること、別のリポジトリを開いていないことを確認してください。明示起動は **`$01-collection`** です。配置済みでも候補に出ない場合はCodexを再起動します。Claude Code/Cursor用の`/01-collection`とは起動形式が異なります。
+対象プロジェクトに`.agents/skills/ai-plc/01-collection/SKILL.md`があること、別のリポジトリを開いていないことを確認してください。明示起動は **`$01-collection`** です。配置済みでも候補に出ない場合は、新しいスレッドを開始し、それでも出なければCodexを再起動します。Claude Code/Cursor用の`/01-collection`とは起動形式が異なります。
 </details>
 
 <details>
