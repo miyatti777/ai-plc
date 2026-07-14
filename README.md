@@ -499,6 +499,8 @@ python3 .claude/db/sync.py sync     # 双方向同期
 
 詳細は `.claude/db/README.md`。使わない場合はローカルDBだけで完結します。
 
+> 💡 **Notion のページ本文そのものを往復させたい場合**は、姉妹ツール [nsync](https://github.com/miyatti777/nsync) が使えます。DB だけでなく企画ページ・タスクページの本文・装飾まで Notion⇔ローカル Markdown で双方向同期でき、「企画は Notion／実装・執筆は Claude Code」の往復ワークフローの実行手段になります。
+
 ---
 
 ## 🛠 同梱スキル
