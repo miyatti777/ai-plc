@@ -1,0 +1,5 @@
+# Hashes of files installed by earlier experimental/jev releases.
+# Format: "<sha256>  <installed relative path>" (one per line; '#' starts a comment).
+# uninstall removes leftover "<path>.bak.<utc>.<seq>" files at experimental/jev locations only when
+# their content matches the pre-uninstall manifest or one of these hashes. Not installed itself.
+# 1.8.0-exp.1: first release, so no earlier hashes are listed.

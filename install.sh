@@ -3,7 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VERSION="$(cat "$SCRIPT_DIR/.ai-plc-version" 2>/dev/null || echo unknown)"
+JEV_VERSION="$(cat "$SCRIPT_DIR/experimental/jev/VERSION" 2>/dev/null || echo unknown)"
 MODE=""
+WITH_JEV=false
 ARGS=()
 
 usage() {
@@ -25,6 +27,7 @@ usage() {
     echo "  --target PATH              Use the specified project directory"
     echo "  --migrate-legacy VERSION   Adopt a verified legacy release"
     echo "  --yes                      Confirm non-interactive operation"
+    echo "  --with-jev                 Also install experimental/jev (${JEV_VERSION}; cc/both/all only)"
     echo "  -h, --help                 Show this help message"
 }
 
@@ -37,6 +40,7 @@ while [[ $# -gt 0 ]]; do
             [[ $# -ge 2 ]] || { echo "[ERROR] $1 requires a value" >&2; exit 1; }
             ARGS+=("$1" "$2"); shift 2 ;;
         --dry-run|--plan-only|--yes) ARGS+=("$1"); shift ;;
+        --with-jev) WITH_JEV=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "[ERROR] Unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
@@ -53,6 +57,13 @@ if [[ -z "$MODE" ]]; then
     case "$choice" in
         1) MODE=cc ;; 2) MODE=cursor ;; 3) MODE=both ;; 4) MODE=codex ;; 5) MODE=all ;;
         *) echo "[ERROR] Invalid choice" >&2; exit 1 ;;
+    esac
+fi
+
+if $WITH_JEV; then
+    case "$MODE" in
+        cc|both|all) ARGS+=("--with-jev") ;;
+        *) echo "[ERROR] --with-jev: 実験版は Claude Code 専用。cc / both / all と一緒に指定してください (experimental/jev is Claude Code only; use it with cc, both, or all)" >&2; exit 2 ;;
     esac
 fi
 

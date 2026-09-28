@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+import re
 import secrets
 import stat
 import subprocess
@@ -25,6 +27,18 @@ ENVIRONMENTS = {
 }
 CC_START = "<!-- AI-PLC START -->"
 CC_END = "<!-- AI-PLC END -->"
+# Opt-in experimental package (install ... --with-jev). Claude Code only; never part of the default inventory.
+JEV_COMPONENT = "experimental_jev"
+JEV_SOURCE = "experimental/jev"
+JEV_VERSION_FILE = f"{JEV_SOURCE}/VERSION"
+JEV_KNOWN_RELEASES = f"{JEV_SOURCE}/KNOWN_RELEASES.sha256"
+JEV_MANAGED_DIRS = (".claude/ai-plc-jev", ".claude/skills/ai-plc-jev")
+JEV_COMMANDS_DIR = ".claude/commands"
+JEV_COMMAND_NAME = re.compile(r"^0[1-4]-[a-z-]+-jev\.md$")
+JEV_PACKAGE_VERSION = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-exp\.([1-9][0-9]*)$")
+BACKUP_SUFFIX = re.compile(r"^(?P<base>.+)\.bak\.[0-9]{8}T[0-9]{6}Z\.[0-9]+$")
+JEV_ONLY_CC = ("--with-jev: 実験版は Claude Code 専用。cc / both / all と一緒に指定してください "
+               "(experimental/jev is Claude Code only; use it with cc, both, or all)")
 
 
 def add_tree(source: safe.SafeRoot, source_dir: str, target_dir: str, component: str,
@@ -45,7 +59,36 @@ def add_file(source: safe.SafeRoot, source_path: str, target: str, component: st
     }
 
 
-def inventory(distribution: Path, environments: set[str]) -> tuple[dict[str, Any], dict[str, bytes]]:
+def jev_package_version(value: str) -> tuple[int, int, int, int]:
+    match = JEV_PACKAGE_VERSION.fullmatch(value)
+    if not match:
+        raise safe.InstallError(f"invalid experimental package version: {value!r}")
+    return tuple(int(x) for x in match.groups())  # type: ignore[return-value]
+
+
+def read_jev_package_version(distribution: Path) -> str:
+    value = safe.secure_source_read(distribution, JEV_VERSION_FILE).decode().strip()
+    jev_package_version(value)
+    return value
+
+
+def add_direct_files(source: safe.SafeRoot, source_dir: str, target_dir: str, component: str,
+                     owners: set[str], entries: dict[str, dict[str, Any]], payloads: dict[str, bytes]) -> None:
+    """Like add_tree, but only regular files directly inside source_dir (skips tests/, __pycache__/, ...)."""
+    for source_path in source.walk_regular_files(source_dir):
+        suffix = source_path.removeprefix(source_dir + "/")
+        if "/" not in suffix:
+            add_file(source, source_path, f"{target_dir}/{suffix}", component, owners, entries, payloads)
+
+
+def add_experimental_jev(source: safe.SafeRoot, entries: dict[str, dict[str, Any]], payloads: dict[str, bytes]) -> None:
+    add_tree(source, f"{JEV_SOURCE}/skills/ai-plc-jev", ".claude/skills/ai-plc-jev", JEV_COMPONENT, {"cc"}, entries, payloads)
+    add_tree(source, f"{JEV_SOURCE}/commands", JEV_COMMANDS_DIR, JEV_COMPONENT, {"cc"}, entries, payloads)
+    add_direct_files(source, f"{JEV_SOURCE}/scripts", ".claude/ai-plc-jev/scripts", JEV_COMPONENT, {"cc"}, entries, payloads)
+
+
+def inventory(distribution: Path, environments: set[str],
+              with_jev: bool = False) -> tuple[dict[str, Any], dict[str, bytes]]:
     entries: dict[str, dict[str, Any]] = {}
     payloads: dict[str, bytes] = {}
     with safe.SafeRoot(distribution) as source:
@@ -67,6 +110,13 @@ def inventory(distribution: Path, environments: set[str]) -> tuple[dict[str, Any
         if "codex" in environments:
             add_tree(source, "codex/skills/ai-plc", ".agents/skills/ai-plc", "codex_adapter", {"codex"}, entries, payloads)
             add_tree(source, "core/skills/utility", ".agents/skills/utility", "codex_adapter", {"codex"}, entries, payloads)
+        if with_jev:
+            jev_entries: dict[str, dict[str, Any]] = {}
+            add_experimental_jev(source, jev_entries, payloads)
+            overlap = sorted(set(jev_entries) & set(entries))
+            if overlap:
+                raise safe.InstallError("experimental package overlaps core inventory: " + ", ".join(overlap))
+            entries.update(jev_entries)
     return entries, payloads
 
 
@@ -125,11 +175,15 @@ def legacy_manifest(distribution: Path, root: safe.SafeRoot, version: str) -> di
 
 
 def build_install_plan(distribution: Path, root: safe.SafeRoot, mode: str,
-                       migrate_legacy: str | None = None, lock_held: bool = False) -> dict[str, Any]:
+                       migrate_legacy: str | None = None, lock_held: bool = False,
+                       with_jev: bool = False) -> dict[str, Any]:
     environments = ENVIRONMENTS[mode]
+    if with_jev and "cc" not in environments:
+        raise safe.InstallError(JEV_ONLY_CC)
     version = safe.secure_source_read(distribution, safe.VERSION_MARKER).decode().strip()
     safe.semver(version)
-    entries, payloads = inventory(distribution, environments)
+    jev_version = read_jev_package_version(distribution) if with_jev else None
+    entries, payloads = inventory(distribution, environments, with_jev)
     manifest = safe.load_manifest(root)
     conflicts: list[str] = []
     writes: list[str] = []
@@ -307,6 +361,20 @@ def build_install_plan(distribution: Path, root: safe.SafeRoot, mode: str,
             "inventory_sha256": component_hash(new_manifest["managed_files"], new_manifest["managed_regions"], component),
         }
         old_component = (manifest or {}).get("components", {}).get(component)
+        if component == JEV_COMPONENT:
+            # The experimental package is versioned on its own (X.Y.Z-exp.N); the core marker stays untouched.
+            updated["package_version"] = jev_version
+            old_package = (old_component or {}).get("package_version")
+            if old_package:
+                try:
+                    if jev_package_version(jev_version) < jev_package_version(old_package):
+                        conflicts.append(f"component downgrade refused: {component}")
+                except safe.InstallError as exc:
+                    conflicts.append(str(exc))
+                if jev_version == old_package and old_component.get("inventory_sha256") != updated["inventory_sha256"]:
+                    conflicts.append(f"mutable release refused: {component} {jev_version}")
+            new_manifest["components"][component] = updated
+            continue
         if old_component:
             if safe.semver(version) < safe.semver(old_component["version"]):
                 conflicts.append(f"component downgrade refused: {component}")
@@ -322,14 +390,197 @@ def build_install_plan(distribution: Path, root: safe.SafeRoot, mode: str,
     }
 
 
+def jev_files(manifest: dict[str, Any] | None) -> dict[str, str]:
+    """Managed experimental-package paths -> distributed sha256 (from a manifest snapshot)."""
+    return {path: item.get("source_sha256") for path, item in ((manifest or {}).get("managed_files") or {}).items()
+            if item.get("component") == JEV_COMPONENT and item.get("source_sha256")}
+
+
+def load_known_jev_hashes(distribution: Path) -> dict[str, set[str]]:
+    """Parse KNOWN_RELEASES.sha256 ("<sha256>  <installed relative path>" per line, '#' comments)."""
+    known: dict[str, set[str]] = {}
+    try:
+        text = safe.secure_source_read(distribution, JEV_KNOWN_RELEASES).decode()
+    except (FileNotFoundError, OSError, safe.InstallError):
+        return known
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split(None, 1)
+        if len(parts) != 2 or not re.fullmatch(r"[0-9a-f]{64}", parts[0]):
+            continue
+        try:
+            path = safe.canonical_rel(parts[1].strip().lstrip("*"))
+        except (safe.InstallError, ValueError):
+            continue
+        if is_jev_location(path):
+            known.setdefault(path, set()).add(parts[0])
+    return known
+
+
+def is_jev_location(path: str) -> bool:
+    if any(path.startswith(d + "/") for d in JEV_MANAGED_DIRS):
+        return True
+    parent = PurePosixPath(path).parent.as_posix()
+    return parent == JEV_COMMANDS_DIR and bool(JEV_COMMAND_NAME.fullmatch(PurePosixPath(path).name))
+
+
+def list_dir_entries(root: safe.SafeRoot, rel: str) -> list[tuple[str, str]]:
+    """(name, kind) for entries of rel without following symlinks; kind is 'file', 'dir' or 'other'."""
+    fd, name = root._open_parent(rel)
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        dir_fd = os.open(name, flags, dir_fd=fd)
+    finally:
+        os.close(fd)
+    try:
+        result = []
+        for child in sorted(os.listdir(dir_fd)):
+            st = os.stat(child, dir_fd=dir_fd, follow_symlinks=False)
+            kind = "file" if stat.S_ISREG(st.st_mode) else ("dir" if stat.S_ISDIR(st.st_mode) else "other")
+            result.append((child, kind))
+        return result
+    finally:
+        os.close(dir_fd)
+
+
+def jev_backup_candidates(root: safe.SafeRoot) -> list[str]:
+    """Leftover <path>.bak.<utc>.<seq> files at experimental-package locations only."""
+    found: list[str] = []
+    def visit(rel: str) -> None:
+        try:
+            children = list_dir_entries(root, rel)
+        except (FileNotFoundError, NotADirectoryError):
+            return
+        except OSError as exc:  # e.g. a symlinked directory (ELOOP): never follow it
+            if exc.errno in (errno.ELOOP, errno.ENOTDIR):
+                return
+            raise
+        for child, kind in children:
+            path = f"{rel}/{child}"
+            if kind == "dir":
+                visit(path)
+            elif kind == "file" and BACKUP_SUFFIX.fullmatch(child):
+                found.append(path)
+    for directory in JEV_MANAGED_DIRS:
+        visit(directory)
+    try:
+        for child, kind in list_dir_entries(root, JEV_COMMANDS_DIR):
+            match = BACKUP_SUFFIX.fullmatch(child)
+            if kind == "file" and match and JEV_COMMAND_NAME.fullmatch(match.group("base")):
+                found.append(f"{JEV_COMMANDS_DIR}/{child}")
+    except OSError:
+        pass
+    return found
+
+
+def remove_backup_if_matches(root: safe.SafeRoot, backup: str, allowed: set[str]) -> bool:
+    if not root.exists(backup):
+        return False
+    st = root.lstat(backup)
+    if st is None or not stat.S_ISREG(st.st_mode):
+        return False
+    if safe.sha256(root.read_bytes(backup)) not in allowed:
+        return False
+    root.unlink(backup)
+    return True
+
+
+def cleanup_experimental_jev(root: safe.SafeRoot, tx: safe.Transaction, old_files: dict[str, str],
+                             known: dict[str, set[str]] | None, deleted: list[str]) -> list[str]:
+    """Post-commit cleanup for the experimental package; runs while the installer lock is still held.
+
+    1. Backups taken by this transaction for experimental paths whose content equals the pre-transaction
+       manifest hash (i.e. a pristine distributed copy) are removed.
+    2. When `known` is given (uninstall), leftover backups from earlier transactions at experimental
+       locations are removed if they match the pre-transaction manifest or a known release hash.
+    3. Experimental directories emptied by the above are removed, deepest first.
+    Core components, shared directories and non-matching files are never touched. Returns warnings."""
+    warnings: list[str] = []
+    touched_dirs: set[str] = set()
+    for item in list(tx.state.get("backups", [])):
+        path, backup = item.get("path"), item.get("backup")
+        if path not in old_files or not isinstance(backup, str) or item.get("sha256") != old_files[path]:
+            continue
+        try:
+            if remove_backup_if_matches(root, backup, {old_files[path]}):
+                touched_dirs.add(PurePosixPath(backup).parent.as_posix())
+        except (OSError, safe.InstallError) as exc:
+            warnings.append(f"experimental_jev backup kept: {backup} ({exc})")
+    if known is not None:
+        try:
+            candidates = jev_backup_candidates(root)
+        except (OSError, safe.InstallError) as exc:
+            candidates = []
+            warnings.append(f"experimental_jev backup scan skipped ({exc})")
+        kept = 0
+        for backup in candidates:
+            base = BACKUP_SUFFIX.fullmatch(PurePosixPath(backup).name).group("base")
+            base_path = f"{PurePosixPath(backup).parent.as_posix()}/{base}"
+            allowed = set(known.get(base_path, set()))
+            if base_path in old_files:
+                allowed.add(old_files[base_path])
+            try:
+                if remove_backup_if_matches(root, backup, allowed):
+                    touched_dirs.add(PurePosixPath(backup).parent.as_posix())
+                else:
+                    kept += 1
+            except (OSError, safe.InstallError) as exc:
+                kept += 1
+                warnings.append(f"experimental_jev backup kept: {backup} ({exc})")
+        if kept:
+            warnings.append(f"experimental_jev: {kept} backup file(s) with unknown content kept")
+    for path in deleted:
+        if path in old_files:
+            touched_dirs.add(PurePosixPath(path).parent.as_posix())
+    prune: set[str] = set()
+    for directory in touched_dirs:
+        for top in JEV_MANAGED_DIRS:
+            if directory == top or directory.startswith(top + "/"):
+                current = PurePosixPath(directory)
+                while True:
+                    prune.add(current.as_posix())
+                    if current.as_posix() == top:
+                        break
+                    current = current.parent
+    for directory in sorted(prune, key=lambda d: (-d.count("/"), d)):
+        try:
+            st = root.lstat(directory)
+            if st is not None and stat.S_ISDIR(st.st_mode):
+                root.prune_empty_dir(directory)
+        except (OSError, safe.InstallError) as exc:
+            warnings.append(f"experimental_jev directory kept: {directory} ({exc})")
+    if known is not None:
+        for top in JEV_MANAGED_DIRS:
+            if top in prune and root.exists(top):
+                warnings.append(f"experimental_jev directory kept (not empty): {top}")
+    return warnings
+
+
+def commit_with_jev_cleanup(tx: safe.Transaction, cleanup) -> list[str]:
+    """Mark the transaction committed, run cleanup while the lock is still held, then release it.
+
+    A crash during cleanup leaves a committed journal, which recovery completes without rollback."""
+    tx.state["phase"] = "committed"
+    tx.save()
+    try:
+        warnings = cleanup()
+    except Exception as exc:  # cleanup is best effort; the committed install/uninstall stands
+        warnings = [f"experimental_jev cleanup skipped ({exc})"]
+    tx.commit()
+    return warnings
+
+
 def execute_install(distribution: Path, root: safe.SafeRoot, mode: str,
-                    migrate_legacy: str | None) -> int:
+                    migrate_legacy: str | None, with_jev: bool = False) -> int:
     tx = safe.Transaction(root)
     tx.acquire()
     try:
         safe.validate_or_consume_tombstone(root, mutate=True)
         safe.assert_fresh_transaction_artifacts(root, tx)
-        plan = build_install_plan(distribution, root, mode, migrate_legacy, lock_held=True)
+        old_jev = jev_files(safe.load_manifest(root)) if with_jev else {}
+        plan = build_install_plan(distribution, root, mode, migrate_legacy, lock_held=True, with_jev=with_jev)
     except Exception:
         tx.rollback()
         raise
@@ -357,11 +608,18 @@ def execute_install(distribution: Path, root: safe.SafeRoot, mode: str,
         changed += int(root.write_atomic(safe.VERSION_MARKER, (plan["version"] + "\n").encode(), tx))
         manifest = json.dumps(plan["manifest"], ensure_ascii=False, indent=2, sort_keys=True).encode() + b"\n"
         changed += int(root.write_atomic(safe.MANIFEST, manifest, tx))
-        tx.commit()
+        warnings: list[str] = []
+        if with_jev:
+            warnings = commit_with_jev_cleanup(
+                tx, lambda: cleanup_experimental_jev(root, tx, old_jev, None, plan["stale_files"]))
+        else:
+            tx.commit()
     except Exception:
         tx.rollback()
         raise
     print(f"[OK] {plan['mode']} install committed: {changed} changed file(s)")
+    for warning in warnings:
+        print(f"[WARN] {warning}")
     return changed
 
 
@@ -473,7 +731,11 @@ def execute_uninstall(distribution: Path, root: safe.SafeRoot, mode: str) -> int
     try:
         safe.validate_or_consume_tombstone(root, mutate=True)
         safe.assert_fresh_transaction_artifacts(root, tx)
+        old_manifest = safe.load_manifest(root)
         plan = build_uninstall_plan(distribution, root, mode)
+        old_jev = jev_files(old_manifest)
+        jev_removed = (JEV_COMPONENT in ((old_manifest or {}).get("components") or {})
+                       and JEV_COMPONENT not in plan["manifest"].get("components", {}))
     except Exception:
         tx.rollback()
         raise
@@ -500,11 +762,18 @@ def execute_uninstall(distribution: Path, root: safe.SafeRoot, mode: str) -> int
             if root.exists(safe.VERSION_MARKER):
                 changed += int(root.delete_transactional(safe.VERSION_MARKER, tx))
             changed += int(root.delete_transactional(safe.MANIFEST, tx))
-        tx.commit()
+        warnings: list[str] = []
+        if jev_removed:
+            warnings = commit_with_jev_cleanup(tx, lambda: cleanup_experimental_jev(
+                root, tx, old_jev, load_known_jev_hashes(distribution), sorted(old_jev)))
+        else:
+            tx.commit()
     except Exception:
         tx.rollback()
         raise
     print(f"[OK] {plan['mode']} uninstall committed: {changed} changed file(s)")
+    for warning in warnings:
+        print(f"[WARN] {warning}")
     if plan["residuals"]:
         print(f"[WARN] {len(plan['residuals'])} modified item(s) preserved; manifest detached")
     return changed
@@ -519,11 +788,17 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--plan-only", action="store_true")
     p.add_argument("--migrate-legacy", metavar="VERSION")
     p.add_argument("--yes", action="store_true")
+    p.add_argument("--with-jev", action="store_true",
+                   help="install only: also install experimental/jev (Claude Code only: cc, both, all)")
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.with_jev and args.action != "install":
+        raise safe.InstallError("--with-jev is only valid for install; uninstall removes experimental/jev with cc")
+    if args.with_jev and "cc" not in ENVIRONMENTS[args.mode]:
+        raise safe.InstallError(JEV_ONLY_CC)
     distribution = Path(__file__).resolve().parent.parent
     target = safe.determine_target(args.target)
     if args.action == "install" and args.mode in ("cc", "both", "codex", "all") and not (args.dry_run or args.plan_only):
@@ -538,7 +813,7 @@ def main(argv: list[str] | None = None) -> int:
             safe.recover_if_needed(root)
         else:
             safe.validate_or_consume_tombstone(root, mutate=False)
-        plan = (build_install_plan(distribution, root, args.mode, args.migrate_legacy)
+        plan = (build_install_plan(distribution, root, args.mode, args.migrate_legacy, with_jev=args.with_jev)
                 if args.action == "install" else build_uninstall_plan(distribution, root, args.mode))
         if args.dry_run or args.plan_only:
             summary = {k: plan[k] for k in ("mode", "conflicts")}
@@ -546,7 +821,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
             return 1 if plan["conflicts"] else 0
         if args.action == "install":
-            execute_install(distribution, root, args.mode, args.migrate_legacy)
+            execute_install(distribution, root, args.mode, args.migrate_legacy, args.with_jev)
         else:
             execute_uninstall(distribution, root, args.mode)
     return 0
