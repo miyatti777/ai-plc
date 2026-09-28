@@ -24,7 +24,13 @@ sys.dont_write_bytecode = True  # no __pycache__ next to the installed scripts (
 import tempfile
 from pathlib import Path
 
-import yaml
+try:
+    import yaml
+except ImportError:  # pyyaml is required; keep the "always exits 0" promise when run directly
+    if __name__ == "__main__":
+        print("Jev監視: スキップ（pyyaml が無い。pip install pyyaml）")
+        sys.exit(0)
+    raise
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import jev_client  # noqa: E402

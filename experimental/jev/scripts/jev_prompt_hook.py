@@ -5,8 +5,8 @@ even indirect) and, when p >= 0.5, adds ONE line of context for the main model. 
 every path exits 0, and on any doubt it stays silent.
 
 Scope gate (the main privacy control):
-- The hook is dormant unless THIS session activated it. A prompt that starts with /04-operation-jev or
-  /01-collection-jev and names a Layer whose intent.yaml has `jev_monitor: true` binds that session to that
+- The hook is dormant unless THIS session activated it. A prompt that starts with one of /01-collection-jev ..
+  /04-operation-jev and names a Layer whose intent.yaml has `jev_monitor: true` binds that session to that
   Layer (marker file keyed by session_id). Other sessions, and this session before activation, send nothing.
 - Bindings expire after ACTIVE_HOURS, or on `--deactivate [session_id]`, or when JEV_DISABLE=1.
 
@@ -31,7 +31,10 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import jev_bt_monitor as mon  # noqa: E402
+try:
+    import jev_bt_monitor as mon  # noqa: E402
+except ImportError:  # e.g. pyyaml missing: stay silent and never block the prompt
+    sys.exit(0)
 
 jev_client = mon.jev_client
 MARKER_PATH = Path(os.environ.get("JEV_HOOK_MARKER_PATH",

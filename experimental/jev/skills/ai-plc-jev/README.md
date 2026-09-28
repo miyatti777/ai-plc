@@ -41,7 +41,7 @@
 | `.claude/commands/01-collection-jev.md`〜`04-operation-jev.md` | 起動用のコマンド |
 | `.claude/ai-plc-jev/scripts/` | `jev_client.py`・`jev_bt_monitor.py`・`jev_prompt_hook.py`・`jev_coverage_check.py`・`jev_regression_rank.py`・`aiplc_status_audit.py` と README 2 本・送信禁止語の例 |
 
-入れ方は公開 README の実験版の節（`install-cc.sh --with-jev` または `install.sh cc --with-jev`。Claude Code 専用）を参照してください。テストはインストールされません（リポジトリの checkout で `python3 -m unittest discover experimental/jev/scripts/tests` を実行します）。
+入れ方は公開 README の実験版の節（`install-cc.sh --with-jev` または `install.sh cc --with-jev`。Claude Code 専用）を参照してください。テストはインストールされません（リポジトリの checkout で `JEV_DISABLE=1 python3 -m unittest discover -s experimental/jev/scripts/tests` を実行します）。
 
 ## 外部送信の内容
 

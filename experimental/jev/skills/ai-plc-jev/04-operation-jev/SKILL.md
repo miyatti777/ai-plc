@@ -91,13 +91,13 @@ BT-B（節目再評価: 完了率50% / ゴールドリフト）と BT-C（全完
 
 ### Phase 7: Propagation（省略禁止）
 
-RUL_plc_system §8 のチェックリスト**7項目**（backlog / context / native memory / External Sync / Wiki波及 / log / Registry DB）に、本スキル固有の**8項目目「ステータス点検」**を足した8項目を全て「確認→判断→結果出力」で処理し、チェックリストを必ず出力する（ステータス点検は公開 core の rules には無い項目で、本スキルの中でだけ有効）。8項目目のチェックリスト行は次のとおり:
+RUL_plc_system §8 のチェックリスト**7項目**（backlog / context / native memory / External Sync / Wiki波及 / log / Registry DB）に、本スキル固有の**8項目目「ステータス点検」**を足した8項目を全て「確認→判断→結果出力」で処理し、チェックリストを必ず出力する（ステータス点検は公開 core の rules には無い項目で、本スキルの中でだけ有効）。Wiki波及はここ（Phase 7）が唯一の発動ポイント（RUL_plc_system §11）。8項目目のチェックリスト行は次のとおり:
 
 ```
 - [x] ステータス点検 — [`python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --brief --layer <Layer>` の結果: 「食い違いなし」 or 「N件→承認後に `--quiet --approval-template --layer <Layer>` → `--apply <承認ファイル>` で反映」 or 「点検ツールなし／終了コード1・2 — スキップ」]（読み取り専用。検出と提示まで・反映は承認後）
 ```
 
-**ステータス点検**は Registry DB 更新の後に、完了するLayer自身の食い違い（intent・backlog・Registry）を判定器で確かめる項目。`python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --brief --layer <Layer>` を実行し（読み取り専用・外部送信なし・終了コード0=食い違いなし／10=あり）、候補があれば1行ずつ提示して承認を求める。SubLayerを持つLayerを閉じるときは子も `--layer` を重ねて指定する（子は自動では含まれない）。反映は承認後に ①`python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --quiet --approval-template --layer <Layer>` で雛形を作る ②コピーして承認する行だけ `approve` にする ③`--apply <承認ファイル>`（dry-run）→ `--apply <承認ファイル> --yes` の順。スクリプトが無い環境では「点検ツールなし — スキップ」、終了コード2（DBが無い・scope_idが無い等）なら要点を1行出してスキップする。pyyaml が無いなどで起動に失敗した（終了コード1）ときも要点を1行出してスキップする。詳細は `.claude/ai-plc-jev/scripts/README_status_audit.md`。Wiki波及はここが唯一の発動ポイント（RUL_plc_system §11）。
+**ステータス点検**は Registry DB 更新の後に、完了するLayer自身の食い違い（intent・backlog・Registry）を判定器で確かめる項目。`python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --brief --layer <Layer>` を実行し（読み取り専用・外部送信なし・終了コード0=食い違いなし／10=あり）、候補があれば1行ずつ提示して承認を求める。SubLayerを持つLayerを閉じるときは子も `--layer` を重ねて指定する（子は自動では含まれない）。反映は承認後に ①`python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --quiet --approval-template --layer <Layer>` で雛形を作る ②コピーして承認する行だけ `approve` にする ③`--apply <承認ファイル>`（dry-run）→ `--apply <承認ファイル> --yes` の順。スクリプトが無い環境では「点検ツールなし — スキップ」、終了コード2（DBが無い・scope_idが無い等）なら要点を1行出してスキップする。pyyaml が無いなどで起動に失敗した（終了コード1）ときも要点を1行出してスキップする。詳細は `.claude/ai-plc-jev/scripts/README_status_audit.md`。
 
 ### Phase 8: Knowledge Lint [月次/手動]
 
@@ -116,4 +116,4 @@ RUL_plc_session §7 の4パート（📍現在位置 / ✅完了サマリ / 📊
 Documents/（成果物） / Context Store・context.yaml（更新） / backlog.yaml（更新） / Production Skills（platform_builder時のみ）。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-09-28 ｜ **バージョン:** 2.7-jev（公開実験版 1.8.0-exp.1。公開 core 04-operation 2.4 との差分は冒頭の callout と `.claude/skills/ai-plc-jev/README.md` を参照）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-09-28 ｜ **バージョン:** 2.7-jev（公開実験版 1.8.0-exp.1。公開 core 04-operation 2.4 をベースにした実験版の版番号。2.4 との差分は冒頭の callout と `.claude/skills/ai-plc-jev/README.md` を参照）

@@ -103,9 +103,7 @@ LAYER_DONE = frozenset({"completed", "done"})
 LAYER_OPEN = frozenset({"active", "blocked", "pending_inception", "pending_init", "pending"})
 LAYER_PARKED = frozenset({"deferred"})
 REGISTRY_DONE = "completed"
-REG_TASK_DONE = "完了"
-# intent status_map (pending→未着手 / in_progress→進行中 / blocked→未着手); others → 未着手
-REG_TASK_MAP = {"in_progress": "進行中", "active": "進行中"}
+REG_TASK_DONE = "完了"  # kept as-is by norm() (the Japanese done value); vocabulary handling: REG_VOCAB below
 # Registry tasks.status vocabulary. Japanese (完了/進行中/未着手) or English (the schema created by AI-PLC's
 # init_db.py: planned/active/completed/paused). Detected from the CHECK constraint of the tasks.status column;
 # Japanese when it cannot be told (the historical behaviour).

@@ -384,7 +384,7 @@ class DryRunAndApplyTest(ApplyBase):
 
         class Blocked:
             def cmd_sql(self, conn, q):
-                print("[BLOCKED] IDENTITY_LESS_ROW_FORBIDDEN: x (exit 3; nothing was written)")
+                print("[BLOCKED] GUARD_REJECTED_ROW: x (exit 3; nothing was written)")
                 return 3
 
         with mock.patch.object(audit_mod, "_plc_query", lambda: Blocked()):

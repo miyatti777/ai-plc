@@ -16,7 +16,13 @@ sys.dont_write_bytecode = True  # no __pycache__ next to the installed scripts (
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import jev_bt_monitor as mon  # noqa: E402
+try:
+    import jev_bt_monitor as mon  # noqa: E402
+except ImportError:  # e.g. pyyaml missing: skip (the script always exits 0)
+    if __name__ == "__main__":
+        print("Jev成功条件カバー判定: スキップ（pyyaml が無い。pip install pyyaml）")
+        sys.exit(0)
+    raise
 
 jev_client = mon.jev_client
 USE_CASE = "coverage"
