@@ -463,13 +463,16 @@ class WithJevUninstall(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue(planted.exists())  # never reached through the symlink
             self.assertTrue((root / ".claude/ai-plc-jev/scripts/linked").is_symlink())
-            self.assertIn("[WARN] experimental_jev directory kept (not empty): .claude/ai-plc-jev", result.stdout)
+            warn = [line for line in result.stdout.splitlines() if line.startswith("[WARN] experimental_jev")]
+            self.assertEqual(len(warn), 1, result.stdout)  # one warning line
+            self.assertIn("directory kept (not empty): .claude/ai-plc-jev", warn[0])
             self.assertFalse((root / ".claude/skills/ai-plc-jev").exists())
 
 
 class WithJevUpgrade(unittest.TestCase):
 
-    def make_release(self, dist: Path, version: str, change: bool = True, drop: str | None = None) -> None:
+    @staticmethod
+    def make_release(dist: Path, version: str, change: bool = True, drop: str | None = None) -> None:
         (dist / "experimental/jev/VERSION").write_text(version + "\n")
         if change:
             with open(dist / "experimental/jev/scripts/README_jev.md", "a") as fh:
@@ -556,27 +559,84 @@ class CleanupHoldsLock(unittest.TestCase):
             self.assertFalse((root / safe.LOCK).exists())
             self.assertEqual(jev_leftovers(root), [])
 
-    def test_crash_during_cleanup_is_recovered_as_committed(self) -> None:
-        crash = r"""
+    CRASH = r"""
 import os, sys
 from pathlib import Path
-dist, target = sys.argv[1:3]
+dist, target, action = sys.argv[1:4]
 sys.path.insert(0, str(Path(dist) / "lib"))
 import ai_plc_safe_fs as safe, ai_plc_multi_env as multi
 multi.cleanup_experimental_jev = lambda *a, **k: os._exit(9)
 with safe.SafeRoot(Path(target)) as root:
-    multi.execute_uninstall(Path(dist), root, "cc")
+    if action == "uninstall":
+        multi.execute_uninstall(Path(dist), root, "cc")
+    else:
+        multi.execute_install(Path(dist), root, "cc", None, True)
 """
+
+    def test_crash_during_uninstall_cleanup_is_resumed(self) -> None:
+        for follow_up in ("install", "uninstall"):
+            with self.subTest(follow_up=follow_up), target_repo() as root:
+                self.assertEqual(install(REPO, root, "cc", "--with-jev").returncode, 0)
+                result = run(sys.executable, "-c", self.CRASH, str(REPO), str(root), "uninstall")
+                self.assertEqual(result.returncode, 9)
+                self.assertTrue((root / ".ai-plc-install.lock").exists())
+                self.assertTrue(any(".bak." in p for p in jev_leftovers(root)))  # cleanup did not run
+                # the next run recovers the committed transaction (no rollback) and resumes the cleanup
+                action = install if follow_up == "install" else uninstall
+                again = action(REPO, root, "cc")
+                self.assertIn("experimental_jev cleanup resumed after recovery", again.stdout, again.stderr)
+                self.assertFalse((root / ".ai-plc-install.lock").exists())
+                self.assertEqual(jev_leftovers(root), [])
+                if follow_up == "install":
+                    self.assertEqual(again.returncode, 0, again.stderr)
+                    self.assertNotIn("experimental_jev", manifest(root)["components"])
+
+    def test_crash_during_upgrade_cleanup_is_resumed(self) -> None:
+        with distribution_copy() as dist, target_repo() as root:
+            self.assertEqual(install(dist, root, "cc", "--with-jev").returncode, 0)
+            WithJevUpgrade.make_release(dist, "1.8.0-exp.99")
+            result = run(sys.executable, "-c", self.CRASH, str(dist), str(root), "install")
+            self.assertEqual(result.returncode, 9)
+            self.assertTrue(any(".bak." in p for p in jev_leftovers(root)))
+            again = install(dist, root, "cc", "--with-jev")
+            self.assertEqual(again.returncode, 0, again.stderr)
+            self.assertIn("experimental_jev cleanup resumed after recovery", again.stdout)
+            self.assertEqual([p for p in jev_leftovers(root) if ".bak." in p], [])
+            self.assertEqual(manifest(root)["components"]["experimental_jev"]["package_version"], "1.8.0-exp.99")
+
+    def test_lock_release_failure_does_not_roll_back(self) -> None:
+        sys.path.insert(0, str(REPO / "lib"))
+        try:
+            safe = importlib.import_module("ai_plc_safe_fs")
+            multi = importlib.import_module("ai_plc_multi_env")
+        finally:
+            sys.path.pop(0)
         with target_repo() as root:
             self.assertEqual(install(REPO, root, "cc", "--with-jev").returncode, 0)
-            result = run(sys.executable, "-c", crash, str(REPO), str(root))
-            self.assertEqual(result.returncode, 9)
+            original = safe.Transaction.commit
+            def failing_commit(self_):
+                raise OSError("simulated")
+            safe.Transaction.commit = failing_commit
+            try:
+                with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink), safe.SafeRoot(root) as handle:
+                    with self.assertRaises(safe.InstallError) as ctx:
+                        multi.execute_uninstall(REPO, handle, "cc")
+            finally:
+                safe.Transaction.commit = original
+            self.assertTrue(getattr(ctx.exception, "committed", False))
+            self.assertIn("rerun to recover", str(ctx.exception))
+            # not rolled back: package files stay deleted and the committed journal is left for recovery
+            self.assertFalse((root / ".claude/ai-plc-jev").exists())
+            self.assertFalse((root / ".ai-plc-install-manifest").exists())
             self.assertTrue((root / ".ai-plc-install.lock").exists())
-            # the next run recovers the committed transaction (no rollback) and proceeds
-            again = install(REPO, root, "cc", "--with-jev")
-            self.assertEqual(again.returncode, 0, again.stderr)
-            self.assertFalse((root / ".ai-plc-install.lock").exists())
-            self.assertEqual(uninstall(REPO, root, "cc").returncode, 0)
+
+    def test_undecodable_known_releases_does_not_block_cleanup(self) -> None:
+        with distribution_copy() as dist, target_repo() as root:
+            self.assertEqual(install(dist, root, "cc", "--with-jev").returncode, 0)
+            (dist / "experimental/jev/KNOWN_RELEASES.sha256").write_bytes(b"\xff\xfe broken\n")
+            result = uninstall(dist, root, "cc")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(jev_leftovers(root), [])
 
 
 if __name__ == "__main__":

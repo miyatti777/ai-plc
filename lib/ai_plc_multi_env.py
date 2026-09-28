@@ -36,6 +36,7 @@ JEV_MANAGED_DIRS = (".claude/ai-plc-jev", ".claude/skills/ai-plc-jev")
 JEV_COMMANDS_DIR = ".claude/commands"
 JEV_COMMAND_NAME = re.compile(r"^0[1-4]-[a-z-]+-jev\.md$")
 JEV_PACKAGE_VERSION = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-exp\.([1-9][0-9]*)$")
+JEV_CLEANUP_KEY = "experimental_jev_cleanup"  # journal entry that lets recovery resume the cleanup
 BACKUP_SUFFIX = re.compile(r"^(?P<base>.+)\.bak\.[0-9]{8}T[0-9]{6}Z\.[0-9]+$")
 JEV_ONLY_CC = ("--with-jev: 実験版は Claude Code 専用。cc / both / all と一緒に指定してください "
                "(experimental/jev is Claude Code only; use it with cc, both, or all)")
@@ -401,7 +402,7 @@ def load_known_jev_hashes(distribution: Path) -> dict[str, set[str]]:
     known: dict[str, set[str]] = {}
     try:
         text = safe.secure_source_read(distribution, JEV_KNOWN_RELEASES).decode()
-    except (FileNotFoundError, OSError, safe.InstallError):
+    except (OSError, ValueError, safe.InstallError):  # missing or undecodable list -> no extra hashes
         return known
     for line in text.splitlines():
         line = line.strip()
@@ -427,7 +428,10 @@ def is_jev_location(path: str) -> bool:
 
 
 def list_dir_entries(root: safe.SafeRoot, rel: str) -> list[tuple[str, str]]:
-    """(name, kind) for entries of rel without following symlinks; kind is 'file', 'dir' or 'other'."""
+    """(name, kind) for entries of rel without following symlinks; kind is 'file', 'dir' or 'other'.
+
+    Uses SafeRoot._open_parent (pinned root descriptor, O_NOFOLLOW on every component) on purpose;
+    ai_plc_safe_fs has no public directory-listing helper and is intentionally left unchanged."""
     fd, name = root._open_parent(rel)
     flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
@@ -466,12 +470,15 @@ def jev_backup_candidates(root: safe.SafeRoot) -> list[str]:
     for directory in JEV_MANAGED_DIRS:
         visit(directory)
     try:
-        for child, kind in list_dir_entries(root, JEV_COMMANDS_DIR):
-            match = BACKUP_SUFFIX.fullmatch(child)
-            if kind == "file" and match and JEV_COMMAND_NAME.fullmatch(match.group("base")):
-                found.append(f"{JEV_COMMANDS_DIR}/{child}")
-    except OSError:
-        pass
+        children = list_dir_entries(root, JEV_COMMANDS_DIR)
+    except OSError as exc:
+        if exc.errno not in (errno.ENOENT, errno.ELOOP, errno.ENOTDIR):
+            raise
+        children = []
+    for child, kind in children:
+        match = BACKUP_SUFFIX.fullmatch(child)
+        if kind == "file" and match and JEV_COMMAND_NAME.fullmatch(match.group("base")):
+            found.append(f"{JEV_COMMANDS_DIR}/{child}")
     return found
 
 
@@ -487,7 +494,7 @@ def remove_backup_if_matches(root: safe.SafeRoot, backup: str, allowed: set[str]
     return True
 
 
-def cleanup_experimental_jev(root: safe.SafeRoot, tx: safe.Transaction, old_files: dict[str, str],
+def cleanup_experimental_jev(root: safe.SafeRoot, backups: list[dict[str, Any]], old_files: dict[str, str],
                              known: dict[str, set[str]] | None, deleted: list[str]) -> list[str]:
     """Post-commit cleanup for the experimental package; runs while the installer lock is still held.
 
@@ -499,21 +506,24 @@ def cleanup_experimental_jev(root: safe.SafeRoot, tx: safe.Transaction, old_file
     Core components, shared directories and non-matching files are never touched. Returns warnings."""
     warnings: list[str] = []
     touched_dirs: set[str] = set()
-    for item in list(tx.state.get("backups", [])):
+    for item in list(backups):
         path, backup = item.get("path"), item.get("backup")
         if path not in old_files or not isinstance(backup, str) or item.get("sha256") != old_files[path]:
+            continue
+        match = BACKUP_SUFFIX.fullmatch(backup)
+        if not match or match.group("base") != path or not is_jev_location(path):
             continue
         try:
             if remove_backup_if_matches(root, backup, {old_files[path]}):
                 touched_dirs.add(PurePosixPath(backup).parent.as_posix())
         except (OSError, safe.InstallError) as exc:
-            warnings.append(f"experimental_jev backup kept: {backup} ({exc})")
+            warnings.append(f"backup kept: {backup} ({exc})")
     if known is not None:
         try:
             candidates = jev_backup_candidates(root)
         except (OSError, safe.InstallError) as exc:
             candidates = []
-            warnings.append(f"experimental_jev backup scan skipped ({exc})")
+            warnings.append(f"backup scan skipped ({exc})")
         kept = 0
         for backup in candidates:
             base = BACKUP_SUFFIX.fullmatch(PurePosixPath(backup).name).group("base")
@@ -528,9 +538,9 @@ def cleanup_experimental_jev(root: safe.SafeRoot, tx: safe.Transaction, old_file
                     kept += 1
             except (OSError, safe.InstallError) as exc:
                 kept += 1
-                warnings.append(f"experimental_jev backup kept: {backup} ({exc})")
+                warnings.append(f"backup kept: {backup} ({exc})")
         if kept:
-            warnings.append(f"experimental_jev: {kept} backup file(s) with unknown content kept")
+            warnings.append(f"{kept} backup file(s) with unknown content kept")
     for path in deleted:
         if path in old_files:
             touched_dirs.add(PurePosixPath(path).parent.as_posix())
@@ -550,26 +560,77 @@ def cleanup_experimental_jev(root: safe.SafeRoot, tx: safe.Transaction, old_file
             if st is not None and stat.S_ISDIR(st.st_mode):
                 root.prune_empty_dir(directory)
         except (OSError, safe.InstallError) as exc:
-            warnings.append(f"experimental_jev directory kept: {directory} ({exc})")
+            warnings.append(f"directory kept: {directory} ({exc})")
     if known is not None:
         for top in JEV_MANAGED_DIRS:
             if top in prune and root.exists(top):
-                warnings.append(f"experimental_jev directory kept (not empty): {top}")
+                warnings.append(f"directory kept (not empty): {top}")
     return warnings
 
 
-def commit_with_jev_cleanup(tx: safe.Transaction, cleanup) -> list[str]:
-    """Mark the transaction committed, run cleanup while the lock is still held, then release it.
+def run_jev_cleanup(root: safe.SafeRoot, state: dict[str, Any], distribution: Path) -> list[str]:
+    spec = state.get(JEV_CLEANUP_KEY) or {}
+    old_files = {str(k): str(v) for k, v in (spec.get("old_files") or {}).items() if is_jev_location(str(k))}
+    known = load_known_jev_hashes(distribution) if spec.get("sweep") else None
+    return cleanup_experimental_jev(root, list(state.get("backups") or []), old_files, known,
+                                    [str(x) for x in spec.get("deleted") or []])
 
-    A crash during cleanup leaves a committed journal, which recovery completes without rollback."""
+
+def commit_with_jev_cleanup(tx: safe.Transaction, root: safe.SafeRoot, distribution: Path,
+                            old_files: dict[str, str], deleted: list[str], sweep: bool) -> list[str]:
+    """Mark the transaction committed, run the cleanup while the lock is still held, then release it.
+
+    The cleanup parameters are stored in the committed journal. If the process dies during the cleanup,
+    recovery completes the transaction without rollback and main() resumes the cleanup (see
+    pending_jev_cleanup). If releasing the lock fails, the error is marked `committed` so the caller
+    does not roll back a transaction whose backups may already be gone."""
+    tx.state[JEV_CLEANUP_KEY] = {"old_files": old_files, "deleted": sorted(deleted), "sweep": sweep}
     tx.state["phase"] = "committed"
     tx.save()
     try:
-        warnings = cleanup()
+        warnings = run_jev_cleanup(root, tx.state, distribution)
     except Exception as exc:  # cleanup is best effort; the committed install/uninstall stands
-        warnings = [f"experimental_jev cleanup skipped ({exc})"]
-    tx.commit()
+        warnings = [f"cleanup skipped ({exc})"]
+    try:
+        tx.commit()
+    except Exception as exc:
+        error = safe.InstallError(f"committed, but releasing the installer lock failed ({exc}); rerun to recover")
+        error.committed = True  # type: ignore[attr-defined]
+        raise error from exc
     return warnings
+
+
+def print_jev_warnings(warnings: list[str]) -> None:
+    if warnings:
+        print("[WARN] experimental_jev: " + "; ".join(warnings))
+
+
+def pending_jev_cleanup(root: safe.SafeRoot) -> dict[str, Any] | None:
+    """Read-only peek: a dead transaction whose committed journal still asks for the experimental cleanup."""
+    try:
+        if not root.exists(safe.LOCK):
+            return None
+        journal = str(json.loads(root.read_bytes(safe.LOCK)).get("journal_name", ""))
+        if not journal.startswith(safe.JOURNAL_PREFIX) or "/" in journal or not root.exists(journal):
+            return None
+        state = json.loads(root.read_bytes(journal))
+    except Exception:
+        return None
+    if state.get("phase") == "committed" and isinstance(state.get(JEV_CLEANUP_KEY), dict):
+        return state
+    return None
+
+
+def resume_jev_cleanup(root: safe.SafeRoot, state: dict[str, Any], distribution: Path) -> None:
+    tx = safe.Transaction(root)
+    tx.acquire()
+    try:
+        warnings = run_jev_cleanup(root, state, distribution)
+    except Exception as exc:
+        warnings = [f"cleanup skipped ({exc})"]
+    tx.commit()
+    print("[OK] experimental_jev cleanup resumed after recovery")
+    print_jev_warnings(warnings)
 
 
 def execute_install(distribution: Path, root: safe.SafeRoot, mode: str,
@@ -610,16 +671,15 @@ def execute_install(distribution: Path, root: safe.SafeRoot, mode: str,
         changed += int(root.write_atomic(safe.MANIFEST, manifest, tx))
         warnings: list[str] = []
         if with_jev:
-            warnings = commit_with_jev_cleanup(
-                tx, lambda: cleanup_experimental_jev(root, tx, old_jev, None, plan["stale_files"]))
+            warnings = commit_with_jev_cleanup(tx, root, distribution, old_jev, plan["stale_files"], False)
         else:
             tx.commit()
-    except Exception:
-        tx.rollback()
+    except Exception as exc:
+        if not getattr(exc, "committed", False):
+            tx.rollback()
         raise
     print(f"[OK] {plan['mode']} install committed: {changed} changed file(s)")
-    for warning in warnings:
-        print(f"[WARN] {warning}")
+    print_jev_warnings(warnings)
     return changed
 
 
@@ -764,16 +824,15 @@ def execute_uninstall(distribution: Path, root: safe.SafeRoot, mode: str) -> int
             changed += int(root.delete_transactional(safe.MANIFEST, tx))
         warnings: list[str] = []
         if jev_removed:
-            warnings = commit_with_jev_cleanup(tx, lambda: cleanup_experimental_jev(
-                root, tx, old_jev, load_known_jev_hashes(distribution), sorted(old_jev)))
+            warnings = commit_with_jev_cleanup(tx, root, distribution, old_jev, sorted(old_jev), True)
         else:
             tx.commit()
-    except Exception:
-        tx.rollback()
+    except Exception as exc:
+        if not getattr(exc, "committed", False):
+            tx.rollback()
         raise
     print(f"[OK] {plan['mode']} uninstall committed: {changed} changed file(s)")
-    for warning in warnings:
-        print(f"[WARN] {warning}")
+    print_jev_warnings(warnings)
     if plan["residuals"]:
         print(f"[WARN] {len(plan['residuals'])} modified item(s) preserved; manifest detached")
     return changed
@@ -810,7 +869,10 @@ def main(argv: list[str] | None = None) -> int:
                 raise safe.InstallError("installation was not confirmed")
     with safe.SafeRoot(target) as root:
         if not (args.dry_run or args.plan_only):
+            pending = pending_jev_cleanup(root)
             safe.recover_if_needed(root)
+            if pending:
+                resume_jev_cleanup(root, pending, distribution)
         else:
             safe.validate_or_consume_tombstone(root, mutate=False)
         plan = (build_install_plan(distribution, root, args.mode, args.migrate_legacy, with_jev=args.with_jev)
