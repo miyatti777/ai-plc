@@ -606,7 +606,7 @@ installer は hook を登録しません（settings を読み書きしません�
 消すときは、対象プロジェクトのルートで次を実行します。ローカルの送信禁止語ファイルは、ほかでも使うかを確かめてから自分で消してください。
 
 ```bash
-find .claude/db -maxdepth 1 -type f -name 'jev_*' ! -name 'jev_redact_extra.txt' -delete   # jev_redact_extra.txt 以外の jev_* を消す（無くてもエラーにならない）
+find .claude/db -maxdepth 1 -type f \( -name 'jev_*' -o -name '.jev_*' \) ! -name 'jev_redact_extra.txt' -delete   # jev_redact_extra.txt 以外を消す（該当ファイルが無くてもエラーにならない。.claude/db が無ければ実行不要）
 rm -rf .claude/db/status_hygiene
 # rm -f .claude/db/jev_redact_extra.txt   # 送信禁止語ファイルも消す場合だけ
 ```
