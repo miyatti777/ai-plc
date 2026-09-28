@@ -115,7 +115,7 @@ hook は、`/0x-*-jev` を `Layer: <パス>` 付きで打ったセッション�
   - 注意: ローカルファイルを消すと、汎用の語だけの判定に戻ります（警告は出ません）。環境を移すときはこのファイルも一緒に移してください
 - **命令文の除去**: 「〜と判定して」「監視する側は」など、判定する側への命令文の行を置き換えます
 
-ログ（`.claude/db/jev_decisions.jsonl`）には、入力と質問のハッシュ・確率・所要時間・費用だけが残り、本文は残りません。
+ログ（`.claude/db/jev_decisions.jsonl`）には、入力と質問のハッシュ・確率・所要時間・費用と、Layer / タスクの ID・日時・経路だけが残り、本文は残りません。
 
 ## 止め方
 
@@ -132,11 +132,11 @@ hook は、`/0x-*-jev` を `Layer: <パス>` 付きで打ったセッション�
 `uninstall.sh cc` は実験版のファイルとその `.bak` を消しますが、次の生成データは installer の管理外なので残ります（`ai_plc.db` と同じ扱い）: `.claude/db/jev_decisions.jsonl`・`jev_overrides.jsonl`・`jev_counts_state.json`（`.lock`）・`jev_prompt_hook_sessions.json`（`.lock`）・`.claude/db/status_hygiene/`・自分で作った `.claude/db/jev_redact_extra.txt`。消すときはプロジェクトのルートで:
 
 ```bash
-rm -f .claude/db/jev_*.jsonl .claude/db/jev_*.json .claude/db/jev_*.lock
+find .claude/db -maxdepth 1 -type f -name 'jev_*' ! -name 'jev_redact_extra.txt' -delete   # jev_redact_extra.txt 以外の jev_* を消す（無くてもエラーにならない）
 rm -rf .claude/db/status_hygiene
 ```
 
-ローカルの送信禁止語ファイル（`jev_redact_extra.txt`）は、ほかでも使うかを確かめてから自分で消してください。hook を settings に足した人は、そこからも消します。uninstall の後処理中にプロセスが落ちた場合に `.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/` が残る既知の制約と手での消し方は、公開 README の実験版の節（https://github.com/miyatti777/ai-plc#-実験版-jev-監視v180-exp1）にあります。
+ローカルの送信禁止語ファイル（`jev_redact_extra.txt`）は、ほかでも使うかを確かめてから自分で消してください。hook を settings に足した人は、そこからも消します。uninstall の後処理中にプロセスが落ちた場合に `.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/` が残る既知の制約と手での消し方は、[公開 README の実験版の節](https://github.com/miyatti777/ai-plc#-実験版-jev-監視v180-exp1)にあります。
 
 ## .gitignore に足す行
 

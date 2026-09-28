@@ -538,7 +538,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 
 - 送信先: 公式経路なら TypeSafe の1社、OpenRouter 経由なら OpenRouter と TypeSafe の2社
 - 送る前に、送信禁止の語の検査（コードの汎用語＋自分で書くローカルの `.claude/db/jev_redact_extra.txt`）と命令文の除去が働きます。**キーワードでの判定なので、言い換えた機密は通ります。** 機密PJ・経費・人事・顧客名や人名・私生活に関わる Layer では有効にしないでください
-- ファイルの中身や会話の全文は送りません。判断ログ（`.claude/db/jev_decisions.jsonl`）に残るのはハッシュ・確率・所要時間・費用だけです
+- ファイルの中身や会話の全文は送りません。判断ログ（`.claude/db/jev_decisions.jsonl`）に本文は残りません（残るのは入力と質問のハッシュ・確率・所要時間・費用と、Layer / タスクの ID・日時・経路）
 
 ### 入れ方
 
@@ -597,7 +597,7 @@ installer は hook を登録しません（settings を読み書きしません�
 
 | ファイル | 中身 |
 | --- | --- |
-| `.claude/db/jev_decisions.jsonl` / `jev_overrides.jsonl` | 判断ログ（ハッシュ・確率のみ）と、判定ごとの採否の記録 |
+| `.claude/db/jev_decisions.jsonl` / `jev_overrides.jsonl` | 判断ログ（本文なし。ハッシュ・確率・Layer / タスクの ID など）と、判定ごとの採否の記録 |
 | `.claude/db/jev_counts_state.json`（`.lock`） | 異常ヒントの数え上げ状態 |
 | `.claude/db/jev_prompt_hook_sessions.json`（`.lock`） | 会話監視 hook のセッションの紐づけ |
 | `.claude/db/status_hygiene/` | ステータス点検のレポート・承認ファイル・実行ログ |
@@ -606,7 +606,7 @@ installer は hook を登録しません（settings を読み書きしません�
 消すときは、対象プロジェクトのルートで次を実行します。ローカルの送信禁止語ファイルは、ほかでも使うかを確かめてから自分で消してください。
 
 ```bash
-rm -f .claude/db/jev_*.jsonl .claude/db/jev_*.json .claude/db/jev_*.lock
+find .claude/db -maxdepth 1 -type f -name 'jev_*' ! -name 'jev_redact_extra.txt' -delete   # jev_redact_extra.txt 以外の jev_* を消す（無くてもエラーにならない）
 rm -rf .claude/db/status_hygiene
 # rm -f .claude/db/jev_redact_extra.txt   # 送信禁止語ファイルも消す場合だけ
 ```
@@ -617,7 +617,7 @@ rm -rf .claude/db/status_hygiene
 
   ```bash
   rm -rf .claude/ai-plc-jev .claude/skills/ai-plc-jev
-  rm -f .claude/commands/0[1-4]-*-jev.md.bak.*
+  find .claude/commands -maxdepth 1 -type f -name '0[1-4]-*-jev.md.bak.*' -delete
   ```
 
 - 会話監視 hook のハーネスメッセージの除外は列挙方式です（上の「会話監視 hook は手動で有効化」）
