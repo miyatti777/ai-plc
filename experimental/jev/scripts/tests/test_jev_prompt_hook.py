@@ -98,6 +98,17 @@ class PromptHookTest(unittest.TestCase):
             self.assertEqual(self.h.handle({"prompt": p, "session_id": "S1"}, ask=self.yes), "", p)
         self.yes.assert_not_called()
 
+    def test_harness_injected_messages_are_never_sent(self):
+        self.activate("S1")
+        for p in ["Another Claude session sent a message:\n<agent-message from=\"a1\">範囲を広げた報告です。懸念があります</agent-message>",
+                  "<task-notification><task-id>x</task-id><status>completed</status></task-notification>",
+                  "[SYSTEM NOTIFICATION - NOT USER INPUT]\n抜けがあるかもしれない",
+                  "<command-message>04-operation-jev</command-message>\n<command-name>/04-operation-jev</command-name>",
+                  "<cross-session-message from=\"w\">進捗の訂正です</cross-session-message>",
+                  "  [Subagent hand-back] 報告: 範囲を変えました"]:
+            self.assertEqual(self.h.handle({"prompt": p, "session_id": "S1"}, ask=self.yes), "", p[:30])
+        self.yes.assert_not_called()
+
     def test_pasted_content_is_stripped_and_length_capped(self):
         self.activate("S1")
         prompt = "範囲を広げたい。" + "<pasted_content id=\"a\">SECRET_PASTE</pasted_content id=\"a\">" + "あ" * 1000

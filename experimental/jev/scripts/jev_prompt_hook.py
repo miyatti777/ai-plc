@@ -10,7 +10,8 @@ Scope gate (the main privacy control):
   Layer (marker file keyed by session_id). Other sessions, and this session before activation, send nothing.
 - Bindings expire after ACTIVE_HOURS, or on `--deactivate [session_id]`, or when JEV_DISABLE=1.
 
-Pre-filters (skip without sending): slash commands, short approvals (OK / A / accept / はい ...),
+Pre-filters (skip without sending): harness-injected messages (sub-agent hand-backs, notices,
+command expansions), slash commands, short approvals (OK / A / accept / はい ...),
 questions ending with ？/?, and pasted blocks (<pasted_content>…</pasted_content> is removed; only the user's
 own text, up to MAX_CHARS, is sent). redact() in jev_client still applies.
 
@@ -49,6 +50,12 @@ USE_CASE = "prompt_hook"
 ACTIVATE_RE = re.compile(r"^\s*/(?:0[1-4]-(?:collection|inception|construction|operation)-jev)\b(.*)", re.S)
 LAYER_RE = re.compile(r"Layer\s*[:：]\s*(\S+)")
 PASTED_RE = re.compile(r"<pasted_content[^>]*>.*?</pasted_content[^>]*>", re.S)
+# Messages the harness injects as a "prompt" (sub-agent hand-backs, task / system notices, slash-command
+# expansions, cross-session messages) are not the user's own words: never send them.
+HARNESS_RE = re.compile(
+    r"<agent-message\b|<task-notification\b|<system-reminder\b|<command-message\b|<command-name\b"
+    r"|<cross-session-message\b|\[SYSTEM NOTIFICATION|\[Subagent hand-back\]|^\s*Another Claude session sent a message",
+    re.I | re.M)
 APPROVAL_RE = re.compile(
     r"^\s*(ok|okay|a|b|c|d|e|accept|reject|yes|no|はい|いいえ|うん|了解|りょ|次|次へ|続けて|進めて|お願いします|"
     r"おねがいします|それで|それでお願いします|いいよ|大丈夫|go|lgtm)\s*[。!！.]*\s*$", re.I)
@@ -123,6 +130,8 @@ def active_layer(session_id):
 
 def clean_utterance(prompt):
     """Return the user's own text to send, or None when it should be skipped."""
+    if HARNESS_RE.search(prompt or ""):
+        return None
     text = PASTED_RE.sub(" ", prompt or "").strip()
     if not text or text.startswith("/"):
         return None
