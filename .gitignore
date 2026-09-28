@@ -9,3 +9,9 @@ __pycache__/
 
 # OS / editor
 .DS_Store
+
+# Jev experimental package (experimental/jev): local do-not-send words, decision logs, audit output
+.claude/db/jev_redact_extra.txt
+.claude/db/jev_*
+.claude/db/status_hygiene/
+experimental/jev/.claude/

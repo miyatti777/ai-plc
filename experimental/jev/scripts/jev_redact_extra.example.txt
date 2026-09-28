@@ -1,0 +1,30 @@
+# Jev 送信禁止パターン（環境固有）のサンプル
+#
+# 使い方: このファイルを <repo>/.claude/db/jev_redact_extra.txt にコピーして、自分の環境の語に書き換える。
+#   cp .claude/ai-plc-jev/scripts/jev_redact_extra.example.txt .claude/db/jev_redact_extra.txt
+# jev_client.py はこのパスのファイルがあれば常に読み込み、コード側の汎用パターン（経費・人事・私生活・
+# メールアドレス・電話番号など）に追加します。環境変数 JEV_REDACT_EXTRA で指定したファイルも追加で読みます。
+# ローカルファイルは git 管理外にしてください（自分で .gitignore に .claude/db/jev_redact_extra.txt を足す。installer は .gitignore に触りません）。
+#
+# 書き方: 1行1正規表現（Python re・大文字小文字は区別しない）。# で始まる行と空行は無視。
+# 正規表現として不正な行があると、直すまで Jev には何も送りません（fail-closed）。
+# 行頭の # はコメントの印なので、# で始まる語は \# と書く。全行を1本の正規表現に結合するため、
+# 名前付きグループ・後方参照（\1 など。読み込み時にエラー）・インラインフラグ（(?i) など）は使わない。
+# グループが要るときは (?:…) を使う。ファイル先頭の BOM は無視される。
+# 読み込み状況（件数・エラー。語は表示しない）: python3 .claude/ai-plc-jev/scripts/jev_client.py --redact-status
+# 以下はすべて架空の例です。
+
+# 非公開のプロジェクト名・顧客名
+your-secret-project
+acme-client
+# 非公開 Layer の scope_id（-2 などの派生も止めるなら末尾を調整）
+L-0000-client
+L-0001(?:-\d+)?
+
+# 人名・社内のあだ名（短い語は \b で囲んで誤検知を減らす）
+\btaro\b
+山田太郎
+
+# 個人の事情・趣味
+転職活動
+(?<![A-Za-z])hobby(?![A-Za-z])
