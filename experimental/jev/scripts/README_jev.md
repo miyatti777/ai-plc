@@ -96,14 +96,14 @@ python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --noise-report
 }
 ```
 
-hook は、`/0x-*-jev` を `Layer: <パス>` 付きで打ったセッションで、そのLayerが opt-in のときだけ送信します（12時間で失効）。スラッシュコマンド・短い承認・「？」で終わる質問・貼り付けた長文は送りません。`|| true` は、スクリプトが無い環境でも入力をブロックしないためのものです。**ユーザー共通の `~/.claude/settings.json` には入れないでください**（ほかのリポジトリでスクリプトが見つからなくなります）。installer は settings を読み書きしないので、hook を足した人は、実験版を uninstall するときに settings からもこの設定を消してください。
+hook は、`/0x-*-jev` を `Layer: <パス>` 付きで打ったセッションで、そのLayerが opt-in のときだけ送信します（12時間で失効）。スラッシュコマンド・短い承認・「？」で終わる質問・貼り付けた長文・ハーネスが差し込むメッセージ（サブエージェントの報告・タスク通知・コマンド展開など）は送りません（ハーネスのメッセージの除外は既知の形式を列挙する方式なので、未知の形式は送られることがあります）。`|| true` は、スクリプトが無い環境でも入力をブロックしないためのものです。**ユーザー共通の `~/.claude/settings.json` には入れないでください**（ほかのリポジトリでスクリプトが見つからなくなります）。installer は settings を読み書きしないので、hook を足した人は、実験版を uninstall するときに settings からもこの設定を消してください。
 
 ## 何が外部に送られるか
 
 | 機能 | 送るもの | 送らないもの |
 | --- | --- | --- |
 | 5.5b / 6b | ゴール1行・進捗（件数）・直近のタスク完了報告（1200字まで） | ファイルの中身、会話の全文 |
-| 会話監視 | あなたの発話（400字まで）・ゴール1行・進捗 | 貼り付けた長文、スラッシュコマンド、短い承認 |
+| 会話監視 | あなたの発話（400字まで）・ゴール1行・進捗 | 貼り付けた長文、スラッシュコマンド、短い承認、「？」で終わる質問、ハーネスが差し込むメッセージ（既知の形式のみ） |
 | カバー判定 | ゴール1行・成功条件・タスク名と説明（160字まで） | ファイルの中身 |
 
 すべての送信で次の2つが先に働きます。
@@ -125,6 +125,18 @@ hook は、`/0x-*-jev` を `Layer: <パス>` 付きで打ったセッション�
 | 1つの Layer だけ止める | その Layer の intent.yaml を `jev_monitor: false` にする |
 | 会話監視だけ止める | `python3 .claude/ai-plc-jev/scripts/jev_prompt_hook.py --deactivate`。完全にやめるなら settings から hook を消す |
 | 送信を完全にやめる | 登録したキーを消す（キーチェーンなら `security delete-generic-password ...`、環境変数なら unset） |
+| 実験版を外す | `uninstall.sh cc`（both / all も可）。下の「アンインストール後に残るもの」も確認する |
+
+## アンインストール後に残るもの
+
+`uninstall.sh cc` は実験版のファイルとその `.bak` を消しますが、次の生成データは installer の管理外なので残ります（`ai_plc.db` と同じ扱い）: `.claude/db/jev_decisions.jsonl`・`jev_overrides.jsonl`・`jev_counts_state.json`（`.lock`）・`jev_prompt_hook_sessions.json`（`.lock`）・`.claude/db/status_hygiene/`・自分で作った `.claude/db/jev_redact_extra.txt`。消すときはプロジェクトのルートで:
+
+```bash
+rm -f .claude/db/jev_*.jsonl .claude/db/jev_*.json .claude/db/jev_*.lock
+rm -rf .claude/db/status_hygiene
+```
+
+ローカルの送信禁止語ファイル（`jev_redact_extra.txt`）は、ほかでも使うかを確かめてから自分で消してください。hook を settings に足した人は、そこからも消します。uninstall の後処理中にプロセスが落ちた場合に `.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/` が残る既知の制約と手での消し方は、公開 README の実験版の節（https://github.com/miyatti777/ai-plc#-実験版-jev-監視v180-exp1）にあります。
 
 ## .gitignore に足す行
 

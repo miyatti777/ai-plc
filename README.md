@@ -30,6 +30,7 @@ Collection  →  Inception  →  Construction  →  Operation
 - [Collection が賢く集める（MCP）](#-collection-が賢く集めるmcpを繋ぐほど強くなる)
 - [DB の使い方](#-db-の使い方project-registry--tasks)
 - [同梱スキル](#-同梱スキル)
+- [実験版: Jev 監視（v1.8.0-exp.1）](#-実験版-jev-監視v180-exp1)
 - [FAQ](#-faq)
 - [単なるループと違う点](#単なるループと違う5点)
 - [インストール内容・安全性・構造](#-インストール内容--安全性)
@@ -516,6 +517,117 @@ python3 .claude/db/sync.py sync     # 双方向同期
 
 ---
 
+## 🧪 実験版: Jev 監視（v1.8.0-exp.1）
+
+> ⚠️ **実験版です。通常のインストールには含まれません。** `--with-jev` を付けたときだけ入り、仕様・コマンド名・置き場所は予告なく変わることがあります。
+>
+> ⚠️ **外部送信あり（opt-in）。** APIキーを登録し、Layer の `intent.yaml` に `jev_monitor: true` を書いたときだけ、短い要約を外部の判断専用モデル **Jev**（TypeSafe）に送ります。キーが無ければ何も送らず、すべてスキップされます。
+>
+> core の版は **1.7.1 のまま**です。`1.8.0-exp.1` は実験版パッケージ（`experimental/jev/`）の版です。
+
+AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか」などを1問だけ聞き、**1行のヒント**を出します。ヒントに作業を止める権限はなく、判断はメインのモデルとあなたが行います。**Claude Code 専用**で、`/01-collection-jev` → `/02-inception-jev` → `/03-construction-jev` → `/04-operation-jev` を使ったときだけ動きます（core の `/01-collection` 等の動きは変わりません）。
+
+### できること（4機能）と外部送信の内容
+
+| 機能 | 動く場所 | 外部に送るもの |
+| --- | --- | --- |
+| 異常ヒント（Backtrack の兆し） | `/04-operation-jev` の Phase 5.5b・6b | ゴール1行・進捗（件数）・直近のタスク完了報告（1200字まで） |
+| 成功条件カバー判定 | `/02-inception-jev` の分解承認の前 | ゴール1行・成功条件・タスク名と説明（160字まで） |
+| 会話監視 hook（任意・**手動で有効化**） | 発話ごと（Claude Code の `UserPromptSubmit` hook） | あなたの発話（400字まで）・ゴール1行・進捗 |
+| ステータス点検 | `/04-operation-jev` の Phase 7 | 既定は**送らない**（読み取り専用）。スクリプトに `--jev` を手で付けたときだけ、停滞 Layer のゴール1行・最後に完了したタスク・進捗・停滞日数 |
+
+- 送信先: 公式経路なら TypeSafe の1社、OpenRouter 経由なら OpenRouter と TypeSafe の2社
+- 送る前に、送信禁止の語の検査（コードの汎用語＋自分で書くローカルの `.claude/db/jev_redact_extra.txt`）と命令文の除去が働きます。**キーワードでの判定なので、言い換えた機密は通ります。** 機密PJ・経費・人事・顧客名や人名・私生活に関わる Layer では有効にしないでください
+- ファイルの中身や会話の全文は送りません。判断ログ（`.claude/db/jev_decisions.jsonl`）に残るのはハッシュ・確率・所要時間・費用だけです
+
+### 入れ方
+
+```bash
+./install-cc.sh --target /path/to/your/project --with-jev
+./install.sh --target /path/to/your/project cc --with-jev     # both / all でも可（Claude Code 側にだけ入る）
+
+# 先に確認するなら
+./install-cc.sh --dry-run --target /path/to/your/project --with-jev
+```
+
+- 入る場所: スキル `.claude/skills/ai-plc-jev/`、コマンド `.claude/commands/01-collection-jev.md`〜`04-operation-jev.md`、スクリプトと説明書 `.claude/ai-plc-jev/scripts/`。core のファイルは書き換えません。`--with-jev` を付けないインストールの結果は従来と同じです
+- **Claude Code 専用です。** `install.sh cursor --with-jev`・`install.sh codex --with-jev`・`install-cursor.sh --with-jev` は「実験版は Claude Code 専用」というエラーで終了コード 2、`install-codex.sh --with-jev` は `unrecognized arguments: --with-jev` で終了コード 2 になります（どちらも何も書き込みません）
+- 必要なもの: Python 3.9 以上と `pyyaml`
+- インストール後は、新しいチャットで `/01-collection-jev` から始めます。既存の Layer で試すなら、`intent.yaml` に `jev_monitor: true` を手で書き、Stage 4 を `/04-operation-jev` で回します
+
+### キー登録
+
+公式（`TYPESAFE_API_KEY`）か OpenRouter（`OPENROUTER_API_KEY`）のどちらか一方でよく、両方あれば公式が優先されます。`.env` やリポジトリ内のファイルには書きません。
+
+```bash
+# macOS: キーチェーンに登録（プロンプトでキーを貼る。公式キーなら -s TYPESAFE_API_KEY）
+security add-generic-password -a "$USER" -s OPENROUTER_API_KEY -w
+# つながるか確かめる（キーそのものは表示しない）
+python3 .claude/ai-plc-jev/scripts/jev_client.py --check
+```
+
+Linux / Windows / CI では環境変数で渡します。OpenRouter のキーにはクレジット上限（$2〜5 程度）を付けておくのがおすすめです。公式 TypeSafe 経路は公式ドキュメントに沿って実装しただけで、**接続は未確認**です（作者が実測したのは OpenRouter 経由だけ）。
+
+### 会話監視 hook は手動で有効化
+
+installer は hook を登録しません（settings を読み書きしません）。使う人だけが、プロジェクトの `.claude/settings.local.json`（または `.claude/settings.json`）に `.claude/ai-plc-jev/scripts/README_jev.md` の §5 の JSON を足し、セッションを開き直します。ユーザー共通の `~/.claude/settings.json` には入れないでください。有効になるのは、そのセッションで `/0x-*-jev` を `Layer: <パス>` 付きで打ち、その Layer が `jev_monitor: true` のときだけです（12時間で失効）。
+
+スラッシュコマンド・短い承認・「？」で終わる質問・貼り付けた長文・ハーネスが差し込むメッセージ（サブエージェントの報告・タスク通知・コマンド展開など）は送りません。**ただしハーネスのメッセージの除外は既知の形式を列挙する方式なので、未知の形式のメッセージは発話として送られることがあります。**
+
+### 止め方
+
+| やりたいこと | 方法 |
+| --- | --- |
+| すぐに全部止める | 環境変数 `JEV_DISABLE=1` |
+| 1つの Layer だけ止める | その Layer の `intent.yaml` を `jev_monitor: false` にする（opt-in を外す） |
+| 会話監視だけ止める | `python3 .claude/ai-plc-jev/scripts/jev_prompt_hook.py --deactivate`。完全にやめるなら settings から hook を消す |
+| 送信を完全にやめる | 登録したキーを消す（`security delete-generic-password -a "$USER" -s OPENROUTER_API_KEY` など） |
+| 実験版を外す | 下の「外し方」 |
+
+### 外し方（uninstall）と残るデータ
+
+実験版だけを外すオプションはありません。`./uninstall.sh --target /path/to/your/project cc`（`both` / `all` でも可）で、core と一緒に実験版のファイル・その `.bak`・空になった `.claude/ai-plc-jev/` と `.claude/skills/ai-plc-jev/` が消えます。
+
+- `uninstall.sh cursor` / `codex` では実験版は消えません（Claude Code 側の持ち物のため）
+- `--with-jev` で入れた後にフラグなしで `install cc` し直しても、実験版は残ります。外したいときは `uninstall.sh cc` の後に、フラグなしで入れ直してください
+- 自分で編集した実験版のファイルは、core と同じく消さずに残します
+- hook を settings に足した人は、settings からもその設定を消してください（`|| true` を付けていれば、消し忘れても入力はブロックされません）
+
+**uninstall 後も残る生成データ**（installer の管理外。`ai_plc.db` と同じく消しません）:
+
+| ファイル | 中身 |
+| --- | --- |
+| `.claude/db/jev_decisions.jsonl` / `jev_overrides.jsonl` | 判断ログ（ハッシュ・確率のみ）と、判定ごとの採否の記録 |
+| `.claude/db/jev_counts_state.json`（`.lock`） | 異常ヒントの数え上げ状態 |
+| `.claude/db/jev_prompt_hook_sessions.json`（`.lock`） | 会話監視 hook のセッションの紐づけ |
+| `.claude/db/status_hygiene/` | ステータス点検のレポート・承認ファイル・実行ログ |
+| `.claude/db/jev_redact_extra.txt` | 自分で作ったローカルの送信禁止語（作った場合だけ） |
+
+消すときは、対象プロジェクトのルートで次を実行します。ローカルの送信禁止語ファイルは、ほかでも使うかを確かめてから自分で消してください。
+
+```bash
+rm -f .claude/db/jev_*.jsonl .claude/db/jev_*.json .claude/db/jev_*.lock
+rm -rf .claude/db/status_hygiene
+# rm -f .claude/db/jev_redact_extra.txt   # 送信禁止語ファイルも消す場合だけ
+```
+
+### 既知の制約
+
+- **uninstall の後片付けが残ることがある:** uninstall の後処理（`.bak` と空ディレクトリの掃除）の最中にプロセスが落ち、次に実行したのが codex 経路（`install-codex.sh` / `install.sh codex`）だった場合と、その後処理の再開中にもう一度落ちた場合は、`.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/`（と `.claude/commands/0[1-4]-*-jev.md.bak.*`）が残ることがあります。**`uninstall.sh cc` が終わった後に**これらが残っていたら、手で消してください:
+
+  ```bash
+  rm -rf .claude/ai-plc-jev .claude/skills/ai-plc-jev
+  rm -f .claude/commands/0[1-4]-*-jev.md.bak.*
+  ```
+
+- 会話監視 hook のハーネスメッセージの除外は列挙方式です（上の「会話監視 hook は手動で有効化」）
+- 送信禁止の語の検査はキーワード判定です。言い換えた機密は通ります
+- 検証は作者の環境での小規模な試行です（異常ヒントの判定 20 件で外れ 0 件。会話監視 hook と成功条件カバー判定は件数が少なく評価中）。保証ではありません
+
+**詳細:** 実験版の入口は [`experimental/jev/README.md`](experimental/jev/README.md)。機能ごとの違い・検証結果・試す人向けの確認観点は [`experimental/jev/skills/ai-plc-jev/README.md`](experimental/jev/skills/ai-plc-jev/README.md)、キー・環境変数・`.gitignore` に足す行は [`experimental/jev/scripts/README_jev.md`](experimental/jev/scripts/README_jev.md)。試した結果の報告は Issue で歓迎します。
+
+---
+
 ## ❓ FAQ
 
 <details>
@@ -634,6 +746,7 @@ ai-plc/
 ├── lib/                   # transaction・owner対応の共通installer実装
 ├── templates/             # soul.md / wiki
 ├── examples/kotonoha/     # 試せるサンプル
+├── experimental/jev/      # 実験版（--with-jev のときだけ入る。Claude Code 専用）
 └── docs/                  # ARCHITECTURE.md
 ```
 </details>
