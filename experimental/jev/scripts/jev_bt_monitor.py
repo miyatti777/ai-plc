@@ -12,7 +12,7 @@ Usage:
   python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --layer <Layer path> --phase 6b
   python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --override <decision_id> accept|reject   # accept = the judgment was right (hint or not)
   python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --pending --layer <Layer path or scope_id>   # judgments with no accept/reject yet
-  python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --override-pending accept|reject --layer <Layer> [--except ID ...]
+  python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --override-pending accept|reject --layer <Layer> [--only ID ...] [--except ID ...]
   python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --noise-report [--use-case bt_monitor|prompt_hook|coverage|status_audit]
 """
 import argparse
@@ -273,7 +273,10 @@ def _layer_scope_id(layer):
         return load_yaml(p / "intent.yaml").get("scope_id")
     if p.is_file() and p.name == "intent.yaml":
         return load_yaml(p).get("scope_id")
-    return None if p.exists() else str(layer)
+    s = str(layer)
+    if p.exists() or "/" in s or "\\" in s or s.startswith(".") or s.endswith((".yaml", ".yml")):
+        return None  # a path that is not a Layer (typo, wrong base dir) must not look like "0 pending"
+    return s
 
 
 def _decision_p(r):
@@ -288,7 +291,9 @@ def _decision_p(r):
                           (pn if isinstance(pn, (int, float)) else 0.0))
         return (max(ps) if ps else None), True
     p = vals[0] if vals and isinstance(vals[0], (int, float)) else None
-    return p, (p is not None and p >= jev_client.THRESHOLD)
+    th = r.get("threshold")
+    th = th if isinstance(th, (int, float)) else jev_client.THRESHOLD  # the threshold used when the hint was shown
+    return p, (p is not None and p >= th)
 
 
 def pending(layer):
@@ -304,9 +309,11 @@ def pending(layer):
             for l in f:
                 if l.strip():
                     try:
-                        done.add(json.loads(l).get("decision_id"))
+                        o = json.loads(l)
                     except ValueError:
                         continue
+                    if isinstance(o, dict):
+                        done.add(o.get("decision_id"))
     rows, seen = [], set()
     if jev_client.LOG_PATH.exists():
         with jev_client.LOG_PATH.open(encoding="utf-8") as f:
@@ -316,6 +323,8 @@ def pending(layer):
                 try:
                     r = json.loads(l)
                 except ValueError:
+                    continue
+                if not isinstance(r, dict):
                     continue
                 did = r.get("decision_id")
                 if (r.get("scope_id") != sid or r.get("action") != "answered" or not did
@@ -344,17 +353,33 @@ def pending_report(layer):
     return "\n".join(out)
 
 
-def override_pending(layer, verdict, except_ids=()):
-    """Record one verdict for every pending judgment of the Layer, except the given ids (record those one by one
-    beforehand). Already recorded judgments are not pending, so nothing is written twice."""
+def split_ids(values):
+    """IDs as typed or pasted: separate arguments, or one argument joined with ・ / , / 、."""
+    out = []
+    for v in values or ():
+        out += [x for x in re.split(r"[・,、\s]+", str(v)) if x]
+    return out
+
+
+def override_pending(layer, verdict, except_ids=(), only_ids=None):
+    """Record one verdict for the pending judgments of the Layer.
+    only_ids: record only these (the ids the user saw in the paste line) — judgments made after the list was shown
+    are left pending. None = every pending judgment. except_ids: never recorded (record those one by one beforehand).
+    Already recorded judgments are not pending, so nothing is written twice.
+    Returns (scope_id, recorded ids, {"excluded": n, "not_pending": [ids given in only_ids that are not pending]})."""
     if verdict not in ("accept", "reject"):
         raise ValueError("verdict must be accept or reject")
     sid, rows = pending(layer)
-    skip = set(except_ids or ())
-    ids = [r["decision_id"] for r in rows if r["decision_id"] not in skip]
+    skip = set(split_ids(except_ids))
+    pend = [r["decision_id"] for r in rows]
+    only = None if only_ids is None else set(split_ids(only_ids))
+    cand = [d for d in pend if only is None or d in only]
+    ids = [d for d in cand if d not in skip]
     for did in ids:
         jev_client.record_override(did, verdict)
-    return sid, ids
+    info = {"excluded": len(cand) - len(ids),
+            "not_pending": sorted(only - set(pend)) if only is not None else []}
+    return sid, ids, info
 
 
 def main(argv=None):
@@ -369,6 +394,7 @@ def main(argv=None):
     ap.add_argument("--pending", action="store_true")
     ap.add_argument("--override-pending", choices=["accept", "reject"])
     ap.add_argument("--except", dest="except_ids", nargs="+", action="extend", default=[], metavar="DECISION_ID")
+    ap.add_argument("--only", dest="only_ids", nargs="+", action="extend", default=None, metavar="DECISION_ID")
     ap.add_argument("--use-case", default="bt_monitor", choices=["bt_monitor", "prompt_hook", "coverage", "status_audit"])
     try:
         a = ap.parse_args(argv)
@@ -382,14 +408,18 @@ def main(argv=None):
             if not a.layer:
                 print("--override-pending には --layer が必要です")
                 return 0
-            sid, ids = override_pending(a.layer, a.override_pending, a.except_ids)
+            sid, ids, info = override_pending(a.layer, a.override_pending, a.except_ids, a.only_ids)
+            note = (f"（除外 {info['excluded']}件）" if info["excluded"] else "") + (
+                f"（未確認でないため記録しない: {'・'.join(info['not_pending'])}）" if info["not_pending"] else "")
             if not sid:
-                print("Jev判定の確認: Layer の scope_id が読めません（何も記録していません）")
+                print("Jev判定の確認: Layer の scope_id が読めません（intent.yaml のある Layer パスか scope_id を指定。"
+                      "何も記録していません）")
             elif not ids:
-                print(f"未確認の Jev 判定なし（{sid}）— 何も記録していません")
+                print(f"未確認の Jev 判定なし（{sid}）— 何も記録していません{note}")
             else:
-                print(f"human_override を記録: {len(ids)}件 = {a.override_pending}（{sid}）: " + "・".join(ids)
-                      + (f"（除外 {len(a.except_ids)}件）" if a.except_ids else ""))
+                print(f"human_override を記録: {len(ids)}件 = {a.override_pending}（{sid}）: " + "・".join(ids) + note)
+        elif a.except_ids or a.only_ids is not None:
+            print("--except / --only は --override-pending と一緒に使います（何も記録していません）")
         elif a.pending:
             if not a.layer:
                 print("--pending には --layer が必要です")

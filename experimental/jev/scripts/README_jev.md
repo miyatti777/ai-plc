@@ -75,11 +75,11 @@ Jev監視: 異常なし（drift p=0.41）（decision_id=0f1e2d3c4b5a）
 python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --override a1b2c3d4e5f6 accept
 ```
 
-記録漏れは `--pending` で一覧できます（decision_id・機能・タスク・p・日時と、貼り付け用の1行「Jev判定 … は accept」）。まとめて記録するときは `--override-pending`（`--except` で除いたものは記録しない・記録済みは二重に書かない）。
+記録漏れは `--pending` で一覧できます（decision_id・機能・タスク・p・日時と、貼り付け用の1行「Jev判定 … は accept」）。まとめて記録するときは `--override-pending` に、一覧で見た ID を `--only` で渡します（一覧の後にできた判定は記録しない。`--except` で除いたものは記録しない・記録済みは二重に書かない）。
 
 ```bash
 python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --pending --layer <Layer パス>
-python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --override-pending accept --layer <Layer パス> --except 0f1e2d3c4b5a
+python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --override-pending accept --layer <Layer パス> --only a1b2c3d4e5f6・0f1e2d3c4b5a
 ```
 
 ```bash
@@ -110,7 +110,7 @@ settings に足しただけでは何も送りません。hook は、`/01-collect
 | 機能 | 送るもの | 送らないもの |
 | --- | --- | --- |
 | 5.5b / 6b | ゴール1行（200字まで）・進捗（件数）・直近のタスク完了報告（backlog の `result`、無ければタスクの説明。1200字まで） | 上の項目以外のファイル（成果物・Context・コードなど）の中身、会話のやり取り |
-| 会話監視 | 直前の発話そのもの1件（400字で切る）・ゴール1行（200字まで）・進捗（件数） | 貼り付けた長文、スラッシュコマンド、短い承認、「？」で終わる質問、ハーネスが差し込むメッセージ（既知の形式のみ） |
+| 会話監視 | 直前の発話1件の原文（空白を詰めて400字で切る）・ゴール1行（200字まで）・進捗（件数） | 貼り付けた長文、スラッシュコマンド、短い承認、「？」で終わる質問、ハーネスが差し込むメッセージ（既知の形式のみ） |
 | カバー判定 | ゴール1行（200字まで）・成功条件（全文）・各タスクの ID・名前・説明（説明は1件160字まで） | 上の項目以外のファイル（成果物・Context・コードなど）の中身、会話のやり取り |
 | ステータス点検（`--jev` を付けたときだけ。例: `python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --jev --layer <Layer パス>`） | `jev_monitor: true` で機密でない停滞 Layer の、ゴール1行（200字まで）・最後に完了したタスクの名前と結果（結果は400字まで）・進捗・停滞日数 | opt-in していない Layer、機密と判定した Layer（どちらも送らない） |
 

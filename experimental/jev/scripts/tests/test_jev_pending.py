@@ -66,7 +66,11 @@ class PendingTest(unittest.TestCase):
             for r in rows:
                 f.write(json.dumps(r) + "\n")
             f.write("not json\n")
+            f.write("[]\n")  # valid JSON but not an object: skipped
+            f.write("7\n")
         self.jc.record_override("r1", "reject")
+        with self.ov.open("a", encoding="utf-8") as f:
+            f.write("[]\nnot json\n")
 
     def tearDown(self):
         for k, v in self._env.items():
@@ -87,7 +91,19 @@ class PendingTest(unittest.TestCase):
         return buf.getvalue()
 
     def ov_rows(self):
-        return [json.loads(l) for l in self.ov.read_text(encoding="utf-8").splitlines() if l.strip()]
+        rows = []
+        for l in self.ov.read_text(encoding="utf-8").splitlines():
+            try:
+                o = json.loads(l)
+            except ValueError:
+                continue
+            if isinstance(o, dict):
+                rows.append(o)
+        return rows
+
+    def add_row(self, r):
+        with self.log.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(r) + "\n")
 
     def test_extraction_rules(self):
         # bt_monitor / coverage: all answered; prompt_hook: only shown hints; recorded, other Layers, skipped excluded
@@ -141,8 +157,8 @@ class PendingTest(unittest.TestCase):
         self.assertEqual(self.ids(), ["b2", "c2"])  # excluded ones stay pending
 
     def test_reject_verdict_and_function(self):
-        sid, ids = self.m.override_pending(self.layer, "reject", except_ids=["b1"])
-        self.assertEqual((sid, ids), ("L-0000-1", ["b2", "c1", "c2", "h1"]))
+        sid, ids, info = self.m.override_pending(self.layer, "reject", except_ids=["b1"])
+        self.assertEqual((sid, ids, info), ("L-0000-1", ["b2", "c1", "c2", "h1"], {"excluded": 1, "not_pending": []}))
         self.assertTrue(all(r["human_override"] == "reject" for r in self.ov_rows()))
         with self.assertRaises(ValueError):
             self.m.override_pending(self.layer, "maybe")
@@ -159,6 +175,47 @@ class PendingTest(unittest.TestCase):
         self.ov.unlink()
         self.assertEqual(self.ids(), [])
         self.assertIn("未確認の Jev 判定なし", self.run_main(["--pending", "--layer", "L-0000-1"]))
+
+    def test_only_records_the_ids_the_user_saw(self):
+        out = self.run_main(["--pending", "--layer", "L-0000-1"])
+        paste = out.strip().splitlines()[-1]
+        self.assertEqual(paste, "貼り付け用: Jev判定 b1・b2・c1・c2・h1 は accept")
+        shown = paste.split("Jev判定 ")[1].split(" は ")[0]
+        # a new judgment arrives after the list was shown (e.g. 5.5b ran, or the hook showed a hint)
+        self.add_row(row("n1", "bt_monitor", "L-0000-1", {"blocker": 0.8}, task="T002"))
+        self.add_row(row("n2", "prompt_hook", "L-0000-1", {"user_signal": 0.9}, task="prompt"))
+        out = self.run_main(["--override-pending", "accept", "--layer", "L-0000-1", "--only", shown, "zz9", "--except", "c2"])
+        self.assertIn("human_override を記録: 4件 = accept", out)
+        self.assertIn("除外 1件", out)
+        self.assertIn("未確認でないため記録しない: zz9", out)
+        rec = {r["decision_id"] for r in self.ov_rows()}
+        self.assertEqual(rec, {"r1", "b1", "b2", "c1", "h1"})
+        self.assertEqual(self.ids(), ["c2", "n1", "n2"])  # the new ones and the excluded one stay pending
+        # ids as separate arguments work too
+        sid, ids, info = self.m.override_pending("L-0000-1", "reject", only_ids=["n1", "c2"])
+        self.assertEqual(ids, ["c2", "n1"])
+        self.assertEqual(self.ids(), ["n2"])
+
+    def test_path_typo_is_an_error_not_zero(self):
+        for bad in ["Flow/202601/2026-01-01/no-such-layer", "./no-such", "no-such/intent.yaml", "x.yaml"]:
+            out = self.run_main(["--pending", "--layer", bad])
+            self.assertIn("scope_id が読めません", out, bad)
+            self.assertNotIn("未確認の Jev 判定なし", out, bad)
+        out = self.run_main(["--override-pending", "accept", "--layer", "Flow/no-such"])
+        self.assertIn("何も記録していません", out)
+        self.assertEqual(len(self.ov_rows()), 1)
+
+    def test_hook_uses_the_threshold_recorded_with_the_judgment(self):
+        self.add_row(dict(row("t1", "prompt_hook", "L-0000-1", {"user_signal": 0.45}, task="prompt"), threshold=0.4))
+        self.add_row(dict(row("t2", "prompt_hook", "L-0000-1", {"user_signal": 0.55}, task="prompt"), threshold=0.6))
+        self.assertEqual(self.ids(), ["b1", "b2", "c1", "c2", "h1", "t1"])
+
+    def test_except_or_only_alone_does_nothing(self):
+        out = self.run_main(["--except", "b1", "--layer", "L-0000-1"])
+        self.assertIn("--override-pending と一緒に使います", out)
+        out = self.run_main(["--only", "b1", "--layer", "L-0000-1"])
+        self.assertIn("--override-pending と一緒に使います", out)
+        self.assertEqual(len(self.ov_rows()), 1)
 
 
 if __name__ == "__main__":

@@ -521,7 +521,7 @@ python3 .claude/db/sync.py sync     # 双方向同期
 
 > ⚠️ **実験版です。通常のインストールには含まれません。** `--with-jev` を付けたときだけ入り、仕様・コマンド名・置き場所は予告なく変わることがあります。
 >
-> ⚠️ **外部送信あり（opt-in）。** APIキーを登録し、Layer の `intent.yaml` に `jev_monitor: true` を書いたときだけ、Layer の文を字数で切ったもの（下の表。要約ではなく原文の抜粋です）を外部の判断専用モデル **Jev**（TypeSafe）に送ります。キーが無ければ何も送らず、すべてスキップされます。
+> ⚠️ **外部送信あり（opt-in）。** APIキーを登録し、Layer の `intent.yaml` に `jev_monitor: true` を書いたときだけ、Layer の文や発話を字数で切ったもの（下の表。要約ではなく原文の抜粋です）を外部の判断専用モデル **Jev**（TypeSafe）に送ります。キーが無ければ何も送らず、すべてスキップされます。
 >
 > core の版は **1.7.1 のまま**です。`1.8.0-exp.1` は実験版パッケージ（`experimental/jev/`）の版です。
 
@@ -533,7 +533,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 | --- | --- | --- |
 | 異常ヒント（Backtrack の兆し） | `/04-operation-jev` の Phase 5.5b・6b | ゴール1行（200字まで）・進捗（件数）・直近のタスク完了報告（backlog の `result`、無ければタスクの説明。1200字まで） |
 | 成功条件カバー判定 | `/02-inception-jev` の分解承認の前 | ゴール1行（200字まで）・成功条件（全文）・各タスクの ID・名前・説明（説明は1件160字まで） |
-| 会話監視 hook（任意・**手動で有効化**） | 発話ごと（Claude Code の `UserPromptSubmit` hook） | あなたの直前の発話そのもの（1件・400字で切る）・ゴール1行・進捗（件数） |
+| 会話監視 hook（任意・**手動で有効化**） | 発話ごと（Claude Code の `UserPromptSubmit` hook） | あなたの直前の発話1件の原文（貼り付けた部分は除き、空白を詰めて400字で切る）・ゴール1行・進捗（件数） |
 | ステータス点検 | `/04-operation-jev` の Phase 7 | 既定は**送らない**（読み取り専用）。スクリプトに `--jev` を手で付けたときだけ、停滞 Layer のうち `jev_monitor: true` で機密でないものについて、ゴール1行・最後に完了したタスクの名前と結果（400字まで）・進捗・停滞日数。例: `python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --jev --layer <Layer パス>` |
 
 - 送信先: 公式経路なら TypeSafe の1社、OpenRouter 経由なら OpenRouter と TypeSafe の2社
@@ -588,7 +588,7 @@ settings に足しただけでは何も送りません。有効になるのは�
 
 ### 判定の採否の記録
 
-各判定の行に出る decision_id で、妥当なら `accept`、外れなら `reject` を記録します（`python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --override <decision_id> accept`）。記録漏れは `python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --pending --layer <Layer パス>` で一覧でき（貼り付け用の1行「Jev判定 … は accept」も出ます）、まとめて記録するときは `--override-pending accept --layer <Layer パス> [--except <違うID> ...]` を使います（記録済みは二重に書きません）。
+各判定の行に出る decision_id で、妥当なら `accept`、外れなら `reject` を記録します（`python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --override <decision_id> accept`）。記録漏れは `python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --pending --layer <Layer パス>` で一覧でき（貼り付け用の1行「Jev判定 … は accept」も出ます）、まとめて記録するときは、一覧で見た ID を渡して `--override-pending accept --layer <Layer パス> --only <ID>・<ID> [--except <違うID> ...]` を使います（一覧の後にできた判定は記録せず、記録済みは二重に書きません）。
 
 ### 止め方
 
