@@ -60,7 +60,7 @@ Stage 1でGoalの性質から自動判定し、templates/roles/ から読み込�
 | **BT-B** | 節目再評価 | Phase 6b（パイプライン単位） | 完了率50%到達 / ゴールドリフト兆候（完了5超 or ad-hoc 2件以上） / Conditional Go残 | Re-Inception（残タスク再評価） or Re-Collection（ゴール再確認）→ Stage 2 or 1 | 3,4,8 |
 | **BT-C** | 全完了GAP分析 | Phase 6b | backlog全タスクcompleted | Re-Collection(GAP分析 → 完了宣言 or 追加ゴール）→ Stage 1 | 7 |
 
-会話中の監視（旧BT-9/10）: ユーザーの進捗訂正や「〜が足りない」等の新事実が出たら、軽量Re-Inception / Re-Collectionを**1行ヒントで提案のみ**行う（ユーザーが「このまま続行」を選んだら同一トピックで再提案しない）。
+会話中の監視（旧BT-9/10）: ユーザーの進捗訂正や「〜が足りない」等の新事実が出たら、軽量Re-Inception / Re-Collectionを**1行ヒントで提案のみ**行う（ユーザーが「このまま続行」を選んだら同一トピックで再提案しない）。なお、ユーザーからアイデアを持ち込んで「どう思うか・どのコマンドか」を聞きたいときは `/plc-consult`（判定のみ・読み取り専用）で扱う。
 
 **実行ルール:**
 1. Backtrackは必ずユーザー承認後に実行（自動実行禁止）
@@ -75,5 +75,5 @@ Stage 1でGoalの性質から自動判定し、templates/roles/ から読み込�
 workflow_depth が standard / complex の場合、Stage 3（Construction）は必ず経由する（スキップ禁止）。Stage 2完了時のNext ActionでStage 4直行の選択肢を提示しない。simple のみ Stage 1→4 直行を許可。Agent定義ティア（Lite/Full）は自動判定されるためオーバーヘッドは小さい。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-09-24 ｜ **ステータス:** Active
-**バージョン:** 2.2（§5実行ルール6: Jev監視は実験版 `/0x-*-jev` のみ・core からは呼ばないと明記）｜ 2.1（BT-B/BT-Cに独立checker判定を既定化 — maker≠checkerをドリフト・GAP分析に拡張）｜ 2.0（Fable観点軽量化: BT-1〜10を BT-A/B/C に統合、会話中監視は提案のみの1行ルール化）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-09-29 ｜ **ステータス:** Active
+**バージョン:** 2.3（§5 会話中監視にユーザー起点の相談 `/plc-consult` への案内1文を追加）｜ 2.2（§5実行ルール6: Jev監視は実験版 `/0x-*-jev` のみ・core からは呼ばないと明記）｜ 2.1（BT-B/BT-Cに独立checker判定を既定化 — maker≠checkerをドリフト・GAP分析に拡張）｜ 2.0（Fable観点軽量化: BT-1〜10を BT-A/B/C に統合、会話中監視は提案のみの1行ルール化）

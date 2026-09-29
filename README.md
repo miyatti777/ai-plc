@@ -753,6 +753,7 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 | `plc-db-sync` | ローカル DB ⇔ Notion DB の同期（旧 `ai-plc-db-sync`） | Notion の設定をしたとき |
 | `plc-status-audit` | ステータス点検（intent・backlog・Registry の食い違いの洗い出しと、承認した行だけの反映） | 実験版（`--with-jev`）を入れたとき |
 | `plc-viewer` | Registry ビューア（ブラウザ）の起動・停止 | `experimental/registry-viewer` を手でコピーしたとき（status の変更は実験版も入れたときだけ。無ければ閲覧のみ） |
+| `plc-consult` | アイデア相談。「ここをこうしたい」を今の Layer と照らして 却下／今のタスク内で修正／Re-Inception／Re-Collection／いつかやる に振り分け、所感と次に打つコマンドを返す（読み取り専用。v1.10.0〜） | いつでも |
 
 名前の決まりは `.claude/rules/ai-plc-system.md` の §6 にあります（Stage は `0N-<stage>`、ユーティリティは `plc-<機能>`）。
 
@@ -1034,7 +1035,7 @@ ai-plc/
 ├── core/
 │   ├── skills/ai-plc/     # 4ステージスキル + テンプレート
 │   ├── skills/utility/    # spec-story-starter / wire-aa-authoring
-│   ├── skills/plc-*/      # plc-db-sync / plc-registry / plc-status-audit / plc-viewer
+│   ├── skills/plc-*/      # plc-db-sync / plc-registry / plc-status-audit / plc-viewer / plc-consult
 │   ├── rules/             # system / session / adaptive
 │   └── db/                # init_db.py / plc_query.py / sync.py
 ├── claude/                # Claude Code固有（commands / agents / templates）
