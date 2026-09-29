@@ -792,17 +792,17 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 
 - core も同時に 1.8.1 に上がります（1.8.0-exp.1 を入れた環境の core は 1.7.1）。上がったかどうかは、`.ai-plc-version` が `1.8.1`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.8.1-exp.1` になっていることで確かめられます
 - `--with-jev` を付けずに更新すると、core だけが上がり、実験版は 1.8.0-exp.1 のまま残ります
-- 1.8.1-exp.1 を入れた後に、1.8.0-exp.1 を配る checkout の installer で `--with-jev` を付けると、`[CONFLICT] component downgrade refused: experimental_jev` で止まり、何も書き換えません。前の版に戻したいときは、今の checkout で `uninstall.sh cc` してから、前の版の checkout で入れ直します
+- 1.8.1-exp.1 を入れた後に、1.8.0-exp.1 を配る checkout の installer で `--with-jev` を付けると、`[CONFLICT] component downgrade refused: experimental_jev` などの行を出して止まり、何も書き換えません。前の版に戻したいときは、今の checkout で `uninstall.sh cc` してから、前の版の checkout で入れ直します
 
 **この版で直したこと**（前の実験版 1.8.0-exp.1 との違い）:
 
-- **中断した uninstall の後片付け:** 前の版の既知の制約（uninstall の後処理中に落ちた後、次が codex 経路だった場合や、再開中にもう一度落ちた場合に `.claude/ai-plc-jev/` などが残る）は、cc を含む uninstall（`uninstall.sh cc` / `both` / `all`）で片付くようになりました。詳しくは下の「既知の制約」
+- **中断した uninstall の後片付け:** 前の版の既知の制約（uninstall の後処理中に落ちた後、次が codex 経路だった場合や、再開中にもう一度落ちた場合に `.claude/ai-plc-jev/` などが残る）は、cc を含む uninstall（`uninstall.sh cc` / `both` / `all`）で、残った `.bak` と、それで空になったディレクトリが片付くようになりました。詳しくは下の「既知の制約」
 - **スキル:** core 1.8.1 のスキル（`01-collection` v2.1・`04-operation` v2.7）に揃えました。前の版は core 1.7.1 の時点のスキルを元にしていて、Jev 以外の文言にも違いが残っていました。説明文の古い版表記も直しました
 - **採否の記録:** `jev_bt_monitor.py --override-pending` で、`--only` / `--except` の指定で記録対象が0件になったときは「記録対象なし（未確認は N件残っています・…）— 何も記録していません」と出します（前の版では、未確認が残っていても「未確認の Jev 判定なし」と出ていました）。`--layer` に Layer パスでも scope_id の形でもない値（打ち間違いなど）を渡すと「Layer の scope_id が読めません」と出します（前の版では0件に見えました）
 - **`/02-inception-jev`:** カバー判定の採否の記録を、タスクの実行より先に行うことを明記しました（`/04-operation-jev` と同じ）
 - **ステータス点検:** Registry のタスク ID が `<scope_id>-T001` の形で、backlog が `T001` の形でも、同じタスクとして突き合わせます（前の版では「タスク行なし」と誤って出ていました）。`--apply` で書き換えるのは Registry にある元の ID の行です
 
-**installer の変更について:** この版では installer の処理も変えています。実験版の残り物（実験版の置き場所に残った `<path>.bak.<UTC>.<n>` や、中断した後処理の再開情報）が無い環境では、動きは core 1.8.1 の installer と同じです（`--with-jev` を付けない install・uninstall の出力・終了コードも同じ）。残り物がある環境で、cc を含む uninstall のときにそれを掃除すること、後処理の再開中にもう一度落ちても次の install・uninstall で再開することは、意図した差です（install・`--dry-run`・`--plan-only`・cursor / codex だけの uninstall では掃除しません）。
+**installer の変更について:** この版では installer の処理も変えています。実験版の残り物（実験版の置き場所に残った `<path>.bak.<UTC>.<n>` や、中断した後処理の再開情報）が無い環境では、動きはタグ `v1.8.1` の installer と同じです（`--with-jev` を付けない install・uninstall の出力・終了コードも同じ）。残り物がある環境で、cc を含む uninstall のときにそれを掃除すること、後処理の再開中にもう一度落ちても次の `install.sh` / `uninstall.sh` で再開すること（`install-codex.sh` を挟んだなどで再開の情報が失われた場合も、cc を含む uninstall で掃除します）は、意図した差です（install・`--dry-run`・`--plan-only`・cursor / codex だけの uninstall では掃除しません）。
 
 ### キー登録
 
@@ -880,7 +880,7 @@ rm -rf .claude/db/status_hygiene
 
 ### 既知の制約
 
-- **中断した uninstall の後片付け（この版で対応）:** uninstall の後処理（`.bak` と空ディレクトリの掃除）の最中にプロセスが落ち、次に実行したのが codex 経路（`install-codex.sh` / `install.sh codex`）だった場合や、後処理の再開中にもう一度落ちた場合に、実験版のファイルの `.bak` と `.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/` が残ることがありました。この版では、cc を含む uninstall（`uninstall.sh cc` / `both` / `all`）を実行すると残り物を掃除し、`[OK] experimental_jev: removed N leftover backup file(s) of an interrupted cleanup` と出ます。台帳が無くて uninstall がエラーで止まる環境でも、残り物だけを掃除してから同じエラーで止まります。消すのは、中身が既知の実験版（`experimental/jev/KNOWN_RELEASES.sha256`）か今の配布物と一致する `.bak` と、それで空になった2つのディレクトリだけです。一致しない `.bak`（自分で編集したものなど）は消さずに残し、`[WARN] experimental_jev: N backup file(s) with unknown content kept` と出ます。その場合は中身を確かめてから手で消してください:
+- **中断した uninstall の後片付け（この版で対応）:** uninstall の後処理（`.bak` と空ディレクトリの掃除）の最中にプロセスが落ち、次に実行したのが codex 経路（`install-codex.sh` / `install.sh codex`）だった場合や、後処理の再開中にもう一度落ちた場合に、実験版のファイルの `.bak` と `.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/` が残ることがありました。この版では、cc を含む uninstall（`uninstall.sh cc` / `both` / `all`）を実行すると残り物を掃除し、`[OK] experimental_jev: removed N leftover backup file(s) of an interrupted cleanup` と出ます。台帳が無くて uninstall がエラーで止まる環境でも、残り物だけを掃除してから同じエラーで止まります。消すのは、中身が既知の実験版（`experimental/jev/KNOWN_RELEASES.sha256`）か今の配布物と一致する `.bak` と、それで空になった2つのディレクトリだけです。一致しない `.bak`（自分で編集したものなど）は消さずに残し、`[WARN] experimental_jev: N backup file(s) with unknown content kept` で始まる行が出ます。その場合は中身を確かめてから手で消してください:
 
   ```bash
   rm -rf .claude/ai-plc-jev .claude/skills/ai-plc-jev
