@@ -325,8 +325,9 @@ def ask(state, questions, use_case, scope_id=None, task_id=None, timeout=2.0, re
         questions, nq = _sanitize_questions(questions)  # question text may embed user-authored strings
         rec["sanitized"]["removed_lines"] = n + nq
         r = route()
-        if r is None:
-            rec["action"] = "skipped(unavailable:no_key)"
+        if r is None:  # JEV_DISABLE=1 is shown as "disabled" so the reason to stop is visible
+            rec["action"] = ("skipped(unavailable:disabled)" if os.environ.get("JEV_DISABLE") == "1"
+                             else "skipped(unavailable:no_key)")
         else:
             url, key, model, rname = r
             rec["route"] = rname
@@ -355,8 +356,15 @@ def redact_status():
     return head + (f" — エラーのため何も送りません: {_REDACT_ERROR}" if _REDACT_ERROR else "")
 
 
+CHECK_STATE = "接続確認のためのテスト文です。"  # fixed text of --check (the regression test compares the payload)
+CHECK_QUESTION = "Is this text a connection test message?"
+
+
 def check():
     """One cheap connectivity call. Prints route/model/key source (never the key) and the result."""
+    if os.environ.get("JEV_DISABLE") == "1":
+        print("Jev: JEV_DISABLE=1 のため無効です（何も送りません）。使うときはこの環境変数を外してください")
+        return 1
     r = route(with_source=True)
     if r is None:
         print("Jev: キーが見つかりません。TYPESAFE_API_KEY か OPENROUTER_API_KEY を環境変数かキーチェーンに設定してください"
@@ -365,9 +373,8 @@ def check():
     url, key, model, rname, src = r
     print(f"経路: {rname} / モデル指定: {model} / キーの読み込み元: {src} / 接続先: {url}")
     print(redact_status())
-    out, ms, err = _post(url, key, {"model": model, "state": "接続確認のためのテスト文です。",
-                                    "questions": {"ok": {"type": "noul",
-                                                         "instructions": "Is this text a connection test message?"}}},
+    out, ms, err = _post(url, key, {"model": model, "state": CHECK_STATE,
+                                    "questions": {"ok": {"type": "noul", "instructions": CHECK_QUESTION}}},
                          10, 1)
     if err or not isinstance(out, dict) or "answers" not in out:
         print(f"失敗: {err or 'bad_response'}（401=キーが無効 / 402=残高不足 / 404=モデル名違い / 429・529=混雑）")

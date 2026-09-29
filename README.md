@@ -534,11 +534,11 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 | 異常ヒント（Backtrack の兆し） | `/04-operation-jev` の Phase 5.5b・6b | ゴール1行・進捗（件数）・直近のタスク完了報告（1200字まで） |
 | 成功条件カバー判定 | `/02-inception-jev` の分解承認の前 | ゴール1行・成功条件・タスク名と説明（160字まで） |
 | 会話監視 hook（任意・**手動で有効化**） | 発話ごと（Claude Code の `UserPromptSubmit` hook） | あなたの発話（400字まで）・ゴール1行・進捗 |
-| ステータス点検 | `/04-operation-jev` の Phase 7 | 既定は**送らない**（読み取り専用）。スクリプトに `--jev` を手で付けたときだけ、停滞 Layer のゴール1行・最後に完了したタスク・進捗・停滞日数 |
+| ステータス点検 | `/04-operation-jev` の Phase 7 | 既定は**送らない**（読み取り専用）。スクリプトに `--jev` を手で付けたときだけ、停滞 Layer のうち `jev_monitor: true` で機密でないものについて、ゴール1行・最後に完了したタスク・進捗・停滞日数 |
 
 - 送信先: 公式経路なら TypeSafe の1社、OpenRouter 経由なら OpenRouter と TypeSafe の2社
 - 送る前に、送信禁止の語の検査（コードの汎用語＋自分で書くローカルの `.claude/db/jev_redact_extra.txt`）と命令文の除去が働きます。**キーワードでの判定なので、言い換えた機密は通ります。** 機密PJ・経費・人事・顧客名や人名・私生活に関わる Layer では有効にしないでください
-- ファイルの中身や会話の全文は送りません。判断ログ（`.claude/db/jev_decisions.jsonl`）に本文は残りません（残るのは入力と質問のハッシュ・確率・所要時間・費用と、Layer / タスクの ID・日時・経路）
+- 送るのは上の表の短い要約だけです。ファイルの中身や、これまでの会話のやり取りは送りません（会話監視 hook が送るのは直前の発話1件だけで、400字で切ります）。判断ログ（`.claude/db/jev_decisions.jsonl`）に本文は残りません（残るのは入力と質問のハッシュ・確率・所要時間・費用と、Layer / タスクの ID・日時・経路）
 
 ### 入れ方
 
@@ -553,11 +553,11 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 - 入る場所: スキル `.claude/skills/ai-plc-jev/`、コマンド `.claude/commands/01-collection-jev.md`〜`04-operation-jev.md`、スクリプトと説明書 `.claude/ai-plc-jev/scripts/`。core のファイルは書き換えません。`--with-jev` を付けないインストールの結果は従来と同じです
 - **Claude Code 専用です。** `install.sh cursor --with-jev`・`install.sh codex --with-jev`・`install-cursor.sh --with-jev` は「実験版は Claude Code 専用」というエラーで終了コード 2、`install-codex.sh --with-jev` は `unrecognized arguments: --with-jev` で終了コード 2 になります（どちらも何も書き込みません）
 - 必要なもの: Python 3.9 以上と `pyyaml`
-- インストール後は、新しいチャットで `/01-collection-jev` から始めます。既存の Layer で試すなら、`intent.yaml` に `jev_monitor: true` を手で書き、Stage 4 を `/04-operation-jev` で回します
+- インストール後は、新しいチャットで `/01-collection-jev` から始めます。新しい Layer では `/01-collection-jev` の最後に「Jev監視を有効にしますか」と1行で聞かれ、承認すると `intent.yaml` に `jev_monitor: true` が書かれます（機密などに当たる Layer では聞かれず `false` のまま）。既存の Layer で試すなら、`intent.yaml` に `jev_monitor: true` を手で書き、Stage 4 を `/04-operation-jev` で回します
 
 ### キー登録
 
-公式（`TYPESAFE_API_KEY`）か OpenRouter（`OPENROUTER_API_KEY`）のどちらか一方でよく、両方あれば公式が優先されます。`.env` やリポジトリ内のファイルには書きません。
+公式（`TYPESAFE_API_KEY`）か OpenRouter（`OPENROUTER_API_KEY`）のどちらか一方でよく、両方あれば公式が優先されます。経路を固定したいときは環境変数 `JEV_PROVIDER=openrouter`（または `typesafe`）を設定します。`.env` やリポジトリ内のファイルには書きません。
 
 ```bash
 # macOS: キーチェーンに登録（プロンプトでキーを貼る。公式キーなら -s TYPESAFE_API_KEY）
@@ -566,11 +566,23 @@ security add-generic-password -a "$USER" -s OPENROUTER_API_KEY -w
 python3 .claude/ai-plc-jev/scripts/jev_client.py --check
 ```
 
-Linux / Windows / CI では環境変数で渡します。OpenRouter のキーにはクレジット上限（$2〜5 程度）を付けておくのがおすすめです。公式 TypeSafe 経路は公式ドキュメントに沿って実装しただけで、**接続は未確認**です（作者が実測したのは OpenRouter 経由だけ）。
+Linux / Windows / CI では環境変数で渡します。OpenRouter のキーにはクレジット上限（$2〜5 程度）を付けておくのがおすすめです。公式 TypeSafe 経路は公式ドキュメントに沿って実装しただけで、**接続は未確認**です（作者が実測したのは OpenRouter 経由だけ）。両方のキーを持っていて OpenRouter 経由で使いたい場合は `JEV_PROVIDER=openrouter` を設定してください。
 
 ### 会話監視 hook は手動で有効化
 
-installer は hook を登録しません（settings を読み書きしません）。使う人だけが、プロジェクトの `.claude/settings.local.json`（または `.claude/settings.json`）に `.claude/ai-plc-jev/scripts/README_jev.md` の §5 の JSON を足し、セッションを開き直します。ユーザー共通の `~/.claude/settings.json` には入れないでください。有効になるのは、そのセッションで `/0x-*-jev` を `Layer: <パス>` 付きで打ち、その Layer が `jev_monitor: true` のときだけです（12時間で失効）。
+installer は hook を登録しません（settings を読み書きしません）。使う人だけが、プロジェクトの `.claude/settings.local.json`（または `.claude/settings.json`）に次の JSON を足し、セッションを開き直します（`.claude/ai-plc-jev/scripts/README_jev.md` の §5 と同じもの）。ユーザー共通の `~/.claude/settings.json` には入れないでください。
+
+```json
+"hooks": {
+  "UserPromptSubmit": [
+    { "hooks": [ { "type": "command",
+      "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/ai-plc-jev/scripts/jev_prompt_hook.py\" || true",
+      "timeout": 5 } ] }
+  ]
+}
+```
+
+settings に足しただけでは何も送りません。有効になるのは、そのセッションで `/01-collection-jev`〜`/04-operation-jev` のどれかを `Layer: <パス>` 付きで打ち（例: `/04-operation-jev Layer: Flow/202601/2026-01-01/demo-layer`。相対パスは Claude Code の作業ディレクトリ（通常はプロジェクトのルート）から。絶対パスも可）、その Layer が `jev_monitor: true` のときだけです。紐づけはそのセッションだけで、12時間で失効します。
 
 スラッシュコマンド・短い承認・「？」で終わる質問・貼り付けた長文・ハーネスが差し込むメッセージ（サブエージェントの報告・タスク通知・コマンド展開など）は送りません。**ただしハーネスのメッセージの除外は既知の形式を列挙する方式なので、未知の形式のメッセージは発話として送られることがあります。**
 
@@ -578,11 +590,13 @@ installer は hook を登録しません（settings を読み書きしません�
 
 | やりたいこと | 方法 |
 | --- | --- |
-| すぐに全部止める | 環境変数 `JEV_DISABLE=1` |
-| 1つの Layer だけ止める | その Layer の `intent.yaml` を `jev_monitor: false` にする（opt-in を外す） |
-| 会話監視だけ止める | `python3 .claude/ai-plc-jev/scripts/jev_prompt_hook.py --deactivate`。完全にやめるなら settings から hook を消す |
-| 送信を完全にやめる | 登録したキーを消す（`security delete-generic-password -a "$USER" -s OPENROUTER_API_KEY` など） |
+| すぐに全部止める | 環境変数 `JEV_DISABLE=1`（設定場所と効くタイミングは表の下） |
+| 1つの Layer だけ止める | その Layer の `intent.yaml` を `jev_monitor: false` にする（opt-in を外す）。次の判定から効きます |
+| 会話監視だけ止める | `python3 .claude/ai-plc-jev/scripts/jev_prompt_hook.py --deactivate` で、全セッションの紐づけを外します（セッション ID を後ろに付けるとそのセッションだけ）。次にまた `/0x-*-jev Layer: <パス>` を打つと有効に戻ります。完全にやめるなら settings から hook を消す |
+| 送信を完全にやめる | 登録したキーを消す。キーチェーンなら `security delete-generic-password -a "$USER" -s OPENROUTER_API_KEY`（公式キーは `-s TYPESAFE_API_KEY`）。環境変数で渡しているなら、シェルの設定などから `export` の行を消し、Claude Code を起動し直す。**両方のキーを持っている人は両方とも消す**（片方が残るとその経路で送ります） |
 | 実験版を外す | 下の「外し方」 |
+
+`JEV_DISABLE=1` の設定場所: Claude Code を起動する前のシェルで `export JEV_DISABLE=1` するか、プロジェクトの `.claude/settings.local.json` に `"env": { "JEV_DISABLE": "1" }` を書きます。スクリプトは呼ばれるたびにこの変数を見るので、Claude Code に変数が渡った後の呼び出しから止まります。起動済みのセッションには後から渡らないので、設定したらセッションを開き直してください。止まっている間、ヒントの行は `スキップ（skipped(unavailable:disabled)）`、`jev_client.py --check` は「JEV_DISABLE=1 のため無効」と表示します。
 
 ### 外し方（uninstall）と残るデータ
 

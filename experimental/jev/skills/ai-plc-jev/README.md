@@ -47,8 +47,8 @@
 
 | 機能 | 送るもの | 送らないもの |
 | --- | --- | --- |
-| 5.5b / 6b の異常ヒント | ゴール1行・進捗（件数）・直近のタスク完了報告（1200字まで） | ファイルの中身、会話の全文 |
-| 会話監視 hook | あなたの発話（400字まで）・ゴール1行・進捗 | 貼り付けた長文、スラッシュコマンド、短い承認、「？」で終わる質問、ハーネスが差し込むメッセージ（既知の形式のみ。下の hook の節） |
+| 5.5b / 6b の異常ヒント | ゴール1行・進捗（件数）・直近のタスク完了報告（1200字まで） | ファイルの中身、会話のやり取り |
+| 会話監視 hook | 直前の発話1件（400字まで）・ゴール1行・進捗 | 貼り付けた長文、スラッシュコマンド、短い承認、「？」で終わる質問、ハーネスが差し込むメッセージ（既知の形式のみ。下の hook の節） |
 | 成功条件カバー判定 | ゴール1行・成功条件・タスク名と説明（160字まで） | ファイルの中身 |
 | ステータス点検（`--jev` を付けたときだけ） | 停滞 Layer のゴール1行・最後に完了したタスク・進捗・停滞日数 | 機密と判定した Layer、`jev_monitor: true` でない Layer |
 
@@ -71,10 +71,10 @@ Linux / Windows / CI では環境変数で渡します（パスワードマネ�
 
 | やりたいこと | 方法 |
 | --- | --- |
-| すぐに全部止める | 環境変数 `JEV_DISABLE=1` |
+| すぐに全部止める | 環境変数 `JEV_DISABLE=1`（Claude Code の起動前のシェルか settings の `env` に書き、セッションを開き直す。止まっている間の表示は `skipped(unavailable:disabled)`） |
 | 1つの Layer だけ止める | intent.yaml を `jev_monitor: false` に |
 | 会話監視だけ止める | `python3 .claude/ai-plc-jev/scripts/jev_prompt_hook.py --deactivate`。完全にやめるなら settings から hook を消す |
-| 送信を完全にやめる | 登録したキーを消す |
+| 送信を完全にやめる | 登録したキーを消す（キーチェーンでも環境変数でも。両方のキーがあれば両方） |
 | 実験版を外す | `uninstall.sh cc`（both / all も可）。実験版だけを外すオプションは無い。hook を settings に足した人は、そこからも消す。`.claude/db/jev_*`・`.claude/db/status_hygiene/`・自分で作った `jev_redact_extra.txt` は uninstall 後も残る（一覧・消し方・既知の制約は[公開 README の実験版の節](https://github.com/miyatti777/ai-plc#-実験版-jev-監視v180-exp1)） |
 
 ## 実験機能: 会話監視 hook（任意）
@@ -88,7 +88,7 @@ Linux / Windows / CI では環境変数で渡します（パスワードマネ�
 | 有効になる条件 | hook を登録したうえで、そのセッションで `/01〜04-*-jev` のいずれかを `Layer: <パス>` 付きで打ち、その Layer の intent.yaml に `jev_monitor: true` があるとき。**そのセッションだけ**が対象（session_id で紐づけ、12時間で失効） |
 | 送らないもの | スラッシュコマンド、短い承認（OK / A / accept / はい など）、「？」で終わる質問、貼り付けた長文（`pasted_content`）、送信禁止の語を含む発話、ハーネスが差し込むメッセージ（サブエージェントの報告・タスク通知・システム通知・コマンド展開・別セッションからのメッセージ）。送るのは発話の本人の文（400字まで）とゴール1行・進捗だけ。**ハーネスのメッセージの除外は既知の形式を列挙する方式なので、未知の形式のメッセージは発話として送られることがあります** |
 | 失敗時 | 常に exit 0 で何も出さない（入力をブロックしない）。Jev のタイムアウトは1.5秒 |
-| 止め方 | `JEV_DISABLE=1`、または `python3 .claude/ai-plc-jev/scripts/jev_prompt_hook.py --deactivate` |
+| 止め方 | `JEV_DISABLE=1`（Claude Code の起動前のシェルか settings の `env` に書き、セッションを開き直す）、または `python3 .claude/ai-plc-jev/scripts/jev_prompt_hook.py --deactivate`（全セッションの紐づけを外す。セッション ID を付けるとそのセッションだけ。次に `/0x-*-jev Layer: <パス>` を打つとまた有効になる） |
 | 状態の確認 | `python3 .claude/ai-plc-jev/scripts/jev_prompt_hook.py --status` |
 | 評価 | ヒントの行に出る decision_id で `python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --override <id> accept\|reject`。集計は `--noise-report --use-case prompt_hook` |
 

@@ -497,8 +497,8 @@ def jev_hint(c, layer, ask):
     except Exception as e:  # never break the report
         rec = {"action": f"skipped(unavailable:internal_{type(e).__name__})"}
     action = str((rec or {}).get("action") or "skipped(unavailable:no_record)")
-    # a request left the machine unless ask() stopped before the HTTP call (redacted / no key / internal error)
-    sent = not any(x in action for x in ("skipped(redacted", "no_key", "internal_", "no_record"))
+    # a request left the machine unless ask() stopped before the HTTP call (redacted / disabled / no key / internal error)
+    sent = not any(x in action for x in ("skipped(redacted", "no_key", "disabled", "internal_", "no_record"))
     if action != "answered":
         reason = "redact" if action.startswith("skipped(redacted") else "unavailable"
         return {"status": "skipped", "reason": reason, "action": action, "sent": sent,

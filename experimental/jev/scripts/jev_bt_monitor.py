@@ -44,7 +44,7 @@ Q = {
               "does not count."),
     "user_signal": ("Does the latest user utterance correct the progress, point out something missing, add a new requirement, "
                     "or bring a new fact that changes assumptions? Simple approvals or small cosmetic edits do not count. "
-                    "If there is no user utterance, answer no."),
+                    "If there is no user utterance, it does not count."),
 }
 PHASE_Q = {"5.5b": "blocker", "6b": "drift", "prompt": "user_signal"}
 DONE = ("completed", "done")
