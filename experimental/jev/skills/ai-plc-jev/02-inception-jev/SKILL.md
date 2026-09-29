@@ -12,3 +12,4 @@ description: 【実験版・Jev監視つき】ai_plc_inception - AI-PLC Stage 2�
 2. **判定の記録:** 承認時に、ヒントが妥当だったか（accept / reject）をユーザーに確認し `python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --override <decision_id> accept|reject` で記録する（集計: `--noise-report --use-case coverage`）
 3. **Next Action のコピペ用プロンプト:** `/03-construction-jev` 形式で書く（Re-Inception後も同じ）
 4. **会話監視:** 会話監視 hook（`.claude/ai-plc-jev/scripts/jev_prompt_hook.py`）を settings に登録している場合だけ、このコマンドを `Layer: <パス>` 付きで打つと、そのセッションで会話監視が有効になる（登録手順は `.claude/ai-plc-jev/scripts/README_jev.md`）
+5. **未確認の判定の回収:** 承認・完了報告の進捗表示に `python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --pending --layer <Layer>` の件数を「🧭 未確認の Jev 判定: N件」として出し（0件なら 0件と出す）、Next Action のコピペ用プロンプトは**すべての選択肢**にその出力の「貼り付け用」1行を含める（記憶で書かない。0件なら書かない）。利用者の返答に「全部accept」等があれば `--override-pending accept|reject --layer <Layer> [--except <ID> ...]` で記録する

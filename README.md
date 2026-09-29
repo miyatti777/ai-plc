@@ -521,7 +521,7 @@ python3 .claude/db/sync.py sync     # 双方向同期
 
 > ⚠️ **実験版です。通常のインストールには含まれません。** `--with-jev` を付けたときだけ入り、仕様・コマンド名・置き場所は予告なく変わることがあります。
 >
-> ⚠️ **外部送信あり（opt-in）。** APIキーを登録し、Layer の `intent.yaml` に `jev_monitor: true` を書いたときだけ、短い要約を外部の判断専用モデル **Jev**（TypeSafe）に送ります。キーが無ければ何も送らず、すべてスキップされます。
+> ⚠️ **外部送信あり（opt-in）。** APIキーを登録し、Layer の `intent.yaml` に `jev_monitor: true` を書いたときだけ、Layer の文を字数で切ったもの（下の表。要約ではなく原文の抜粋です）を外部の判断専用モデル **Jev**（TypeSafe）に送ります。キーが無ければ何も送らず、すべてスキップされます。
 >
 > core の版は **1.7.1 のまま**です。`1.8.0-exp.1` は実験版パッケージ（`experimental/jev/`）の版です。
 
@@ -531,14 +531,14 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 
 | 機能 | 動く場所 | 外部に送るもの |
 | --- | --- | --- |
-| 異常ヒント（Backtrack の兆し） | `/04-operation-jev` の Phase 5.5b・6b | ゴール1行・進捗（件数）・直近のタスク完了報告（1200字まで） |
-| 成功条件カバー判定 | `/02-inception-jev` の分解承認の前 | ゴール1行・成功条件・タスク名と説明（160字まで） |
-| 会話監視 hook（任意・**手動で有効化**） | 発話ごと（Claude Code の `UserPromptSubmit` hook） | あなたの発話（400字まで）・ゴール1行・進捗 |
-| ステータス点検 | `/04-operation-jev` の Phase 7 | 既定は**送らない**（読み取り専用）。スクリプトに `--jev` を手で付けたときだけ、停滞 Layer のうち `jev_monitor: true` で機密でないものについて、ゴール1行・最後に完了したタスク・進捗・停滞日数 |
+| 異常ヒント（Backtrack の兆し） | `/04-operation-jev` の Phase 5.5b・6b | ゴール1行（200字まで）・進捗（件数）・直近のタスク完了報告（backlog の `result`、無ければタスクの説明。1200字まで） |
+| 成功条件カバー判定 | `/02-inception-jev` の分解承認の前 | ゴール1行（200字まで）・成功条件（全文）・各タスクの ID・名前・説明（説明は1件160字まで） |
+| 会話監視 hook（任意・**手動で有効化**） | 発話ごと（Claude Code の `UserPromptSubmit` hook） | あなたの直前の発話そのもの（1件・400字で切る）・ゴール1行・進捗（件数） |
+| ステータス点検 | `/04-operation-jev` の Phase 7 | 既定は**送らない**（読み取り専用）。スクリプトに `--jev` を手で付けたときだけ、停滞 Layer のうち `jev_monitor: true` で機密でないものについて、ゴール1行・最後に完了したタスクの名前と結果（400字まで）・進捗・停滞日数。例: `python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --jev --layer <Layer パス>` |
 
 - 送信先: 公式経路なら TypeSafe の1社、OpenRouter 経由なら OpenRouter と TypeSafe の2社
 - 送る前に、送信禁止の語の検査（コードの汎用語＋自分で書くローカルの `.claude/db/jev_redact_extra.txt`）と命令文の除去が働きます。**キーワードでの判定なので、言い換えた機密は通ります。** 機密PJ・経費・人事・顧客名や人名・私生活に関わる Layer では有効にしないでください
-- 送るのは上の表の短い要約だけです。ファイルの中身や、これまでの会話のやり取りは送りません（会話監視 hook が送るのは直前の発話1件だけで、400字で切ります）。判断ログ（`.claude/db/jev_decisions.jsonl`）に本文は残りません（残るのは入力と質問のハッシュ・確率・所要時間・費用と、Layer / タスクの ID・日時・経路）
+- 送るのは上の表の項目だけです。**要約ではなく、`intent.yaml` / `backlog.yaml` に書かれた文や発話の原文を字数で切ったもの**なので、そこに書いた内容は字数の範囲で送られます。それ以外のファイル（成果物・Context・コードなど）や、これまでの会話のやり取りは送りません（会話監視 hook が送るのは直前の発話1件だけです）。判断ログ（`.claude/db/jev_decisions.jsonl`）に本文は残りません（残るのは入力と質問のハッシュ・確率・所要時間・費用と、Layer / タスクの ID・日時・経路）
 
 ### 入れ方
 
@@ -585,6 +585,10 @@ installer は hook を登録しません（settings を読み書きしません�
 settings に足しただけでは何も送りません。有効になるのは、そのセッションで `/01-collection-jev`〜`/04-operation-jev` のどれかを `Layer: <パス>` 付きで打ち（例: `/04-operation-jev Layer: Flow/202601/2026-01-01/demo-layer`。相対パスは Claude Code の作業ディレクトリ（通常はプロジェクトのルート）から。絶対パスも可）、その Layer が `jev_monitor: true` のときだけです。紐づけはそのセッションだけで、12時間で失効します。
 
 スラッシュコマンド・短い承認・「？」で終わる質問・貼り付けた長文・ハーネスが差し込むメッセージ（サブエージェントの報告・タスク通知・コマンド展開など）は送りません。**ただしハーネスのメッセージの除外は既知の形式を列挙する方式なので、未知の形式のメッセージは発話として送られることがあります。**
+
+### 判定の採否の記録
+
+各判定の行に出る decision_id で、妥当なら `accept`、外れなら `reject` を記録します（`python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --override <decision_id> accept`）。記録漏れは `python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --pending --layer <Layer パス>` で一覧でき（貼り付け用の1行「Jev判定 … は accept」も出ます）、まとめて記録するときは `--override-pending accept --layer <Layer パス> [--except <違うID> ...]` を使います（記録済みは二重に書きません）。
 
 ### 止め方
 

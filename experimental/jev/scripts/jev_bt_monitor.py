@@ -11,6 +11,8 @@ Usage:
   python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --layer <Layer path> --phase 5.5b [--task T003] [--report "<completion report>"]
   python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --layer <Layer path> --phase 6b
   python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --override <decision_id> accept|reject   # accept = the judgment was right (hint or not)
+  python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --pending --layer <Layer path or scope_id>   # judgments with no accept/reject yet
+  python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --override-pending accept|reject --layer <Layer> [--except ID ...]
   python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --noise-report [--use-case bt_monitor|prompt_hook|coverage|status_audit]
 """
 import argparse
@@ -261,6 +263,100 @@ def noise_report(use_case="bt_monitor"):
     return out
 
 
+PENDING_USE_CASES = ("bt_monitor", "coverage", "prompt_hook")
+
+
+def _layer_scope_id(layer):
+    """--layer takes a Layer path (reads scope_id from its intent.yaml) or a scope_id itself."""
+    p = Path(layer)
+    if (p / "intent.yaml").is_file():
+        return load_yaml(p / "intent.yaml").get("scope_id")
+    if p.is_file() and p.name == "intent.yaml":
+        return load_yaml(p).get("scope_id")
+    return None if p.exists() else str(layer)
+
+
+def _decision_p(r):
+    """The probability to show and whether the user saw a hint. Numbers and choice labels only (no text)."""
+    vals = list((r.get("answers") or {}).values())
+    if r.get("use_case") == "coverage":  # p = highest probability that a criterion maps to NONE
+        ps = []
+        for v in vals:
+            if isinstance(v, dict):
+                pn = (v.get("probabilities") or {}).get("__NONE__")
+                ps.append(1.0 if v.get("choice") == "__NONE__" and not isinstance(pn, (int, float)) else
+                          (pn if isinstance(pn, (int, float)) else 0.0))
+        return (max(ps) if ps else None), True
+    p = vals[0] if vals and isinstance(vals[0], (int, float)) else None
+    return p, (p is not None and p >= jev_client.THRESHOLD)
+
+
+def pending(layer):
+    """Jev judgments of this Layer (by scope_id) that have no human accept/reject yet.
+    bt_monitor and coverage: every answered judgment. prompt_hook: only those that showed a hint (p >= threshold),
+    because the user never saw the others. Returns (scope_id, [row]); rows hold ids, labels, numbers and times only (the log has no text)."""
+    sid = _layer_scope_id(layer)
+    if not sid:
+        return None, []
+    done = set()
+    if jev_client.OVERRIDE_PATH.exists():
+        with jev_client.OVERRIDE_PATH.open(encoding="utf-8") as f:
+            for l in f:
+                if l.strip():
+                    try:
+                        done.add(json.loads(l).get("decision_id"))
+                    except ValueError:
+                        continue
+    rows, seen = [], set()
+    if jev_client.LOG_PATH.exists():
+        with jev_client.LOG_PATH.open(encoding="utf-8") as f:
+            for l in f:
+                if not l.strip():
+                    continue
+                try:
+                    r = json.loads(l)
+                except ValueError:
+                    continue
+                did = r.get("decision_id")
+                if (r.get("scope_id") != sid or r.get("action") != "answered" or not did
+                        or r.get("use_case") not in PENDING_USE_CASES or did in done or did in seen):
+                    continue
+                p, shown = _decision_p(r)
+                if r.get("use_case") == "prompt_hook" and not shown:
+                    continue
+                seen.add(did)
+                rows.append({"decision_id": did, "use_case": r.get("use_case"), "task_id": r.get("task_id"),
+                             "p": p, "ts": r.get("ts")})
+    return sid, rows
+
+
+def pending_report(layer):
+    sid, rows = pending(layer)
+    if not sid:
+        return "Jev判定の確認: Layer の scope_id が読めません（intent.yaml のある Layer パスか scope_id を指定）"
+    if not rows:
+        return f"未確認の Jev 判定なし（{sid}）"
+    out = [f"🧭 未確認の Jev 判定: {len(rows)}件（{sid}）"]
+    for r in rows:
+        p = f"{r['p']:.2f}" if isinstance(r["p"], (int, float)) else "-"
+        out.append(f"- {r['decision_id']}  {r['use_case']}  {r['task_id'] or '-'}  p={p}  {r['ts'] or '-'}")
+    out.append("貼り付け用: Jev判定 " + "・".join(r["decision_id"] for r in rows) + " は accept")
+    return "\n".join(out)
+
+
+def override_pending(layer, verdict, except_ids=()):
+    """Record one verdict for every pending judgment of the Layer, except the given ids (record those one by one
+    beforehand). Already recorded judgments are not pending, so nothing is written twice."""
+    if verdict not in ("accept", "reject"):
+        raise ValueError("verdict must be accept or reject")
+    sid, rows = pending(layer)
+    skip = set(except_ids or ())
+    ids = [r["decision_id"] for r in rows if r["decision_id"] not in skip]
+    for did in ids:
+        jev_client.record_override(did, verdict)
+    return sid, ids
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--layer")
@@ -270,6 +366,9 @@ def main(argv=None):
     ap.add_argument("--utterance")
     ap.add_argument("--override", nargs=2, metavar=("DECISION_ID", "VERDICT"))
     ap.add_argument("--noise-report", action="store_true")
+    ap.add_argument("--pending", action="store_true")
+    ap.add_argument("--override-pending", choices=["accept", "reject"])
+    ap.add_argument("--except", dest="except_ids", nargs="+", action="extend", default=[], metavar="DECISION_ID")
     ap.add_argument("--use-case", default="bt_monitor", choices=["bt_monitor", "prompt_hook", "coverage", "status_audit"])
     try:
         a = ap.parse_args(argv)
@@ -279,6 +378,23 @@ def main(argv=None):
         if a.override:
             jev_client.record_override(a.override[0], a.override[1])
             print(f"human_override を記録: {a.override[0]} = {a.override[1]}")
+        elif a.override_pending:
+            if not a.layer:
+                print("--override-pending には --layer が必要です")
+                return 0
+            sid, ids = override_pending(a.layer, a.override_pending, a.except_ids)
+            if not sid:
+                print("Jev判定の確認: Layer の scope_id が読めません（何も記録していません）")
+            elif not ids:
+                print(f"未確認の Jev 判定なし（{sid}）— 何も記録していません")
+            else:
+                print(f"human_override を記録: {len(ids)}件 = {a.override_pending}（{sid}）: " + "・".join(ids)
+                      + (f"（除外 {len(a.except_ids)}件）" if a.except_ids else ""))
+        elif a.pending:
+            if not a.layer:
+                print("--pending には --layer が必要です")
+                return 0
+            print(pending_report(a.layer))
         elif a.noise_report:
             print(noise_report(a.use_case))
         elif a.layer and a.phase:
