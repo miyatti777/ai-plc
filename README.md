@@ -216,7 +216,7 @@ git pull             # 最新の版を取ってくる（失敗したら git stat
 - `--dry-run` の出力の `"conflicts": []`（空）なら、そのまま実行して大丈夫です。`"writes"` が書き換わるファイルの一覧です。`DELETE:` で始まる行は、新しい版で配らなくなったので消すファイル（消す前の中身は `.bak` に残ります）、`CLAUDE.md#ai-plc-cc` のように `#` の付いた行は、そのファイルのマーカーの中だけの書き換えです
 - **`"conflicts"` に1行でも入っていたら、実行しても止まります。** 下の [3. 止まったとき](#3-止まったとき) を見てください
 - 旧版からの場合は、`[INFO] legacy release detected: cc v1.2.1–v1.4.1 (catalog 1.2.1)` のように、判別した版が出ます。中身が同じ版はまとめて表示されます
-- 成功すると `[OK] cc install committed: 13 changed file(s)` のように出て、`.ai-plc-version` が新しい版（`1.8.0`）になり、台帳 `.ai-plc-install-manifest` ができます（または更新されます）。同じ版でもう一度実行しても何も変わりません（`0 changed file(s)`）
+- 成功すると `[OK] cc install committed: 13 changed file(s)` のように出て、`.ai-plc-version` が新しい版（`1.8.1` など）になり、台帳 `.ai-plc-install-manifest` ができます（または更新されます）。同じ版でもう一度実行しても何も変わりません（`0 changed file(s)`）
 - 書き換える前のファイルは、同じ場所に `<ファイル名>.bak.<日時>.<番号>` として残ります（自分で編集していないファイルの分も残ります。自動では消しません。片付け方は [5.](#5-更新を取り消すbak-を片付ける)）
 - wiki・DB・`soul.md`・成果物と、`CLAUDE.md` / `AGENTS.md` の AI-PLC マーカー（`<!-- AI-PLC START -->`〜`END`、Codex では `<!-- AI-PLC CODEX START -->`〜`END`）の外の本文は書き換えません（wiki の説明ファイルや DB のように、無いものだけ新しく足すことはあります）。自分で足したファイル（例: `.claude/rules/` に自作したルール）も触りません
 - 更新が終わったら、インストールのときと同じく、**新しいチャット／スレッドを開始して**から使ってください
@@ -750,7 +750,7 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 >
 > ⚠️ **外部送信あり（opt-in）。** APIキーを登録し、Layer の `intent.yaml` に `jev_monitor: true` を書いたときだけ、Layer の文や発話を字数で切ったもの（下の表。要約ではなく原文の抜粋です）を外部の判断専用モデル **Jev**（TypeSafe）に送ります。キーが無ければ何も送らず、すべてスキップされます。
 >
-> core の版は **1.8.0**、`1.8.0-exp.1` は実験版パッケージ（`experimental/jev/`）の版です。2つの版は別々に数えます（実験版の番号は core の版と連動しません）。実験版のインストールされる中身は exp.1 のまま変わっていません（中の説明文に残る「core の版は 1.7.1」などの表記は exp.1 を出した時点のものです。[CHANGELOG.md](CHANGELOG.md)）。
+> core の版は **1.8.1**、`1.8.0-exp.1` は実験版パッケージ（`experimental/jev/`）の版です。2つの版は別々に数えます（実験版の番号は core の版と連動しません）。実験版のインストールされる中身は exp.1 のまま変わっていません（中の説明文に残る「core の版は 1.7.1」などの表記は exp.1 を出した時点のものです。[CHANGELOG.md](CHANGELOG.md)）。
 
 AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか」などを1問だけ聞き、**1行のヒント**を出します。ヒントに作業を止める権限はなく、判断はメインのモデルとあなたが行います。**Claude Code 専用**で、Jev への問い合わせ（外部送信）は `/01-collection-jev` → `/02-inception-jev` → `/03-construction-jev` → `/04-operation-jev` を使ったときだけ動きます（core の `/01-collection`〜`/04-operation` は Jev を呼びません）。例外として、下の表の「ステータス点検」（Jev には送らず、ローカルのファイルと DB を読むだけの点検）は、core 1.8.0 からは core の `/04-operation` の Phase 7 でも、実験版を入れてあれば動きます（実験版が無ければ「点検ツールなし — スキップ」と出して進みます）。
 
