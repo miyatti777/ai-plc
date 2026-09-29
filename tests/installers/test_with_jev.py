@@ -696,9 +696,10 @@ multi.main(["install", "cc", "--target", target])
                 core_bak = root / ".claude/commands/01-collection.md.bak.20260101T000000Z.8"
                 core_bak.write_text("core backup\n")
                 # codex-only or cursor-only uninstall does not sweep
-                for mode in ("codex",):
-                    self.assertEqual(uninstall(REPO, root, mode).returncode, 0)
-                    self.assertTrue(any(".bak." in p for p in jev_leftovers(root)))
+                left = jev_leftovers(root)
+                self.assertEqual(uninstall(REPO, root, "codex").returncode, 0)
+                self.assertEqual(uninstall(REPO, root, "cursor").returncode, 2)  # no manifest left (unchanged)
+                self.assertEqual(jev_leftovers(root), left)
                 result = uninstall(REPO, root, "cc")
                 self.assertEqual(result.returncode, 2, result.stderr)  # nothing installed any more (unchanged)
                 self.assertEqual(jev_leftovers(root), sorted([
@@ -716,6 +717,12 @@ multi.main(["install", "cc", "--target", target])
                 with self.subTest(entry=entry, mode=mode), target_repo() as root:
                     self.crash_uninstall_cleanup(REPO, root)
                     self.assertEqual(self.codex(REPO, root, entry).returncode, 0)
+                    # read-only runs and a cursor-only uninstall leave the leftovers alone
+                    left = jev_leftovers(root)
+                    for extra in ("--dry-run", "--plan-only"):
+                        self.assertEqual(uninstall(REPO, root, mode, extra).returncode, 0)
+                    self.assertEqual(uninstall(REPO, root, "cursor").returncode, 0)
+                    self.assertEqual(jev_leftovers(root), left)
                     result = uninstall(REPO, root, mode)
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual(jev_leftovers(root), [])
@@ -751,6 +758,36 @@ multi.main(["install", "cc", "--target", target])
                 self.assertEqual(normalized_tree(root), {k: v for k, v in before.items()
                                                          if not k.startswith((".claude/ai-plc-jev/", ".claude/skills/ai-plc-jev/"))
                                                          and not re.search(r"(^|/)0[1-4]-[a-z-]+-jev\.md", k)})
+
+    def test_install_does_not_sweep_and_later_uninstall_does(self) -> None:
+        with target_repo() as root:
+            self.crash_uninstall_cleanup(REPO, root)
+            self.assertEqual(self.codex(REPO, root, ("install-codex.sh",)).returncode, 0)
+            left = jev_leftovers(root)
+            result = install(REPO, root, "cc")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(jev_leftovers(root), left)  # install never sweeps
+            result = uninstall(REPO, root, "cc")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(jev_leftovers(root), [])
+            lines = result.stdout.splitlines()
+            self.assertTrue(lines[0].startswith("[OK] cc uninstall committed"), lines)
+            self.assertTrue(lines[1].startswith("[OK] experimental_jev: removed 18 "), lines)
+
+    def test_detached_manifest_is_not_swept(self) -> None:
+        # The manifest-less sweep (U2) does not run when the manifest is detached: stop without any change.
+        with target_repo() as root:
+            self.crash_uninstall_cleanup(REPO, root)
+            self.assertEqual(self.codex(REPO, root, ("install-codex.sh",)).returncode, 0)
+            data = manifest(root)
+            data["status"] = "detached"
+            (root / ".ai-plc-install-manifest").write_text(json.dumps(data))
+            before = normalized_tree(root)
+            result = uninstall(REPO, root, "cc")
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("manifest is detached", result.stderr)
+            self.assertEqual(result.stdout, "")
+            self.assertEqual(normalized_tree(root), before)
 
     def test_second_crash_while_resuming_is_resumed_again(self) -> None:
         for follow_up in ("install", "uninstall"):

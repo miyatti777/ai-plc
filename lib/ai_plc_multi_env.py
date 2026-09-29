@@ -844,7 +844,8 @@ def run_jev_cleanup(root: safe.SafeRoot, state: dict[str, Any], distribution: Pa
 
 
 def commit_with_jev_cleanup(tx: safe.Transaction, root: safe.SafeRoot, distribution: Path,
-                            old_files: dict[str, str], deleted: list[str], sweep: bool) -> list[str]:
+                            old_files: dict[str, str], deleted: list[str], sweep: bool,
+                            after_cleanup: Any = None) -> list[str]:
     """Mark the transaction committed, run the cleanup while the lock is still held, then release it.
 
     The cleanup parameters are stored in the committed journal. If the process dies during the cleanup,
@@ -858,6 +859,8 @@ def commit_with_jev_cleanup(tx: safe.Transaction, root: safe.SafeRoot, distribut
         warnings = run_jev_cleanup(root, tx.state, distribution)
     except Exception as exc:  # cleanup is best effort; the committed install/uninstall stands
         warnings = [f"cleanup skipped ({exc})"]
+    if after_cleanup is not None:  # still under the lock
+        after_cleanup()
     try:
         tx.commit()
     except Exception as exc:
@@ -920,29 +923,35 @@ def jev_leftovers_present(root: safe.SafeRoot) -> bool:
         return False
 
 
-def sweep_jev_leftovers(tx: safe.Transaction, root: safe.SafeRoot, distribution: Path) -> list[str]:
+def count_jev_backups(root: safe.SafeRoot) -> int:
+    try:
+        return len(jev_backup_candidates(root))
+    except (OSError, safe.InstallError):
+        return 0
+
+
+def sweep_jev_leftovers(tx: safe.Transaction, root: safe.SafeRoot, distribution: Path) -> tuple[list[str], int]:
     """Commit `tx` and remove leftover experimental-package backups (uninstall with cc only).
 
     Covers a cleanup that was interrupted and whose resume information is gone (e.g. a Codex install in
     between recovered the committed journal without resuming it). Only backups whose content matches
     KNOWN_RELEASES or the current distribution are removed, then the package directories they emptied;
-    other files are kept (one [WARN] line). Prints nothing extra when no backup was removed."""
-    try:
-        before = len(jev_backup_candidates(root))
-    except (OSError, safe.InstallError):
-        before = 0
-    warnings = commit_with_jev_cleanup(tx, root, distribution, {}, [], True)
-    try:
-        removed = before - len(jev_backup_candidates(root))
-    except (OSError, safe.InstallError):
-        removed = 0
+    other files are kept (one [WARN] line). Returns (warnings, number of backups removed); both are
+    counted while the lock is held."""
+    before = count_jev_backups(root)
+    after: list[int] = []
+    warnings = commit_with_jev_cleanup(tx, root, distribution, {}, [], True,
+                                       after_cleanup=lambda: after.append(count_jev_backups(root)))
+    return warnings, max(0, before - after[0]) if after else 0
+
+
+def print_jev_removed(removed: int) -> None:
     if removed:
         print(f"[OK] experimental_jev: removed {removed} leftover backup file(s) of an interrupted cleanup")
-    return warnings
 
 
 def sweep_before_uninstall_error(root: safe.SafeRoot, distribution: Path) -> None:
-    """Nothing can be uninstalled (e.g. no manifest is left), but leftovers of an interrupted cleanup are:
+    """No manifest is left, so nothing can be uninstalled, but leftovers of an interrupted cleanup are:
     remove them in a short transaction of their own; the caller then fails exactly as before.
 
     The tombstone is not consumed and no other file is touched. Failures here never replace the
@@ -951,11 +960,17 @@ def sweep_before_uninstall_error(root: safe.SafeRoot, distribution: Path) -> Non
     try:
         tx.acquire()
         safe.assert_fresh_transaction_artifacts(root, tx)
-        print_jev_warnings(sweep_jev_leftovers(tx, root, distribution))
+        warnings, removed = sweep_jev_leftovers(tx, root, distribution)
+        print_jev_removed(removed)
+        print_jev_warnings(warnings)
     except Exception as exc:
+        message = f"leftover cleanup skipped ({exc})"
         if tx.locked and tx.state.get("phase") != "committed" and not getattr(exc, "committed", False):
-            tx.rollback()
-        print_jev_warnings([f"leftover cleanup skipped ({exc})"])
+            try:
+                tx.rollback()
+            except Exception as rollback_exc:
+                message += f"; rollback failed ({rollback_exc})"
+        print_jev_warnings([message])
 
 
 def record_user_backups(root: safe.SafeRoot, tx: safe.Transaction, plan: dict[str, Any]) -> list[dict[str, str]]:
@@ -1198,10 +1213,11 @@ def execute_uninstall(distribution: Path, root: safe.SafeRoot, mode: str) -> int
                 changed += int(root.delete_transactional(safe.VERSION_MARKER, tx))
             changed += int(root.delete_transactional(safe.MANIFEST, tx))
         warnings: list[str] = []
+        removed = 0
         if jev_removed:
             warnings = commit_with_jev_cleanup(tx, root, distribution, old_jev, sorted(old_jev), True)
         elif sweep:
-            warnings = sweep_jev_leftovers(tx, root, distribution)
+            warnings, removed = sweep_jev_leftovers(tx, root, distribution)
         else:
             tx.commit()
     except Exception as exc:
@@ -1209,6 +1225,7 @@ def execute_uninstall(distribution: Path, root: safe.SafeRoot, mode: str) -> int
             tx.rollback()
         raise
     print(f"[OK] {plan['mode']} uninstall committed: {changed} changed file(s)")
+    print_jev_removed(removed)
     print_jev_warnings(warnings)
     if plan["residuals"]:
         print(f"[WARN] {len(plan['residuals'])} modified item(s) preserved; manifest detached")
@@ -1265,8 +1282,10 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 plan = build_uninstall_plan(distribution, root, args.mode)
             except Exception:
+                # Only when no manifest is left (U2): a detached or unreadable manifest, or a legacy
+                # mismatch, must stop without any change.
                 if (not (args.dry_run or args.plan_only) and "cc" in ENVIRONMENTS[args.mode]
-                        and jev_leftovers_present(root)):
+                        and not root.exists(safe.MANIFEST) and jev_leftovers_present(root)):
                     sweep_before_uninstall_error(root, distribution)
                 raise
         if args.dry_run or args.plan_only:
