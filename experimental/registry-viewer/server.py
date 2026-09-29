@@ -434,6 +434,9 @@ class Registry:
         if status in ("completed", "done"):
             return f"/01-collection{jev} を実行してください（Re-Collection）/ Layer: {layer.rel}"
         if not layer.tasks:
+            # simple 深度は Stage 1 → 4 に直行できる（Stage 2・3 を飛ばす）
+            if str(layer.intent.get("workflow_depth") or "").strip().lower() == "simple":
+                return f"/04-operation{jev} を実行してください / Layer: {layer.rel}"
             return f"/02-inception{jev} を実行してください / Layer: {layer.rel}"
         return f"/04-operation{jev} を実行してください / Layer: {layer.rel}"
 
@@ -706,7 +709,7 @@ class Registry:
         try:
             d = self.log_dir
             d.mkdir(parents=True, exist_ok=True)
-            rec = {"at": datetime.now().isoformat(timespec="seconds"), **rec}
+            rec = {"at": datetime.now().astimezone().isoformat(timespec="seconds"), **rec}  # 例 2026-09-29T17:17:51+09:00
             with open(d / "viewer_log.jsonl", "a", encoding="utf-8") as f:
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
         except OSError:
