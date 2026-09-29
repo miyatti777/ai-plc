@@ -754,6 +754,7 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 | `plc-status-audit` | ステータス点検（intent・backlog・Registry の食い違いの洗い出しと、承認した行だけの反映） | 実験版（`--with-jev`）を入れたとき |
 | `plc-viewer` | Registry ビューア（ブラウザ）の起動・停止 | `experimental/registry-viewer` を手でコピーしたとき（status の変更は実験版も入れたときだけ。無ければ閲覧のみ） |
 | `plc-consult` | アイデア相談。「ここをこうしたい」を今の Layer と照らして 却下／今のタスク内で修正／Re-Inception／Re-Collection／いつかやる に振り分け、所感と次に打つコマンドを返す（読み取り専用。v1.10.0〜） | いつでも |
+| `plc-backfill` | スキル外作業の事後記録。スキルを通さずに済ませた作業を、承認を得てから対象 Layer の backlog に ad-hoc タスクとして足し、04-operation の Phase 5.5〜7（検証・ステータス更新・Propagation）を通す（v1.11.0〜） | いつでも |
 
 名前の決まりは `.claude/rules/ai-plc-system.md` の §6 にあります（Stage は `0N-<stage>`、ユーティリティは `plc-<機能>`）。
 
@@ -1035,7 +1036,7 @@ ai-plc/
 ├── core/
 │   ├── skills/ai-plc/     # 4ステージスキル + テンプレート
 │   ├── skills/utility/    # spec-story-starter / wire-aa-authoring
-│   ├── skills/plc-*/      # plc-db-sync / plc-registry / plc-status-audit / plc-viewer / plc-consult
+│   ├── skills/plc-*/      # plc-db-sync / plc-registry / plc-status-audit / plc-viewer / plc-consult / plc-backfill
 │   ├── rules/             # system / session / adaptive
 │   └── db/                # init_db.py / plc_query.py / sync.py
 ├── claude/                # Claude Code固有（commands / agents / templates）
