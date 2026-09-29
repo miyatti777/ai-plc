@@ -2,7 +2,7 @@
 
 AI-PLC の作業中に、判断専用モデル **Jev**（TypeSafe）で「Backtrack（前の段階に戻るべき兆し）がないか」を安く速く見張り、**1行のヒント**を出す仕組みです。ヒントには作業を止める権限はなく、最終判断はメインのモデルとあなたが行います。**APIキーを設定しなければ、すべて自動でスキップされ、AI-PLC は従来どおり動きます。**
 
-> 🧪 これは AI-PLC の**実験版パッケージ（experimental/jev、版 1.8.0-exp.1）**の一部です。`install-cc.sh --with-jev`（または `install.sh cc --with-jev`）で入れたときだけ、スクリプトは `.claude/ai-plc-jev/scripts/`、スキルは `.claude/skills/ai-plc-jev/`、コマンドは `/01-collection-jev`〜`/04-operation-jev` に入ります。Jev 監視はすべて実験版のスキル・コマンドから呼ばれ、**公開 core の `/01-collection`〜`/04-operation` からは呼ばれません。**
+> 🧪 これは AI-PLC の**実験版パッケージ（experimental/jev、版 1.8.1-exp.1。公開 core 1.8.1 の上に作った実験版で、core のスキルとの違いは Jev 部分だけ）**の一部です。`install-cc.sh --with-jev`（または `install.sh cc --with-jev`）で入れたときだけ、スクリプトは `.claude/ai-plc-jev/scripts/`、スキルは `.claude/skills/ai-plc-jev/`、コマンドは `/01-collection-jev`〜`/04-operation-jev` に入ります。Jev 監視はすべて実験版のスキル・コマンドから呼ばれ、**公開 core の `/01-collection`〜`/04-operation` からは呼ばれません。**
 
 ## 何が入っているか
 
@@ -13,7 +13,7 @@ AI-PLC の作業中に、判断専用モデル **Jev**（TypeSafe）で「Backtr
 | `jev_regression_rank.py` | 規約を変えたとき、過去の成果物を「悪化が疑わしい順」に並べる（合否は出さない） | 手動 |
 | `jev_prompt_hook.py` | 会話ごとの監視（Claude Code の UserPromptSubmit hook。settings への登録が必要） | 実験版 |
 | `jev_coverage_check.py` | Inception の成功条件カバー判定（どのタスクにも対応しない成功条件を探す） | 実験版（`/02-inception-jev`） |
-| `aiplc_status_audit.py` | Layer・Registry の食い違いの点検（`/04-operation-jev` Phase 7。手順は `README_status_audit.md`） | 実験版 |
+| `aiplc_status_audit.py` | Layer・Registry の食い違いの点検（`/04-operation`・`/04-operation-jev` の Phase 7。手順は `README_status_audit.md`） | 実験版 |
 
 必要なもの: Python 3.9 以上、`pyyaml`（`pip install pyyaml`）。ほかの依存はありません。
 
@@ -148,7 +148,7 @@ find .claude/db -maxdepth 1 -type f \( -name 'jev_*' -o -name '.jev_*' \) ! -nam
 rm -rf .claude/db/status_hygiene
 ```
 
-ローカルの送信禁止語ファイル（`jev_redact_extra.txt`）は、ほかでも使うかを確かめてから自分で消してください。hook を settings に足した人は、そこからも消します。uninstall の後処理中にプロセスが落ちた場合に `.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/` が残る既知の制約と手での消し方は、[公開 README の実験版の節](https://github.com/miyatti777/ai-plc#-実験版-jev-監視v180-exp1)にあります。
+ローカルの送信禁止語ファイル（`jev_redact_extra.txt`）は、ほかでも使うかを確かめてから自分で消してください。hook を settings に足した人は、そこからも消します。uninstall の後処理中にプロセスが落ちた場合に `.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/` が残る既知の制約と手での消し方は、[AI-PLC 公開リポジトリの README](https://github.com/miyatti777/ai-plc#readme)の実験版の節にあります。
 
 ## .gitignore に足す行
 
@@ -174,7 +174,7 @@ installer は利用者のリポジトリの `.gitignore` に触りません。�
 | `JEV_DISABLE` | （なし） | `1` で全機能を停止（送信しない）。Claude Code の起動前のシェルか settings の `env` に書き、セッションを開き直す |
 | `JEV_REDACT_EXTRA` | （なし） | 送信禁止パターンを追加するファイル（`.claude/db/jev_redact_extra.txt` に加えて読む） |
 | `JEV_LOG_PATH` / `JEV_OVERRIDE_PATH` | `.claude/db/jev_*.jsonl` | ログの置き場所 |
-| `AIPLC_REPO` | （自動） | リポジトリの場所の上書き（テストや特殊な配置用。既定では、スクリプトの場所から、`.ai-plc-version` か `.ai-plc-install-manifest` がある `.claude` の親を探す） |
+| `AIPLC_REPO` | （自動） | リポジトリの場所の上書き（テストや特殊な配置用。空なら無視。既定では、スクリプトの場所から上へたどり、親に `.ai-plc-version` か `.ai-plc-install-manifest` がある `.claude` を見つけたらその親。見つからなければスクリプトの2つ上＝`<repo>/scripts/` に置いた場合の `<repo>`） |
 
 ## 費用と速さの目安
 

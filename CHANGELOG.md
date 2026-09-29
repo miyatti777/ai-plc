@@ -11,6 +11,29 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 
 この版より前の変更は、GitHub のリリースとタグを見てください。
 
+## [実験版 1.8.1-exp.1] - 2026-09-29
+
+実験版パッケージ（`experimental/jev/`、`--with-jev` のときだけ入る）の新しい版です。前の実験版 1.8.0-exp.1 の次の版で、**core の版は 1.8.1 のまま**です（installer の `--help` の表示も `v1.8.1`）。`1.8.1-exp.1` は core 1.8.1 に合わせて出した版で、末尾の `exp.1` はその版での通し番号です（前の実験版 1.8.0-exp.1 は core 1.7.1 の上に作ったもので、頭の数字が core の版と一致するとは限りません）。1.8.0 の「未対応・既知の点」に書いた実験版の古い版表記と、README の実験版の節の「既知の制約」に書いていた uninstall の後片付けの制約は、この版で直しました。
+
+### 実験版パッケージ
+
+- スキル（`/01-collection-jev`〜`/04-operation-jev`）を core 1.8.1 のスキル（`01-collection` 2.1・`04-operation` 2.7）に揃えました。core のスキルとの違いは Jev 部分だけです。説明文の古い版表記（「core の版は 1.7.1」など）も直しました
+- `jev_bt_monitor.py --override-pending`: `--only` / `--except` の指定で記録対象が0件になったとき、「未確認の Jev 判定なし」ではなく「記録対象なし（未確認は N件残っています・…）」と出します。`--layer` に Layer パスでも scope_id の形でもない値を渡すと「Layer の scope_id が読めません」と出します
+- `/02-inception-jev`: カバー判定の採否の記録を、タスクの実行より先に行うことを明記しました
+- ステータス点検（`aiplc_status_audit.py`）: Registry のタスク ID が `<scope_id>-T001` の形でも、backlog の `T001` と同じタスクとして突き合わせます（前は「タスク行なし」と誤って出ていました）
+- `KNOWN_RELEASES.sha256` に 1.8.0-exp.1 の配布物のハッシュを追加しました。1.8.0-exp.1 から上げたときや、中断した後処理の残り物を掃除するときの照合に使います
+
+### installer（`lib/ai_plc_multi_env.py`）
+
+- 実験版の uninstall の後処理（`.bak` と空ディレクトリの掃除）の最中にプロセスが落ち、次が codex 経路（`install.sh codex` / `install-codex.sh`）だった場合に、実験版の `.bak` とディレクトリが残っていました。cc を含む uninstall（`cc` / `both` / `all`）のときに、中身が既知の版か今の配布物と一致する `.bak` と、それで空になった実験版のディレクトリを掃除します。一致しないものは残して `[WARN]` に件数を出します。台帳が無くて uninstall がエラーで止まる環境でも、残り物だけ掃除してから同じエラーで止まります
+- 後処理の再開中にもう一度落ちると、再開の情報が失われていました。再開の情報を先に保存してから後処理するようにしました（次の `install.sh`（codex 以外）/ `uninstall.sh` で再開します。`install-codex.sh` を挟んだなどで再開の情報が失われた場合も、cc を含む uninstall で掃除します）
+- **実験版の残り物が無い環境では、動きは今までと同じです**（`--with-jev` を付けない install・uninstall の出力・終了コードも同じ）。残り物がある環境で cc を含む uninstall のときに掃除することは、意図した変更です。install・`--dry-run`・`--plan-only`・cursor / codex だけの uninstall では掃除しません
+- `tests/installers/README.md`: `test_with_jev.py` は git の履歴を読むため、完全な clone が必要なことを書きました
+
+### 上げ方
+
+`./install.sh --target <プロジェクト> cc --with-jev`（先に `--dry-run` で確認できます）。core も 1.8.1 に上がります。`--with-jev` を付けずに更新すると、実験版は 1.8.0-exp.1 のまま残ります。手順の詳細は README の実験版の節にあります。
+
 ## [1.8.1] - 2026-09-29
 
 ### 修正

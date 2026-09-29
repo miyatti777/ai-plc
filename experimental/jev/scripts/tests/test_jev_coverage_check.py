@@ -53,6 +53,7 @@ class CoverageTest(unittest.TestCase):
         qs = ask.call_args[0][1]
         self.assertEqual(set(qs), {"c1", "c2"})
         self.assertEqual(set(qs["c1"]["criteria"]), {"T001", "T002", "__NONE__"})  # cancelled task excluded
+        self.assertEqual(qs["c1"]["criteria"][self.c.NONE], self.c.NONE_LABEL)  # the label lives in one constant
         self.assertIn("2件中 1件", out[0]); self.assertIn("B を検証する", out[0]); self.assertIn("decision_id=d", out[0])
 
     def test_all_covered_and_opt_out_and_empty(self):

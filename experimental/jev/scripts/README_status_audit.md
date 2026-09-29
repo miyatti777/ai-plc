@@ -6,6 +6,7 @@ AI-PLC のステータスは、次の置き場所に分かれて記録されて�
 - **Registry:** `.claude/db/ai_plc.db` の projects / tasks
 - **todo.md** と **native memory:** 任意の参考入力（あれば読むだけ。無ければ読まない）
 - **Registry の tasks.status の語彙:** 公開の `init_db.py` で作った DB は英語（`planned` / `active` / `completed` / `paused`）、日本語の語彙（`未着手` / `進行中` / `完了`）で作った DB もあります。tasks テーブルの `status` 列の `CHECK(status IN (...))` から自動で判定し、提案する値もその語彙に合わせます（判定できないときは日本語）。DB が英語か判定できないときに限り、Layer の intent.yaml の `sync_targets`（`type: sqlite`）に `status_map` があれば、それに従います（制約: 語彙を判定できない DB で `status_map` の completed に独自の値を使うと、`--apply` でその値にしたタスク行の `completed_at` は埋まらず、レポートの完了件数にも数えられません）
+- **Registry の task_id の形:** `T001` のほか、先頭に自分の scope_id を付けた `<scope_id>-T001` も backlog の `T001` と同じタスクとして突き合わせます（Registry・backlog のどちらに付いていても同じ。外すのは自分の scope_id だけ。同じ側に両方の形があるときは `T001` を使います）。提案と `--apply` は Registry にある元の task_id のまま書き込み、分類8で足す行は backlog に書かれている ID のままです
 
 > 🧪 実験版パッケージ（experimental/jev）の一部です。`--with-jev` で入れたとき `.claude/ai-plc-jev/scripts/` に入り、`/04-operation-jev` の Phase 7「ステータス点検」から呼ばれます。
 
@@ -51,6 +52,7 @@ AI-PLC のステータスは、次の置き場所に分かれて記録されて�
 - `--brief` は `--jev` / `--approval-template` / `--out` と同時に使えません（終了コード 2）
 - Registry にも Layer にも無い scope を `--scope` に渡すと終了コード 2（打ち間違いで「食い違いなし」にならないように。表示はハッシュ ID）。`--layer` の先に intent.yaml が無い・scope_id が無いときも 2
 - `--yes` は `--apply` と一緒のときだけ使えます
+- 環境変数 `AIPLC_REPO`: リポジトリの場所の上書き（テストや特殊な配置用。空なら無視）。既定では、スクリプトの場所から上へたどり、親に `.ai-plc-version` か `.ai-plc-install-manifest` がある `.claude` を見つけたらその親をリポジトリとし、見つからなければスクリプトの2つ上（`<repo>/scripts/` に置いた場合の `<repo>`）。`--db` / `--state-dir` の既定の場所はこのリポジトリを基準にします
 
 ### 1.1 短い要約（`--brief`）
 

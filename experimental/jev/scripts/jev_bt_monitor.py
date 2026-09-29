@@ -264,10 +264,18 @@ def noise_report(use_case="bt_monitor"):
 
 
 PENDING_USE_CASES = ("bt_monitor", "coverage", "prompt_hook")
+# A loose scope_id shape (L-0000, L-0000-1, L-0000-SG1, L000-SG1 ...). Anything else that is not a Layer path is
+# treated as a typo, so that --layer my-typo reads as an error and not as "0 pending".
+SCOPE_ID_RE = re.compile(r"^[A-Za-z]{1,4}-?\d{3,}(?:-[A-Za-z0-9_-]+)?$")
+def layer_unreadable(layer, suffix=""):
+    """The error line for a --layer value that is neither a Layer path nor a scope_id (the value shown on one line)."""
+    shown = " ".join(str(layer).split())
+    return f"Jev判定の確認: Layer の scope_id が読めません（intent.yaml のある Layer パスか scope_id を指定。指定: {shown}{suffix}）"
 
 
 def _layer_scope_id(layer):
-    """--layer takes a Layer path (reads scope_id from its intent.yaml) or a scope_id itself."""
+    """--layer takes a Layer path (reads scope_id from its intent.yaml) or a scope_id itself.
+    None when it is neither (a path that is not a Layer, or a value not shaped like a scope_id)."""
     p = Path(layer)
     if (p / "intent.yaml").is_file():
         return load_yaml(p / "intent.yaml").get("scope_id")
@@ -276,7 +284,7 @@ def _layer_scope_id(layer):
     s = str(layer)
     if p.exists() or "/" in s or "\\" in s or s.startswith(".") or s.endswith((".yaml", ".yml")):
         return None  # a path that is not a Layer (typo, wrong base dir) must not look like "0 pending"
-    return s
+    return s if SCOPE_ID_RE.fullmatch(s) else None  # e.g. --layer my-typo
 
 
 def _decision_p(r):
@@ -342,7 +350,7 @@ def pending(layer):
 def pending_report(layer):
     sid, rows = pending(layer)
     if not sid:
-        return "Jev判定の確認: Layer の scope_id が読めません（intent.yaml のある Layer パスか scope_id を指定）"
+        return layer_unreadable(layer)
     if not rows:
         return f"未確認の Jev 判定なし（{sid}）"
     out = [f"🧭 未確認の Jev 判定: {len(rows)}件（{sid}）"]
@@ -366,7 +374,8 @@ def override_pending(layer, verdict, except_ids=(), only_ids=None):
     only_ids: record only these (the ids the user saw in the paste line) — judgments made after the list was shown
     are left pending. None = every pending judgment. except_ids: never recorded (record those one by one beforehand).
     Already recorded judgments are not pending, so nothing is written twice.
-    Returns (scope_id, recorded ids, {"excluded": n, "not_pending": [ids given in only_ids that are not pending]})."""
+    Returns (scope_id, recorded ids, {"excluded": n, "not_pending": [ids given in only_ids that are not pending],
+    "pending": number of pending judgments before recording})."""
     if verdict not in ("accept", "reject"):
         raise ValueError("verdict must be accept or reject")
     sid, rows = pending(layer)
@@ -378,7 +387,7 @@ def override_pending(layer, verdict, except_ids=(), only_ids=None):
     for did in ids:
         jev_client.record_override(did, verdict)
     info = {"excluded": len(cand) - len(ids),
-            "not_pending": sorted(only - set(pend)) if only is not None else []}
+            "not_pending": sorted(only - set(pend)) if only is not None else [], "pending": len(pend)}
     return sid, ids, info
 
 
@@ -412,8 +421,9 @@ def main(argv=None):
             note = (f"（除外 {info['excluded']}件）" if info["excluded"] else "") + (
                 f"（未確認でないため記録しない: {'・'.join(info['not_pending'])}）" if info["not_pending"] else "")
             if not sid:
-                print("Jev判定の確認: Layer の scope_id が読めません（intent.yaml のある Layer パスか scope_id を指定。"
-                      "何も記録していません）")
+                print(layer_unreadable(a.layer, "。何も記録していません"))
+            elif not ids and info["pending"]:  # --only matched none / --except excluded all: pending ones remain
+                print(f"記録対象なし（未確認は {info['pending']}件残っています・{sid}）— 何も記録していません{note}")
             elif not ids:
                 print(f"未確認の Jev 判定なし（{sid}）— 何も記録していません{note}")
             else:

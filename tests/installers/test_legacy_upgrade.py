@@ -18,6 +18,7 @@ edited, targets upgraded step by step with the old installers, different release
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -495,15 +496,43 @@ class ManifestReleases(Base):
             data = manifest(root)
             self.assertEqual(data["components"]["experimental_jev"]["package_version"], "1.8.0-exp.1")
             self.assertEqual({p: v for p, v in tree_snapshot(root).items() if p in jev_before}, jev_before)
-            # --with-jev again: the package version is unchanged, so it succeeds only when the package
-            # content equals the tag's; otherwise it is a mutable release and must change nothing.
-            same = jev_package_files(source("v1.8.0-exp.1")) == jev_package_files(REPO)
-            if same:
-                self.installed(root, "cc", "--with-jev")
-            else:
-                result = self.refused(root, "cc", "--with-jev")
-                self.assertIn("mutable release refused: experimental_jev", result.stderr)
+            # --with-jev again updates the package from 1.8.0-exp.1 to the current release (neither a
+            # mutable release nor a downgrade). Same version with other content is covered by test_with_jev.py.
+            current = (REPO / "experimental/jev/VERSION").read_text().strip()
+            self.assertNotEqual(current, "1.8.0-exp.1")
+            self.assertNotEqual(jev_package_files(source("v1.8.0-exp.1")), jev_package_files(REPO))
+            summary, _ = self.dry(root, "cc", "--with-jev")
+            self.assertEqual(summary["conflicts"], [])
+            self.installed(root, "cc", "--with-jev")
+            component = manifest(root)["components"]["experimental_jev"]
+            self.assertEqual(component["package_version"], current)
+            self.assertEqual(component["version"], VERSION)
+            installed = {p: (root / p).read_bytes() for p, v in tree_snapshot(root).items()
+                         if v["type"] == "file" and ("ai-plc-jev" in p or "-jev.md" in p)}
+            expected = {(".claude/ai-plc-jev/" if rel.startswith("scripts/") else ".claude/") + rel: data
+                        for rel, data in jev_package_files(REPO).items()}
+            self.assertEqual(installed, expected)  # the new release's content, no .bak left behind
+            # and it uninstalls completely
+            result = uninstall(root, "cc")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertFalse([p for p in tree_snapshot(root) if "ai-plc-jev" in p or "-jev.md" in p])
 
+
+    def test_known_releases_lists_the_v180_exp1_files(self) -> None:
+        # uninstall sweeps leftover .bak files of earlier releases by these hashes, so they must equal
+        # what the tag's installer put in place (a mismatch would only leave files behind silently).
+        known: dict[str, set[str]] = {}
+        section = None
+        for line in (REPO / "experimental/jev/KNOWN_RELEASES.sha256").read_text().splitlines():
+            if line.startswith("# 1.") and "(" in line:
+                section = line[2:].split()[0]
+            elif line.strip() and not line.startswith("#") and section == "1.8.0-exp.1":
+                digest, path = line.split(None, 1)
+                known.setdefault(path.strip(), set()).add(digest)
+        expected = {(".claude/ai-plc-jev/" if rel.startswith("scripts/") else ".claude/") + rel:
+                    {hashlib.sha256(data).hexdigest()} for rel, data in jev_package_files(source("v1.8.0-exp.1")).items()}
+        self.assertEqual(len(expected), 18)
+        self.assertEqual(known, expected)
 
 class FaultInjection(Base):
     """P1-1: a failure while adopting a legacy release rolls back completely; the next run succeeds."""

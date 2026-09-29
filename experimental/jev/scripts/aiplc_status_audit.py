@@ -142,6 +142,30 @@ def norm(v):
     return s if s == REG_TASK_DONE else s.lower()
 
 
+def canon_task_id(scope_id, task_id):
+    """A Registry task_id as the backlog spells it: a leading '<own scope_id>-' is dropped ('L-0000-T001' in scope
+    L-0000 -> 'T001'). Any other prefix, including another scope's, is kept as it is. A parent scope id that is a
+    prefix of a child's also gets dropped ('L-0000-7-T001' in scope L-0000 -> '7-T001'); such an id then just
+    matches nothing and is listed as it is, never merged with another row."""
+    tid = str(task_id).strip()
+    pre = f"{scope_id}-"
+    return tid[len(pre):] if scope_id and tid.startswith(pre) and len(tid) > len(pre) else tid
+
+
+def canon_ids(scope_id, ids):
+    """{matching id: original id} for one scope's task ids (Registry rows or backlog tasks; both sides go through
+    this so either may carry the own-scope prefix). When both 'T001' and '<scope_id>-T001' are present, 'T001'
+    takes the matching id and the prefixed one keeps its own id (never merged into one)."""
+    raw = set(ids)
+    out = {}
+    for tid in ids:
+        key = canon_task_id(scope_id, tid)
+        if key != tid and key in raw:
+            key = tid
+        out[key] = tid
+    return out
+
+
 def to_date(v):
     if isinstance(v, datetime):
         return v.date()
@@ -531,12 +555,21 @@ def audit(db_path: Path, root: Path, today: date, stale_days: int = 30,
     try:
         projects = {r["scope_id"]: r for r in conn.execute(
             "SELECT scope_id, name, goal, status, parent_scope, top_page_url, updated_at FROM projects ORDER BY scope_id")}
-        reg_tasks = {}
-        for r in conn.execute("SELECT scope_id, task_id, status FROM tasks ORDER BY id"):
-            reg_tasks.setdefault(r["scope_id"], {})[str(r["task_id"]).strip()] = r["status"]
+        reg_rows = [(r["scope_id"], str(r["task_id"]).strip(), r["status"])
+                    for r in conn.execute("SELECT scope_id, task_id, status FROM tasks ORDER BY id")]
         db_vocab = detect_task_vocab(conn)
     finally:
         conn.close()
+
+    # Registry rows and backlog tasks are matched by canon_ids(); proposals keep the Registry's own task_id
+    # (reg_ids) because --apply writes WHERE task_id=<that value>, and op add keeps the backlog's own id.
+    by_scope = {}
+    for sid, tid, st in reg_rows:
+        by_scope.setdefault(sid, {})[tid] = st  # same id twice: last row wins (as before)
+    reg_tasks, reg_ids = {}, {}  # scope_id -> {matching id: Registry status} / {matching id: Registry task_id}
+    for sid, st_by_id in by_scope.items():
+        reg_ids[sid] = canon_ids(sid, list(st_by_id))
+        reg_tasks[sid] = {k: st_by_id[v] for k, v in reg_ids[sid].items()}
 
     index, flow_layers, unreadable = scan_intents(root)
     info = {k: [] for k in ("todo_points_to_done", "todo_layer_path_missing", "memory_label_mismatch",
@@ -586,6 +619,7 @@ def audit(db_path: Path, root: Path, today: date, stale_days: int = 30,
         class3_ids = set()
         rstat = norm(row["status"])
         rtasks = reg_tasks.get(sid, {})
+        rids = reg_ids.get(sid, {})
         reg_open = rstat != REGISTRY_DONE
         proj_change = {"target": "registry.projects", "scope_id": sid, "field": "status",
                        "from": row["status"], "to": REGISTRY_DONE}
@@ -595,15 +629,18 @@ def audit(db_path: Path, root: Path, today: date, stale_days: int = 30,
         if not reg_open:
             open_rows = sorted(t for t, s in rtasks.items() if s not in tv["done_set"])
             if open_rows:
-                bl = {t: s for t, s, _ in layer.tasks} if layer else {}
-                ch = [{"target": "registry.tasks", "scope_id": sid, "task_id": t, "field": "status",
+                bl = {}
+                if layer:
+                    bl_raw = {t: s for t, s, _ in layer.tasks if t}
+                    bl = {k: bl_raw[v] for k, v in canon_ids(sid, list(bl_raw)).items()}
+                class3_ids = {t for t in open_rows if bl.get(t) in TASK_TERMINAL}
+                ch = [{"target": "registry.tasks", "scope_id": sid, "task_id": rids[t], "field": "status",
                        "from": rtasks[t], "to": reg_task_target("completed", tv)} for t in open_rows
-                      if bl.get(t) in TASK_TERMINAL]
-                class3_ids = {x["task_id"] for x in ch}
+                      if t in class3_ids]
                 add(sid, "completed_project_open_tasks",
                     f"Registry は completed だが tasks に完了以外の行が {len(open_rows)} 件",
-                    {"projects.status": row["status"], "open_task_rows": open_rows,
-                     "backlog_status": {t: bl.get(t) for t in open_rows}},
+                    {"projects.status": row["status"], "open_task_rows": [rids[t] for t in open_rows],
+                     "backlog_status": {rids[t]: bl.get(t) for t in open_rows}},
                     "registry_task_sync" if ch else "record_only", ch)
 
         if layer is None:
@@ -686,23 +723,25 @@ def audit(db_path: Path, root: Path, today: date, stale_days: int = 30,
                                       {"target": "registry.projects", "scope_id": sid, "field": "status",
                                        "from": row["status"], "to": "active"}]}])
         # 7 / 8
-        bl = {t: s for t, s, _ in layer.tasks if t}
+        bl_raw = {t: s for t, s, _ in layer.tasks if t}
+        bl_ids = canon_ids(sid, list(bl_raw))  # matching id -> backlog's own id
+        bl = {k: bl_raw[v] for k, v in bl_ids.items()}
         # task ids already proposed by class 3 are not repeated here (one change per Registry row)
         mism = sorted(t for t in bl if t in rtasks and t not in class3_ids
                       and (bl[t] in TASK_TERMINAL) != (rtasks[t] in tv["done_set"]))
         if mism:
             add(sid, "task_status_mismatch", f"backlog と Registry で終端かどうかが食い違うタスク {len(mism)} 件",
-                {"tasks": {t: {"backlog": bl[t], "registry": rtasks[t]} for t in mism}}, "registry_task_sync",
-                [{"target": "registry.tasks", "scope_id": sid, "task_id": t, "field": "status",
+                {"tasks": {bl_ids[t]: {"backlog": bl[t], "registry": rtasks[t]} for t in mism}}, "registry_task_sync",
+                [{"target": "registry.tasks", "scope_id": sid, "task_id": rids[t], "field": "status",
                   "from": rtasks[t], "to": reg_task_target(bl[t], tv),
                   **({"mapped_from": bl[t]} if bl[t] in ("cancelled", "dropped") else {})} for t in mism])
         missing = sorted(t for t in bl if t not in rtasks)
         if missing:
             add(sid, "registry_task_missing", f"backlog にあって Registry tasks に無いタスク {len(missing)} 件",
-                {"missing": missing, "registry_rows": len(rtasks), "backlog_tasks": len(bl)},
-                "__closing__", [{"target": "registry.tasks", "op": "add", "scope_id": sid, "task_id": t,
+                {"missing": [bl_ids[t] for t in missing], "registry_rows": len(rtasks), "backlog_tasks": len(bl)},
+                "__closing__", [{"target": "registry.tasks", "op": "add", "scope_id": sid, "task_id": bl_ids[t],
                                  "field": "status", "from": None, "to": reg_task_target(bl[t], tv)} for t in missing])
-        extra_reg = sorted(t for t in rtasks if t not in bl)
+        extra_reg = sorted(rids[t] for t in rtasks if t not in bl)
         if extra_reg and layer.tasks:
             info["backlog_task_missing"].append({"scope_id": sid, "task_ids": extra_reg})
         resolved[sid] = (layer, via, freason, dups, closing, days)
@@ -1294,7 +1333,8 @@ class Target:
         if rel:
             data, _ = load_yaml(self.root / rel / "backlog.yaml")
             for t in (data or {}).get("tasks") or [] if isinstance(data, dict) else []:
-                if isinstance(t, dict) and str(t.get("id", t.get("task_id"))).strip() == str(task_id):
+                if isinstance(t, dict) and canon_task_id(sid, t.get("id", t.get("task_id"))) == \
+                        canon_task_id(sid, task_id):
                     d = to_date(t.get("completed_at"))
                     if d:
                         return d.isoformat()
