@@ -216,10 +216,11 @@ git pull             # 最新の版を取ってくる（失敗したら git stat
 - `--dry-run` の出力の `"conflicts": []`（空）なら、そのまま実行して大丈夫です。`"writes"` が書き換わるファイルの一覧です。`DELETE:` で始まる行は、新しい版で配らなくなったので消すファイル（消す前の中身は `.bak` に残ります）、`CLAUDE.md#ai-plc-cc` のように `#` の付いた行は、そのファイルのマーカーの中だけの書き換えです
 - **`"conflicts"` に1行でも入っていたら、実行しても止まります。** 下の [3. 止まったとき](#3-止まったとき) を見てください
 - 旧版からの場合は、`[INFO] legacy release detected: cc v1.2.1–v1.4.1 (catalog 1.2.1)` のように、判別した版が出ます。中身が同じ版はまとめて表示されます
-- 成功すると `[OK] cc install committed: 13 changed file(s)` のように出て、`.ai-plc-version` が新しい版（`1.8.1` など）になり、台帳 `.ai-plc-install-manifest` ができます（または更新されます）。同じ版でもう一度実行しても何も変わりません（`0 changed file(s)`）
+- 成功すると `[OK] cc install committed: 13 changed file(s)` のように出て、`.ai-plc-version` が新しい版（`1.9.0` など）になり、台帳 `.ai-plc-install-manifest` ができます（または更新されます）。同じ版でもう一度実行しても何も変わりません（`0 changed file(s)`）
 - 書き換える前のファイルは、同じ場所に `<ファイル名>.bak.<日時>.<番号>` として残ります（自分で編集していないファイルの分も残ります。自動では消しません。片付け方は [5.](#5-更新を取り消すbak-を片付ける)）
 - wiki・DB・`soul.md`・成果物と、`CLAUDE.md` / `AGENTS.md` の AI-PLC マーカー（`<!-- AI-PLC START -->`〜`END`、Codex では `<!-- AI-PLC CODEX START -->`〜`END`）の外の本文は書き換えません（wiki の説明ファイルや DB のように、無いものだけ新しく足すことはあります）。自分で足したファイル（例: `.claude/rules/` に自作したルール）も触りません
 - 更新が終わったら、インストールのときと同じく、**新しいチャット／スレッドを開始して**から使ってください
+- **v1.8.x 以前から v1.9.0 に上げるとき:** DB 同期スキルの名前が `ai-plc-db-sync` から **`plc-db-sync`** に変わり、置き場所も `.claude/skills/ai-plc/db-sync/` から `.claude/skills/plc-db-sync/` に移ります（Cursor は `.cursor/skills/plc-db-sync/`、Codex は `.agents/skills/ai-plc/plc-db-sync/`）。`--dry-run` の `DELETE:…/ai-plc/db-sync/SKILL.md` は、この移動で古いほうを消す行です。自分で編集していなければ自動で消え、古いフォルダには `.bak` だけが残ります（要らなければフォルダごと消してかまいません）。編集していた場合は `user-modified stale managed file` で止まるので、`--backup-modified` を付けるか、中身を退避してから古いファイルを消して流し直してください（Codex だけの環境では `--backup-modified` は使えないので、退避の方法で）。呼ぶときは `/plc-db-sync` を使います
 
 **ほかの環境:** 最後の `cc` を、1. で確かめた指定に置き換えます。`cursor`（Cursor）・`both`（Claude Code + Cursor）・`all`（3環境）・`codex`（Codex）。`./install-cc.sh --target …` のような環境別のスクリプトでも同じように更新できます。旧版（台帳なし）の Claude Code / Cursor 環境に Codex を足すときは、`codex` だけを指定すると旧版を判別できずに止まるので、先に `cc`（または `both`）で上げてから `codex` を実行してください（Claude Code・Cursor・Codex の3つを使うなら `all` でもかまいません）。
 
@@ -742,6 +743,19 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 | `spec-story-starter` | 選定施策を、対象リポの実構造にgroundした **Story + Spec** にSubagentで収束生成（`target_repo`/`backlog` を選べる汎用） |
 | `wire-aa-authoring` | Story/Spec と対象リポから、画面UIの **現状→変更後** を **ASCII Artワイヤフレーム**で描く |
 
+この2本は `/spec-story-starter`・`/wire-aa-authoring` で呼びます（v1.9.0 から `.claude/commands/` にラッパーを同梱。それまでは `.claude/skills/utility/` の下に入るだけで、Claude Code から呼べませんでした）。
+
+**AI-PLC ユーティリティ（`plc-<機能>`・v1.9.0〜）:** Registry・同期・点検などの道具です。`.claude/skills/plc-<機能>/SKILL.md` に入り、`/plc-<機能>` か自然な言葉で呼べます（書き込みを伴う操作は `/plc-<機能>` で明示的に呼ぶのが確実です）。
+
+| スキル | 用途 | 使える条件 |
+|--------|------|------|
+| `plc-registry` | Project Registry（`.claude/db/ai_plc.db`）の照会と追加 | いつでも |
+| `plc-db-sync` | ローカル DB ⇔ Notion DB の同期（旧 `ai-plc-db-sync`） | Notion の設定をしたとき |
+| `plc-status-audit` | ステータス点検（intent・backlog・Registry の食い違いの洗い出しと、承認した行だけの反映） | 実験版（`--with-jev`）を入れたとき |
+| `plc-viewer` | Registry ビューア（ブラウザ）の起動・停止 | `experimental/registry-viewer` を手でコピーしたとき（status の変更は実験版も入れたときだけ。無ければ閲覧のみ） |
+
+名前の決まりは `.claude/rules/ai-plc-system.md` の §6 にあります（Stage は `0N-<stage>`、ユーティリティは `plc-<機能>`）。
+
 ---
 
 ## 🧪 実験版: Jev 監視
@@ -750,7 +764,7 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 >
 > ⚠️ **外部送信あり（opt-in）。** APIキーを登録し、Layer の `intent.yaml` に `jev_monitor: true` を書いたときだけ、Layer の文や発話を字数で切ったもの（下の表。要約ではなく原文の抜粋です）を外部の判断専用モデル **Jev**（TypeSafe）に送ります。キーが無ければ何も送らず、すべてスキップされます。
 >
-> **版:** 実験版パッケージ（`experimental/jev/`）の版は **`1.8.1-exp.1`** で、前の実験版 `1.8.0-exp.1` の次の版です。実験版の番号は core の版（**1.8.1**）とは別に数えます。`1.8.1-exp.1` は core 1.8.1 に合わせて出した版で、末尾の `exp.1` はその版での通し番号です（前の実験版 `1.8.0-exp.1` は core 1.7.1 の上に作ったもので、頭の数字が core の版と一致するとは限りません）。スキルは core 1.8.1 のスキルを元にしており、違いは Jev 部分だけです（[CHANGELOG.md](CHANGELOG.md)）。
+> **版:** 実験版パッケージ（`experimental/jev/`）の版は **`1.8.1-exp.1`** で、前の実験版 `1.8.0-exp.1` の次の版です。実験版の番号は core の版（**1.9.0**）とは別に数えます。`1.8.1-exp.1` は core 1.8.1 に合わせて出した版で、末尾の `exp.1` はその版での通し番号です（前の実験版 `1.8.0-exp.1` は core 1.7.1 の上に作ったもので、頭の数字が core の版と一致するとは限りません）。スキルは core 1.8.1 のスキルを元にしており、違いは Jev 部分だけです（[CHANGELOG.md](CHANGELOG.md)）。
 
 AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか」などを1問だけ聞き、**1行のヒント**を出します。ヒントに作業を止める権限はなく、判断はメインのモデルとあなたが行います。**Claude Code 専用**で、Jev への問い合わせ（外部送信）は `/01-collection-jev` → `/02-inception-jev` → `/03-construction-jev` → `/04-operation-jev` を使ったときだけ動きます（core の `/01-collection`〜`/04-operation` は Jev を呼びません）。例外として、下の表の「ステータス点検」（Jev には送らず、ローカルのファイルと DB を読むだけの点検）は、core 1.8.0 からは core の `/04-operation` の Phase 7 でも、実験版を入れてあれば動きます（実験版が無ければ「点検ツールなし — スキップ」と出して進みます）。
 
@@ -1020,6 +1034,7 @@ ai-plc/
 ├── core/
 │   ├── skills/ai-plc/     # 4ステージスキル + テンプレート
 │   ├── skills/utility/    # spec-story-starter / wire-aa-authoring
+│   ├── skills/plc-*/      # plc-db-sync / plc-registry / plc-status-audit / plc-viewer
 │   ├── rules/             # system / session / adaptive
 │   └── db/                # init_db.py / plc_query.py / sync.py
 ├── claude/                # Claude Code固有（commands / agents / templates）

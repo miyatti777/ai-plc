@@ -1,6 +1,6 @@
 ---
-name: ai-plc-db-sync
-description: ai_plc_db_sync - AI-PLCのローカルDBとNotion DBをpull、push、sync、statusで双方向同期する。
+name: plc-db-sync
+description: SKL_plc_db_sync（旧 ai-plc-db-sync）- AI-PLCのローカルDBとNotion DBをpull、push、sync、statusで双方向同期する。
 ---
 
 # AI-PLC DB Sync
