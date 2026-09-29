@@ -97,9 +97,9 @@ def cmd_dashboard(conn):
     tstats = conn.execute("""
         SELECT
             COUNT(*) as total,
-            SUM(CASE WHEN status='未着手' THEN 1 ELSE 0 END) as todo,
-            SUM(CASE WHEN status='進行中' THEN 1 ELSE 0 END) as wip,
-            SUM(CASE WHEN status='完了' THEN 1 ELSE 0 END) as done
+            SUM(CASE WHEN status='planned' THEN 1 ELSE 0 END) as todo,
+            SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) as wip,
+            SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as done
         FROM tasks
     """).fetchone()
     print(f"Tasks: {tstats['total']} total / {tstats['todo']} todo / {tstats['wip']} WIP / {tstats['done']} done")
@@ -108,7 +108,7 @@ def cmd_dashboard(conn):
     rows = conn.execute("""
         SELECT p.scope_id, p.name, p.depth,
                COUNT(t.id) as tasks,
-               SUM(CASE WHEN t.status='完了' THEN 1 ELSE 0 END) as done
+               SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) as done
         FROM projects p
         LEFT JOIN tasks t ON t.scope_id LIKE p.scope_id || '%'
         WHERE p.status = 'active'
