@@ -267,7 +267,10 @@ PENDING_USE_CASES = ("bt_monitor", "coverage", "prompt_hook")
 # A loose scope_id shape (L-0000, L-0000-1, L-0000-SG1, L000-SG1 ...). Anything else that is not a Layer path is
 # treated as a typo, so that --layer my-typo reads as an error and not as "0 pending".
 SCOPE_ID_RE = re.compile(r"^[A-Za-z]{1,4}-?\d{3,}(?:-[A-Za-z0-9_-]+)?$")
-LAYER_UNREADABLE = "Jev判定の確認: Layer の scope_id が読めません（intent.yaml のある Layer パスか scope_id を指定"
+def layer_unreadable(layer, suffix=""):
+    """The error line for a --layer value that is neither a Layer path nor a scope_id (the value shown on one line)."""
+    shown = " ".join(str(layer).split())
+    return f"Jev判定の確認: Layer の scope_id が読めません（intent.yaml のある Layer パスか scope_id を指定。指定: {shown}{suffix}）"
 
 
 def _layer_scope_id(layer):
@@ -347,7 +350,7 @@ def pending(layer):
 def pending_report(layer):
     sid, rows = pending(layer)
     if not sid:
-        return f"{LAYER_UNREADABLE}。指定: {layer}）"
+        return layer_unreadable(layer)
     if not rows:
         return f"未確認の Jev 判定なし（{sid}）"
     out = [f"🧭 未確認の Jev 判定: {len(rows)}件（{sid}）"]
@@ -418,7 +421,7 @@ def main(argv=None):
             note = (f"（除外 {info['excluded']}件）" if info["excluded"] else "") + (
                 f"（未確認でないため記録しない: {'・'.join(info['not_pending'])}）" if info["not_pending"] else "")
             if not sid:
-                print(f"{LAYER_UNREADABLE}。指定: {a.layer}。何も記録していません）")
+                print(layer_unreadable(a.layer, "。何も記録していません"))
             elif not ids and info["pending"]:  # --only matched none / --except excluded all: pending ones remain
                 print(f"記録対象なし（未確認は {info['pending']}件残っています・{sid}）— 何も記録していません{note}")
             elif not ids:

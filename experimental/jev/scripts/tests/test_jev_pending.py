@@ -231,6 +231,7 @@ class PendingTest(unittest.TestCase):
         out = self.run_main(["--override-pending", "accept", "--layer", "my-typo"])
         self.assertIn("何も記録していません", out)
         self.assertIn("指定: my-typo", out)
+        self.assertEqual(self.run_main(["--pending", "--layer", "L-0000-1\n"]).strip().count("\n"), 0)  # one line
         self.assertEqual(len(self.ov_rows()), 1)
         # well-formed scope_ids keep working, including ones that appear nowhere
         for good in ["L-0000", "L-0000-1", "L-0000-SG1", "L000-SG1"]:

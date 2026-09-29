@@ -66,7 +66,9 @@ class FindRepoTest(unittest.TestCase):
         self.check(start, repo)
 
     def test_no_marker_falls_back_to_the_grandparent(self):
-        # a .claude without the install marker is not taken as the repo; the fallback is the file's grandparent
+        # a .claude without the install marker is not taken as the repo; the fallback is the file's grandparent.
+        # This pins the existing behaviour when the marker is missing (the installer always writes one);
+        # it is not a layout to aim for.
         start = self.script("repo", ".claude", "ai-plc-jev", "scripts", "jev_client.py")
         self.check(start, self.root / "repo" / ".claude" / "ai-plc-jev")
 
