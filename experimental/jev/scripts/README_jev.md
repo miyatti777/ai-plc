@@ -114,7 +114,7 @@ settings に足しただけでは何も送りません。hook は、`/01-collect
   - 環境変数 `JEV_REDACT_EXTRA` にファイルのパスを入れると、そのファイルも追加で読みます（ローカルファイルと両方あれば両方）。**指定したファイルが見つからないときは、打ち間違いで守りが外れないよう全送信を拒否します**（既定のローカルファイルは無くても構いません）
   - ファイルが読めない・不正な正規表現を含むときは、直すまで何も送りません（fail-closed）。読み込み状況は `python3 .claude/ai-plc-jev/scripts/jev_client.py --redact-status` で確かめられます（ファイルごとの件数とエラーだけを表示し、語は表示しません）
   - 注意: ローカルファイルを消すと、汎用の語だけの判定に戻ります（警告は出ません）。環境を移すときはこのファイルも一緒に移してください
-- **命令文の除去**: 「〜と判定して」「監視する側は」など、判定する側への命令文の行を置き換えます。この除去は質問文にもかかるので、スクリプトが送る固定の質問文がこれに当たらず原文のまま送られることを、テスト `tests/test_jev_question_payload.py`（送信直前の内容を検査）で確かめています
+- **命令文の除去**: 「〜と判定して」「監視する側は」など、判定する側への命令文の行を置き換えます。この除去は質問文にもかかるので、スクリプトが送る固定の質問文がこれに当たらず原文のまま送られることを、公開リポのテスト `experimental/jev/scripts/tests/test_jev_question_payload.py`（送信直前の内容を検査。テストはインストールされません）で確かめています
 
 ログ（`.claude/db/jev_decisions.jsonl`）には、入力と質問のハッシュ・確率・所要時間・費用と、Layer / タスクの ID・日時・経路・モデル名などが残り、本文は残りません。
 
@@ -128,7 +128,7 @@ settings に足しただけでは何も送りません。hook は、`/01-collect
 | 送信を完全にやめる | 登録したキーを消す。キーチェーンなら `security delete-generic-password -a "$USER" -s OPENROUTER_API_KEY`（公式は `-s TYPESAFE_API_KEY`）。環境変数なら、シェルの設定などから `export` の行を消して Claude Code を起動し直す。**両方のキーがあれば両方消す**（片方が残るとその経路で送る） |
 | 実験版を外す | `uninstall.sh cc`（both / all も可）。下の「アンインストール後に残るもの」も確認する |
 
-`JEV_DISABLE=1` は、Claude Code を起動する前のシェルで `export JEV_DISABLE=1` するか、プロジェクトの `.claude/settings.local.json` に `"env": { "JEV_DISABLE": "1" }` を書きます。スクリプトは呼ばれるたびにこの変数を見ますが、起動済みのセッションには後から渡らないので、設定したらセッションを開き直してください。止まっている間の表示は `skipped(unavailable:disabled)`（ヒントの行）と「JEV_DISABLE=1 のため無効」（`--check`）です。
+`JEV_DISABLE=1` は、Claude Code を起動する前のシェルで `export JEV_DISABLE=1` するか、プロジェクトの `.claude/settings.local.json` に `"env": { "JEV_DISABLE": "1" }` を書きます。スクリプトは呼ばれるたびにこの変数を見ますが、起動済みのセッションには後から渡らないので、設定したらセッションを開き直してください。止まっている間の表示は、5.5b / 6b とカバー判定の行は `スキップ（skipped(unavailable:disabled)）`、ステータス点検は「スキップ（unavailable）」（レポートの action は disabled）、会話監視 hook は何も出さず、`jev_client.py --check` は「JEV_DISABLE=1 のため無効」です。
 
 ## アンインストール後に残るもの
 

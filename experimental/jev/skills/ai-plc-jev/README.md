@@ -71,7 +71,7 @@ Linux / Windows / CI では環境変数で渡します（パスワードマネ�
 
 | やりたいこと | 方法 |
 | --- | --- |
-| すぐに全部止める | 環境変数 `JEV_DISABLE=1`（Claude Code の起動前のシェルか settings の `env` に書き、セッションを開き直す。止まっている間の表示は `skipped(unavailable:disabled)`） |
+| すぐに全部止める | 環境変数 `JEV_DISABLE=1`（Claude Code の起動前のシェルか settings の `env` に書き、セッションを開き直す。止まっている間は 5.5b / 6b とカバー判定の行が `skipped(unavailable:disabled)`、ステータス点検は「スキップ（unavailable）」、会話監視 hook は無出力） |
 | 1つの Layer だけ止める | intent.yaml を `jev_monitor: false` に |
 | 会話監視だけ止める | `python3 .claude/ai-plc-jev/scripts/jev_prompt_hook.py --deactivate`。完全にやめるなら settings から hook を消す |
 | 送信を完全にやめる | 登録したキーを消す（キーチェーンでも環境変数でも。両方のキーがあれば両方） |

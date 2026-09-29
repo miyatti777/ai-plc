@@ -596,7 +596,7 @@ settings に足しただけでは何も送りません。有効になるのは�
 | 送信を完全にやめる | 登録したキーを消す。キーチェーンなら `security delete-generic-password -a "$USER" -s OPENROUTER_API_KEY`（公式キーは `-s TYPESAFE_API_KEY`）。環境変数で渡しているなら、シェルの設定などから `export` の行を消し、Claude Code を起動し直す。**両方のキーを持っている人は両方とも消す**（片方が残るとその経路で送ります） |
 | 実験版を外す | 下の「外し方」 |
 
-`JEV_DISABLE=1` の設定場所: Claude Code を起動する前のシェルで `export JEV_DISABLE=1` するか、プロジェクトの `.claude/settings.local.json` に `"env": { "JEV_DISABLE": "1" }` を書きます。スクリプトは呼ばれるたびにこの変数を見るので、Claude Code に変数が渡った後の呼び出しから止まります。起動済みのセッションには後から渡らないので、設定したらセッションを開き直してください。止まっている間、ヒントの行は `スキップ（skipped(unavailable:disabled)）`、`jev_client.py --check` は「JEV_DISABLE=1 のため無効」と表示します。
+`JEV_DISABLE=1` の設定場所: Claude Code を起動する前のシェルで `export JEV_DISABLE=1` するか、プロジェクトの `.claude/settings.local.json` に `"env": { "JEV_DISABLE": "1" }` を書きます。スクリプトは呼ばれるたびにこの変数を見るので、Claude Code に変数が渡った後の呼び出しから止まります。起動済みのセッションには後から渡らないので、設定したらセッションを開き直してください。止まっている間の表示は、5.5b / 6b とカバー判定の行は `スキップ（skipped(unavailable:disabled)）`、ステータス点検は「スキップ（unavailable）」（レポートの action は disabled）、会話監視 hook は何も出さず、`jev_client.py --check` は「JEV_DISABLE=1 のため無効」です。
 
 ### 外し方（uninstall）と残るデータ
 
