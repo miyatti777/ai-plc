@@ -880,18 +880,24 @@ rm -rf .claude/db/status_hygiene
 
 ### 既知の制約
 
-- **中断した uninstall の後片付け（この版で対応）:** uninstall の後処理（`.bak` と空ディレクトリの掃除）の最中にプロセスが落ち、次に実行したのが codex 経路（`install-codex.sh` / `install.sh codex`）だった場合や、後処理の再開中にもう一度落ちた場合に、実験版のファイルの `.bak` と `.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/` が残ることがありました。この版では、cc を含む uninstall（`uninstall.sh cc` / `both` / `all`）を実行すると残り物を掃除し、`[OK] experimental_jev: removed N leftover backup file(s) of an interrupted cleanup` と出ます。台帳が無くて uninstall がエラーで止まる環境でも、残り物だけを掃除してから同じエラーで止まります。消すのは、中身が既知の実験版（`experimental/jev/KNOWN_RELEASES.sha256`）か今の配布物と一致する `.bak` と、それで空になった2つのディレクトリだけです。一致しない `.bak`（自分で編集したものなど）は消さずに残し、`[WARN] experimental_jev: N backup file(s) with unknown content kept` で始まる行が出ます。残っているのは自分で編集した中身なので、**消す前に一覧で確かめ、残したいものはプロジェクトの外へ退避してください。** 対象プロジェクトのルートで、次を上から順に実行します（一覧が空なら 2・3 は不要です）:
+- **中断した uninstall の後片付け（この版で対応）:** uninstall の後処理（`.bak` と空ディレクトリの掃除）の最中にプロセスが落ち、次に実行したのが codex 経路（`install-codex.sh` / `install.sh codex`）だった場合や、後処理の再開中にもう一度落ちた場合に、実験版のファイルの `.bak` と `.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/` が残ることがありました。この版では、cc を含む uninstall（`uninstall.sh cc` / `both` / `all`）を実行すると残り物を掃除し、`[OK] experimental_jev: removed N leftover backup file(s) of an interrupted cleanup` と出ます。台帳が無くて uninstall がエラーで止まる環境でも、残り物だけを掃除してから同じエラーで止まります。消すのは、中身が既知の実験版（`experimental/jev/KNOWN_RELEASES.sha256`）か今の配布物と一致する `.bak` と、それで空になった2つのディレクトリだけです。一致しない `.bak`（自分で編集したものなど）は消さずに残し、`[WARN] experimental_jev: N backup file(s) with unknown content kept` で始まる行が出ます。残っているのは自分で編集した中身なので、**消す前に一覧で確かめ、残したいものはプロジェクトの外へ退避してください。** 対象プロジェクトのルートで、まず 1・2 を実行します（一覧・退避ファイルは親ディレクトリに書くので、同じ名前のファイルがあれば先に名前を変えてください）:
 
   ```bash
-  # 1. 残ったファイルを一覧にして確かめる（一覧はプロジェクトの外に書く）
-  { find .claude/ai-plc-jev .claude/skills/ai-plc-jev -type f; find .claude/commands -maxdepth 1 -type f -name '0[1-4]-*-jev.md.bak.*'; } 2>/dev/null > ../ai-plc-jev-left.txt
+  # 1. 残ったファイルを一覧にして確かめる
+  { find .claude/ai-plc-jev .claude/skills/ai-plc-jev -type f 2>/dev/null; find .claude/commands -maxdepth 1 -type f -name '0[1-4]-*-jev.md.bak.*' 2>/dev/null; } > ../ai-plc-jev-left.txt
   cat ../ai-plc-jev-left.txt
-  # 2. 一覧のファイルをプロジェクトの外にまとめて退避する（中身は tar -tzf で確かめられる）
-  tar -czf ../ai-plc-jev-kept.tar.gz -T ../ai-plc-jev-left.txt
-  # 3. 退避を確かめてから消す
-  rm -rf .claude/ai-plc-jev .claude/skills/ai-plc-jev
-  find .claude/commands -maxdepth 1 -type f -name '0[1-4]-*-jev.md.bak.*' -delete
+  # 2. 一覧のファイルをプロジェクトの外にまとめて退避し、中身を表示する
+  tar -czf ../ai-plc-jev-kept.tar.gz -T ../ai-plc-jev-left.txt && tar -tzf ../ai-plc-jev-kept.tar.gz
   ```
+
+  2 で表示された中身が一覧と同じなのを確かめてから、3 を別に実行します（一覧が空なら不要です）。3 は退避ファイルが読めるときだけ消します:
+
+  ```bash
+  # 3. 消す
+  tar -tzf ../ai-plc-jev-kept.tar.gz > /dev/null && rm -rf .claude/ai-plc-jev .claude/skills/ai-plc-jev && find .claude/commands -maxdepth 1 -type f -name '0[1-4]-*-jev.md.bak.*' -delete
+  ```
+
+  `.claude/commands/` に残した編集済みのコマンド本体（`0x-*-jev.md`。`.bak` でないもの）はこの手順では消えないので、要らなければ手で消してください。
 
 - 会話監視 hook のハーネスメッセージの除外は列挙方式です（上の「会話監視 hook は手動で有効化」）
 - 送信禁止の語の検査はキーワード判定です。言い換えた機密は通ります
