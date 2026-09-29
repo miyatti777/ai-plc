@@ -32,6 +32,17 @@ package's `.bak` files and empty directories).
 python3 -m unittest tests/installers/test_with_jev.py -v
 ```
 
+**Needs a full clone.** The comparison reads the baseline installer with `git show e13c3fb:...`, so it
+needs the repository's git history. In a shallow clone (`git clone --depth 1`) or a release tarball the
+comparison tests fail (on purpose, never skip) with a message that says so. Run
+`git fetch --unshallow` first, or set `AI_PLC_JEV_BASELINE_REF` to a commit that is available (for
+example the current `origin/main`, to compare the default behaviour against the released installer).
+When checking a release, run the suite in a full clone and confirm 0 skipped.
+
+It also covers an interrupted cleanup: a crash during the uninstall cleanup followed by a Codex
+install (`install.sh codex` / `install-codex.sh`, which recovers the journal without resuming the
+cleanup) and then an uninstall with cc; and a second crash while the cleanup is being resumed.
+
 ## Upgrades from older releases
 
 `test_legacy_upgrade.py` installs each older release with that release's own installer and then

@@ -816,10 +816,29 @@ def cleanup_experimental_jev(root: safe.SafeRoot, backups: list[dict[str, Any]],
     return warnings
 
 
+def current_jev_hashes(distribution: Path) -> dict[str, set[str]]:
+    """Installed path -> {sha256} of the experimental package in this distribution (empty on any error)."""
+    entries: dict[str, dict[str, Any]] = {}
+    try:
+        with safe.SafeRoot(distribution) as source:
+            add_experimental_jev(source, entries, {})
+    except (OSError, ValueError, safe.InstallError):
+        return {}
+    return {path: {item["source_sha256"]} for path, item in entries.items() if is_jev_location(path)}
+
+
+def sweep_hashes(distribution: Path) -> dict[str, set[str]]:
+    """Hashes a leftover backup may match to be removed: KNOWN_RELEASES plus the current distribution."""
+    known = load_known_jev_hashes(distribution)
+    for path, digests in current_jev_hashes(distribution).items():
+        known.setdefault(path, set()).update(digests)
+    return known
+
+
 def run_jev_cleanup(root: safe.SafeRoot, state: dict[str, Any], distribution: Path) -> list[str]:
     spec = state.get(JEV_CLEANUP_KEY) or {}
     old_files = {str(k): str(v) for k, v in (spec.get("old_files") or {}).items() if is_jev_location(str(k))}
-    known = load_known_jev_hashes(distribution) if spec.get("sweep") else None
+    known = sweep_hashes(distribution) if spec.get("sweep") else None
     return cleanup_experimental_jev(root, list(state.get("backups") or []), old_files, known,
                                     [str(x) for x in spec.get("deleted") or []])
 
@@ -870,15 +889,73 @@ def pending_jev_cleanup(root: safe.SafeRoot) -> dict[str, Any] | None:
 
 
 def resume_jev_cleanup(root: safe.SafeRoot, state: dict[str, Any], distribution: Path) -> None:
+    """Resume the cleanup of a recovered transaction under a new lock.
+
+    The resume information (cleanup spec and backups) is copied into the new journal and saved as
+    `committed` before the cleanup starts, so a second crash here is resumed again by the next run
+    (recovery never rolls back a committed journal and never touches its backups). A crash between
+    acquire() and that save leaves a `prepared`, empty journal: recovery drops it and the resume
+    information is lost, but the leftovers are then removed by the next uninstall that includes cc
+    (sweep_jev_leftovers)."""
     tx = safe.Transaction(root)
     tx.acquire()
+    tx.state[JEV_CLEANUP_KEY] = state.get(JEV_CLEANUP_KEY)
+    tx.state["backups"] = list(state.get("backups") or [])
+    tx.state["phase"] = "committed"
+    tx.save()
     try:
-        warnings = run_jev_cleanup(root, state, distribution)
+        warnings = run_jev_cleanup(root, tx.state, distribution)
     except Exception as exc:
         warnings = [f"cleanup skipped ({exc})"]
     tx.commit()
     print("[OK] experimental_jev cleanup resumed after recovery")
     print_jev_warnings(warnings)
+
+
+def jev_leftovers_present(root: safe.SafeRoot) -> bool:
+    """True when a <path>.bak.<utc>.<seq> file is left at an experimental-package location (read-only)."""
+    try:
+        return bool(jev_backup_candidates(root))
+    except (OSError, safe.InstallError):
+        return False
+
+
+def sweep_jev_leftovers(tx: safe.Transaction, root: safe.SafeRoot, distribution: Path) -> list[str]:
+    """Commit `tx` and remove leftover experimental-package backups (uninstall with cc only).
+
+    Covers a cleanup that was interrupted and whose resume information is gone (e.g. a Codex install in
+    between recovered the committed journal without resuming it). Only backups whose content matches
+    KNOWN_RELEASES or the current distribution are removed, then the package directories they emptied;
+    other files are kept (one [WARN] line). Prints nothing extra when no backup was removed."""
+    try:
+        before = len(jev_backup_candidates(root))
+    except (OSError, safe.InstallError):
+        before = 0
+    warnings = commit_with_jev_cleanup(tx, root, distribution, {}, [], True)
+    try:
+        removed = before - len(jev_backup_candidates(root))
+    except (OSError, safe.InstallError):
+        removed = 0
+    if removed:
+        print(f"[OK] experimental_jev: removed {removed} leftover backup file(s) of an interrupted cleanup")
+    return warnings
+
+
+def sweep_before_uninstall_error(root: safe.SafeRoot, distribution: Path) -> None:
+    """Nothing can be uninstalled (e.g. no manifest is left), but leftovers of an interrupted cleanup are:
+    remove them in a short transaction of their own; the caller then fails exactly as before.
+
+    The tombstone is not consumed and no other file is touched. Failures here never replace the
+    original error; they are reported as one [WARN] line."""
+    tx = safe.Transaction(root)
+    try:
+        tx.acquire()
+        safe.assert_fresh_transaction_artifacts(root, tx)
+        print_jev_warnings(sweep_jev_leftovers(tx, root, distribution))
+    except Exception as exc:
+        if tx.locked and tx.state.get("phase") != "committed" and not getattr(exc, "committed", False):
+            tx.rollback()
+        print_jev_warnings([f"leftover cleanup skipped ({exc})"])
 
 
 def record_user_backups(root: safe.SafeRoot, tx: safe.Transaction, plan: dict[str, Any]) -> list[dict[str, str]]:
@@ -1087,6 +1164,9 @@ def execute_uninstall(distribution: Path, root: safe.SafeRoot, mode: str) -> int
         safe.validate_or_consume_tombstone(root, mutate=True)
         safe.assert_fresh_transaction_artifacts(root, tx)
         old_manifest = safe.load_manifest(root)
+        # Leftovers of an interrupted experimental cleanup are swept by any uninstall that includes cc,
+        # whether or not the manifest still records cc or the package (see sweep_jev_leftovers).
+        sweep = "cc" in ENVIRONMENTS[mode] and jev_leftovers_present(root)
         plan = build_uninstall_plan(distribution, root, mode)
         old_jev = jev_files(old_manifest)
         jev_removed = (JEV_COMPONENT in ((old_manifest or {}).get("components") or {})
@@ -1120,6 +1200,8 @@ def execute_uninstall(distribution: Path, root: safe.SafeRoot, mode: str) -> int
         warnings: list[str] = []
         if jev_removed:
             warnings = commit_with_jev_cleanup(tx, root, distribution, old_jev, sorted(old_jev), True)
+        elif sweep:
+            warnings = sweep_jev_leftovers(tx, root, distribution)
         else:
             tx.commit()
     except Exception as exc:
@@ -1176,9 +1258,17 @@ def main(argv: list[str] | None = None) -> int:
                 resume_jev_cleanup(root, pending, distribution)
         else:
             safe.validate_or_consume_tombstone(root, mutate=False)
-        plan = (build_install_plan(distribution, root, args.mode, args.migrate_legacy, with_jev=args.with_jev,
-                                   backup_modified=args.backup_modified)
-                if args.action == "install" else build_uninstall_plan(distribution, root, args.mode))
+        if args.action == "install":
+            plan = build_install_plan(distribution, root, args.mode, args.migrate_legacy, with_jev=args.with_jev,
+                                      backup_modified=args.backup_modified)
+        else:
+            try:
+                plan = build_uninstall_plan(distribution, root, args.mode)
+            except Exception:
+                if (not (args.dry_run or args.plan_only) and "cc" in ENVIRONMENTS[args.mode]
+                        and jev_leftovers_present(root)):
+                    sweep_before_uninstall_error(root, distribution)
+                raise
         if args.dry_run or args.plan_only:
             summary = {k: plan[k] for k in ("mode", "conflicts")}
             summary["writes" if args.action == "install" else "deletes"] = plan["writes" if args.action == "install" else "deletes"]

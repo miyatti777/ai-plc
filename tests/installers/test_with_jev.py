@@ -9,7 +9,9 @@ directory; the caller's repository is never used as a target.
 The "default behaviour is unchanged" tests compare the current installer against the installer at
 BASELINE_REF (the last commit before --with-jev existed) on the same distribution content. Set
 AI_PLC_JEV_BASELINE_REF to override; the tests fail (not skip) when the ref cannot be read, so the
-comparison is never silently dropped.
+comparison is never silently dropped. They therefore need a full clone with git history: a shallow
+clone (`git clone --depth 1`) or a tarball fails with a message saying so (fix: `git fetch --unshallow`,
+or point AI_PLC_JEV_BASELINE_REF at a commit that is available).
 """
 
 from __future__ import annotations
@@ -114,7 +116,12 @@ def baseline_distribution():
         for rel in INSTALLER_FILES:
             result = run("git", "-C", str(REPO), "show", f"{BASELINE_REF}:{rel}")
             if result.returncode != 0:
-                raise AssertionError(f"baseline {BASELINE_REF}:{rel} unavailable: {result.stderr.strip()}")
+                raise AssertionError(
+                    f"baseline {BASELINE_REF}:{rel} unavailable: {result.stderr.strip()}\n"
+                    "These comparison tests need a full clone with git history (not a shallow clone or a "
+                    "tarball). Run `git fetch --unshallow` (or clone without --depth), or set "
+                    "AI_PLC_JEV_BASELINE_REF to an available commit. The tests fail instead of skipping so "
+                    "the comparison is never silently dropped.")
             (dist / rel).write_text(result.stdout)
         yield dist
 
@@ -637,6 +644,175 @@ with safe.SafeRoot(Path(target)) as root:
             result = uninstall(dist, root, "cc")
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(jev_leftovers(root), [])
+
+
+class CleanupAfterCodexOrSecondCrash(unittest.TestCase):
+    """exp.2: the cleanup survives a Codex run in between (#1) and a second crash while resuming (#2)."""
+
+    # Dies inside the resumed cleanup (after_acquire=0) or right after the resume acquired the lock (=1).
+    RESUME_CRASH = r"""
+import os, sys
+from pathlib import Path
+dist, target, after_acquire = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
+sys.path.insert(0, str(Path(dist) / "lib"))
+import ai_plc_safe_fs as safe, ai_plc_multi_env as multi
+if after_acquire:
+    original = safe.Transaction.acquire
+    def acquire(self):
+        original(self)
+        os._exit(9)
+    safe.Transaction.acquire = acquire
+else:
+    multi.cleanup_experimental_jev = lambda *a, **k: os._exit(9)
+multi.main(["install", "cc", "--target", target])
+"""
+    CODEX_ENTRIES = (("install.sh", "codex"), ("install-codex.sh",))
+
+    def crash_uninstall_cleanup(self, dist: Path, root: Path) -> None:
+        self.assertEqual(install(dist, root, "cc", "--with-jev").returncode, 0)
+        result = run(sys.executable, "-c", CleanupHoldsLock.CRASH, str(dist), str(root), "uninstall")
+        self.assertEqual(result.returncode, 9)
+        self.assertTrue(any(".bak." in p for p in jev_leftovers(root)))
+
+    def codex(self, dist: Path, root: Path, entry: tuple[str, ...]) -> subprocess.CompletedProcess[str]:
+        return run("bash", str(dist / entry[0]), *entry[1:], "--target", str(root))
+
+    def test_codex_run_in_between_then_uninstall_cc_removes_leftovers(self) -> None:
+        for entry in self.CODEX_ENTRIES:
+            with self.subTest(entry=entry), target_repo() as root:
+                self.crash_uninstall_cleanup(REPO, root)
+                result = self.codex(REPO, root, entry)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse((root / ".ai-plc-install.lock").exists())  # the codex path cleared the journal
+                self.assertNotIn("cc", manifest(root)["environments"])
+                self.assertNotIn("experimental_jev", manifest(root)["components"])
+                left = jev_leftovers(root)
+                self.assertTrue(any(".bak." in p for p in left))
+                # a .bak of unknown content and a user file (not a .bak) at the package location are kept
+                unknown = root / ".claude/ai-plc-jev/scripts/jev_client.py.bak.20260101T000000Z.7"
+                unknown.write_text("unknown\n")
+                mine = root / ".claude/skills/ai-plc-jev/my-notes.md"
+                mine.write_text("mine\n")
+                core_bak = root / ".claude/commands/01-collection.md.bak.20260101T000000Z.8"
+                core_bak.write_text("core backup\n")
+                # codex-only or cursor-only uninstall does not sweep
+                for mode in ("codex",):
+                    self.assertEqual(uninstall(REPO, root, mode).returncode, 0)
+                    self.assertTrue(any(".bak." in p for p in jev_leftovers(root)))
+                result = uninstall(REPO, root, "cc")
+                self.assertEqual(result.returncode, 2, result.stderr)  # nothing installed any more (unchanged)
+                self.assertEqual(jev_leftovers(root), sorted([
+                    ".claude/ai-plc-jev", ".claude/ai-plc-jev/scripts/jev_client.py.bak.20260101T000000Z.7",
+                    ".claude/skills/ai-plc-jev", ".claude/skills/ai-plc-jev/my-notes.md"]))
+                warn = [line for line in result.stdout.splitlines() if line.startswith("[WARN] experimental_jev")]
+                self.assertEqual(len(warn), 1, result.stdout)
+                self.assertIn("1 backup file(s) with unknown content kept", warn[0])
+                self.assertTrue(core_bak.exists())
+
+    def test_codex_then_uninstall_cc_with_manifest_removes_leftovers(self) -> None:
+        # The codex install stays installed: uninstall cc runs on a manifest without cc (selected is empty).
+        for entry in self.CODEX_ENTRIES:
+            for mode in ("cc", "both", "all"):
+                with self.subTest(entry=entry, mode=mode), target_repo() as root:
+                    self.crash_uninstall_cleanup(REPO, root)
+                    self.assertEqual(self.codex(REPO, root, entry).returncode, 0)
+                    result = uninstall(REPO, root, mode)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(jev_leftovers(root), [])
+                    self.assertIn("[OK] experimental_jev: removed", result.stdout)
+                    self.assertNotIn("[WARN]", result.stdout)
+                    if mode == "cc":
+                        self.assertIn("codex", manifest(root)["environments"])
+
+    def test_codex_failure_leaves_no_manifest_then_uninstall_cc(self) -> None:
+        # U2: the codex run recovers the journal and then stops on a conflict, so no manifest exists.
+        collision = ".agents/skills/ai-plc/01-collection/SKILL.md"
+        with baseline_distribution() as old, target_repo() as control:
+            (control / collision).parent.mkdir(parents=True)
+            (control / collision).write_text("mine\n")
+            expected = uninstall(old, control, "cc")
+            self.assertEqual(expected.returncode, 2)
+            self.assertEqual((uninstall(REPO, control, "cc").returncode, uninstall(REPO, control, "cc").stderr),
+                             (2, expected.stderr))
+        for entry in self.CODEX_ENTRIES:
+            with self.subTest(entry=entry), target_repo() as root:
+                self.crash_uninstall_cleanup(REPO, root)
+                (root / collision).parent.mkdir(parents=True)
+                (root / collision).write_text("mine\n")
+                self.assertEqual(self.codex(REPO, root, entry).returncode, 2)
+                self.assertFalse((root / ".ai-plc-install-manifest").exists())
+                self.assertFalse((root / ".ai-plc-install.lock").exists())
+                before = normalized_tree(root)
+                result = uninstall(REPO, root, "cc")
+                self.assertEqual(jev_leftovers(root), [])
+                self.assertEqual((result.returncode, result.stderr), (2, expected.stderr))
+                self.assertIn("[OK] experimental_jev: removed", result.stdout)
+                # only the package leftovers went away; every other file (tombstone if any) is untouched
+                self.assertEqual(normalized_tree(root), {k: v for k, v in before.items()
+                                                         if not k.startswith((".claude/ai-plc-jev/", ".claude/skills/ai-plc-jev/"))
+                                                         and not re.search(r"(^|/)0[1-4]-[a-z-]+-jev\.md", k)})
+
+    def test_second_crash_while_resuming_is_resumed_again(self) -> None:
+        for follow_up in ("install", "uninstall"):
+            with self.subTest(follow_up=follow_up), target_repo() as root:
+                self.crash_uninstall_cleanup(REPO, root)
+                result = run(sys.executable, "-c", self.RESUME_CRASH, str(REPO), str(root), "0")
+                self.assertEqual(result.returncode, 9, result.stderr)
+                self.assertTrue((root / ".ai-plc-install.lock").exists())
+                journal = json.loads((root / json.loads((root / ".ai-plc-install.lock").read_text())["journal_name"]).read_text())
+                self.assertEqual(journal["phase"], "committed")
+                self.assertIn("experimental_jev_cleanup", journal)
+                self.assertTrue(journal["backups"])
+                action = install if follow_up == "install" else uninstall
+                again = action(REPO, root, "cc")
+                self.assertIn("experimental_jev cleanup resumed after recovery", again.stdout, again.stderr)
+                self.assertFalse((root / ".ai-plc-install.lock").exists())
+                self.assertEqual(jev_leftovers(root), [])
+
+    def test_crash_before_the_resume_journal_is_saved_is_swept_by_uninstall(self) -> None:
+        # The narrow window between acquiring the lock and saving the committed journal: the journal is
+        # still "prepared" and empty, so recovery drops it; the next uninstall with cc sweeps the leftovers.
+        with target_repo() as root:
+            self.crash_uninstall_cleanup(REPO, root)
+            result = run(sys.executable, "-c", self.RESUME_CRASH, str(REPO), str(root), "1")
+            self.assertEqual(result.returncode, 9, result.stderr)
+            self.assertTrue((root / ".ai-plc-uninstall-tombstone").exists())
+            again = uninstall(REPO, root, "cc")
+            self.assertEqual(again.returncode, 2)  # no manifest (the crashed uninstall had removed it)
+            self.assertIn("[OK] experimental_jev: removed", again.stdout)
+            self.assertEqual(jev_leftovers(root), [])
+            self.assertTrue((root / ".ai-plc-uninstall-tombstone").exists())  # not consumed by the sweep
+            self.assertFalse((root / ".ai-plc-install.lock").exists())
+
+    def test_leftover_matching_current_distribution_is_removed(self) -> None:
+        # A leftover whose content equals the current distribution (not in KNOWN_RELEASES or any manifest).
+        with target_repo() as root:
+            self.assertEqual(install(REPO, root, "codex").returncode, 0)
+            bak = root / ".claude/commands/04-operation-jev.md.bak.20260101T000000Z.1"
+            bak.parent.mkdir(parents=True, exist_ok=True)
+            bak.write_bytes((REPO / "experimental/jev/commands/04-operation-jev.md").read_bytes())
+            result = uninstall(REPO, root, "cc")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(bak.exists())
+            self.assertTrue((root / ".claude/commands").is_dir())  # shared directory is never pruned
+
+    def test_no_leftovers_output_equals_baseline(self) -> None:
+        # Without leftovers the new sweep is invisible: same exit code, stdout and stderr as the baseline.
+        with baseline_distribution() as old:
+            for state in ("fresh", "uninstalled", "codex"):
+                with self.subTest(state=state), target_repo() as old_root, target_repo() as new_root:
+                    for root, dist in ((old_root, old), (new_root, REPO)):
+                        if state == "uninstalled":
+                            assert install(dist, root, "cc").returncode == 0
+                            assert uninstall(dist, root, "cc").returncode == 0
+                        elif state == "codex":
+                            assert install(dist, root, "codex").returncode == 0
+                    for mode in ("cc", "both", "all"):
+                        old_result, new_result = uninstall(old, old_root, mode), uninstall(REPO, new_root, mode)
+                        self.assertEqual((old_result.returncode, old_result.stdout, old_result.stderr),
+                                         (new_result.returncode, new_result.stdout, new_result.stderr), mode)
+                        self.assertEqual(normalized_tree(old_root, keep_seq=False),
+                                         normalized_tree(new_root, keep_seq=False), mode)
 
 
 if __name__ == "__main__":
