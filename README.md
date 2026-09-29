@@ -31,7 +31,7 @@ Collection  →  Inception  →  Construction  →  Operation
 - [Collection が賢く集める（MCP）](#-collection-が賢く集めるmcpを繋ぐほど強くなる)
 - [DB の使い方](#-db-の使い方project-registry--tasks)
 - [同梱スキル](#-同梱スキル)
-- [実験版: Jev 監視（v1.8.0-exp.1）](#-実験版-jev-監視v180-exp1)
+- [実験版: Jev 監視](#-実験版-jev-監視)
 - [FAQ](#-faq)
 - [単なるループと違う点](#単なるループと違う5点)
 - [インストール内容・安全性・構造](#-インストール内容--安全性)
@@ -223,7 +223,7 @@ git pull             # 最新の版を取ってくる（失敗したら git stat
 
 **ほかの環境:** 最後の `cc` を、1. で確かめた指定に置き換えます。`cursor`（Cursor）・`both`（Claude Code + Cursor）・`all`（3環境）・`codex`（Codex）。`./install-cc.sh --target …` のような環境別のスクリプトでも同じように更新できます。旧版（台帳なし）の Claude Code / Cursor 環境に Codex を足すときは、`codex` だけを指定すると旧版を判別できずに止まるので、先に `cc`（または `both`）で上げてから `codex` を実行してください（Claude Code・Cursor・Codex の3つを使うなら `all` でもかまいません）。
 
-**実験版（Jev 監視）を入れている人:** 実験版も一緒に上げるときは `--with-jev` を付けます（`./install.sh --target /path/to/your/project cc --with-jev`）。付けずに更新すると、実験版のファイルは今のまま残ります。実験版 v1.8.0-exp.1 を入れた環境の `.ai-plc-version` は、その時点の core の版の `1.7.1` と出ます（[実験版の節](#-実験版-jev-監視v180-exp1)）。
+**実験版（Jev 監視）を入れている人:** 実験版も一緒に上げるときは `--with-jev` を付けます（`./install.sh --target /path/to/your/project cc --with-jev`）。付けずに更新すると、実験版のファイルは今のまま残ります。前の実験版 1.8.0-exp.1 を入れた環境の `.ai-plc-version` は、その時点の core の版の `1.7.1` と出ます。1.8.0-exp.1 から今の実験版 1.8.1-exp.1 への上げ方は[実験版の節](#-実験版-jev-監視)にあります。
 
 ### 3. 止まったとき
 
@@ -744,13 +744,13 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 
 ---
 
-## 🧪 実験版: Jev 監視（v1.8.0-exp.1）
+## 🧪 実験版: Jev 監視
 
 > ⚠️ **実験版です。通常のインストールには含まれません。** `--with-jev` を付けたときだけ入り、仕様・コマンド名・置き場所は予告なく変わることがあります。
 >
 > ⚠️ **外部送信あり（opt-in）。** APIキーを登録し、Layer の `intent.yaml` に `jev_monitor: true` を書いたときだけ、Layer の文や発話を字数で切ったもの（下の表。要約ではなく原文の抜粋です）を外部の判断専用モデル **Jev**（TypeSafe）に送ります。キーが無ければ何も送らず、すべてスキップされます。
 >
-> core の版は **1.8.1**、`1.8.0-exp.1` は実験版パッケージ（`experimental/jev/`）の版です。2つの版は別々に数えます（実験版の番号は core の版と連動しません）。実験版のインストールされる中身は exp.1 のまま変わっていません（中の説明文に残る「core の版は 1.7.1」などの表記は exp.1 を出した時点のものです。[CHANGELOG.md](CHANGELOG.md)）。
+> **版:** 実験版パッケージ（`experimental/jev/`）の版は **`1.8.1-exp.1`** で、前の実験版 `1.8.0-exp.1` の次の版です。core の版（**1.8.1**）とは別に数えます。頭の `1.8.1` はこの実験版を作った時点の core の版、末尾の `exp.1` はその上での通し番号です。スキルは core 1.8.1 のスキルを元にしており、違いは Jev 部分だけです（[CHANGELOG.md](CHANGELOG.md)）。
 
 AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか」などを1問だけ聞き、**1行のヒント**を出します。ヒントに作業を止める権限はなく、判断はメインのモデルとあなたが行います。**Claude Code 専用**で、Jev への問い合わせ（外部送信）は `/01-collection-jev` → `/02-inception-jev` → `/03-construction-jev` → `/04-operation-jev` を使ったときだけ動きます（core の `/01-collection`〜`/04-operation` は Jev を呼びません）。例外として、下の表の「ステータス点検」（Jev には送らず、ローカルのファイルと DB を読むだけの点検）は、core 1.8.0 からは core の `/04-operation` の Phase 7 でも、実験版を入れてあれば動きます（実験版が無ければ「点検ツールなし — スキップ」と出して進みます）。
 
@@ -781,6 +781,28 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 - **Claude Code 専用です。** `install.sh cursor --with-jev`・`install.sh codex --with-jev`・`install-cursor.sh --with-jev` は「実験版は Claude Code 専用」というエラーで終了コード 2、`install-codex.sh --with-jev` は `unrecognized arguments: --with-jev` で終了コード 2 になります（どちらも何も書き込みません）
 - 必要なもの: Python 3.9 以上と `pyyaml`
 - インストール後は、新しいチャットで `/01-collection-jev` から始めます。新しい Layer では `/01-collection-jev` の最後に「Jev監視を有効にしますか」と1行で聞かれ、承認すると `intent.yaml` に `jev_monitor: true` が書かれます（機密などに当たる Layer では聞かれず `false` のまま）。既存の Layer で試すなら、`intent.yaml` に `jev_monitor: true` を手で書き、Stage 4 を `/04-operation-jev` で回します
+
+### 前の実験版（1.8.0-exp.1）から上げる
+
+```bash
+# 先に確認する（conflicts が [] なら更新できる）
+./install.sh --target /path/to/your/project cc --with-jev --dry-run
+./install.sh --target /path/to/your/project cc --with-jev
+```
+
+- core も同時に 1.8.1 に上がります（1.8.0-exp.1 を入れた環境の core は 1.7.1）。上がったかどうかは、`.ai-plc-version` が `1.8.1`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.8.1-exp.1` になっていることで確かめられます
+- `--with-jev` を付けずに更新すると、core だけが上がり、実験版は 1.8.0-exp.1 のまま残ります
+- 1.8.1-exp.1 を入れた後に、1.8.0-exp.1 を配る checkout の installer で `--with-jev` を付けると、`[CONFLICT] component downgrade refused: experimental_jev` で止まり、何も書き換えません。前の版に戻したいときは、今の checkout で `uninstall.sh cc` してから、前の版の checkout で入れ直します
+
+**この版で直したこと**（前の実験版 1.8.0-exp.1 との違い）:
+
+- **中断した uninstall の後片付け:** 前の版の既知の制約（uninstall の後処理中に落ちた後、次が codex 経路だった場合や、再開中にもう一度落ちた場合に `.claude/ai-plc-jev/` などが残る）は、cc を含む uninstall（`uninstall.sh cc` / `both` / `all`）で片付くようになりました。詳しくは下の「既知の制約」
+- **スキル:** core 1.8.1 のスキル（`01-collection` v2.1・`04-operation` v2.7）に揃えました。前の版は core 1.7.1 の時点のスキルを元にしていて、Jev 以外の文言にも違いが残っていました。説明文の古い版表記も直しました
+- **採否の記録:** `jev_bt_monitor.py --override-pending` で、`--only` / `--except` の指定で記録対象が0件になったときは「記録対象なし（未確認は N件残っています・…）— 何も記録していません」と出します（前の版では、未確認が残っていても「未確認の Jev 判定なし」と出ていました）。`--layer` に Layer パスでも scope_id の形でもない値（打ち間違いなど）を渡すと「Layer の scope_id が読めません」と出します（前の版では0件に見えました）
+- **`/02-inception-jev`:** カバー判定の採否の記録を、タスクの実行より先に行うことを明記しました（`/04-operation-jev` と同じ）
+- **ステータス点検:** Registry のタスク ID が `<scope_id>-T001` の形で、backlog が `T001` の形でも、同じタスクとして突き合わせます（前の版では「タスク行なし」と誤って出ていました）。`--apply` で書き換えるのは Registry にある元の ID の行です
+
+**installer の変更について:** この版では installer の処理も変えています。実験版の残り物（実験版の置き場所に残った `<path>.bak.<UTC>.<n>` や、中断した後処理の再開情報）が無い環境では、動きは core 1.8.1 の installer と同じです（`--with-jev` を付けない install・uninstall の出力・終了コードも同じ）。残り物がある環境で、cc を含む uninstall のときにそれを掃除すること、後処理の再開中にもう一度落ちても次の install・uninstall で再開することは、意図した差です（install・`--dry-run`・`--plan-only`・cursor / codex だけの uninstall では掃除しません）。
 
 ### キー登録
 
@@ -858,7 +880,7 @@ rm -rf .claude/db/status_hygiene
 
 ### 既知の制約
 
-- **uninstall の後片付けが残ることがある:** uninstall の後処理（`.bak` と空ディレクトリの掃除）の最中にプロセスが落ち、次に実行したのが codex 経路（`install-codex.sh` / `install.sh codex`）だった場合と、その後処理の再開中にもう一度落ちた場合は、`.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/`（と `.claude/commands/0[1-4]-*-jev.md.bak.*`）が残ることがあります。**`uninstall.sh cc` が終わった後に**これらが残っていたら、手で消してください:
+- **中断した uninstall の後片付け（この版で対応）:** uninstall の後処理（`.bak` と空ディレクトリの掃除）の最中にプロセスが落ち、次に実行したのが codex 経路（`install-codex.sh` / `install.sh codex`）だった場合や、後処理の再開中にもう一度落ちた場合に、実験版のファイルの `.bak` と `.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/` が残ることがありました。この版では、cc を含む uninstall（`uninstall.sh cc` / `both` / `all`）を実行すると残り物を掃除し、`[OK] experimental_jev: removed N leftover backup file(s) of an interrupted cleanup` と出ます。台帳が無くて uninstall がエラーで止まる環境でも、残り物だけを掃除してから同じエラーで止まります。消すのは、中身が既知の実験版（`experimental/jev/KNOWN_RELEASES.sha256`）か今の配布物と一致する `.bak` と、それで空になった2つのディレクトリだけです。一致しない `.bak`（自分で編集したものなど）は消さずに残し、`[WARN] experimental_jev: N backup file(s) with unknown content kept` と出ます。その場合は中身を確かめてから手で消してください:
 
   ```bash
   rm -rf .claude/ai-plc-jev .claude/skills/ai-plc-jev
