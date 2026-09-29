@@ -224,6 +224,20 @@ class ReadTests(Base):
         self.assertTrue(d["writable"])
         self.assertEqual(d["launch_prompt"], "/04-operation-jev を実行してください / Layer: Flow/209901/2099-01-01/parent-layer")
 
+    def test_launch_prompt_by_state(self):
+        d = self.flow / "empty-layer"
+        d.mkdir()
+        (d / "intent.yaml").write_text('scope_id: "L-9004"\nstatus: active\nworkflow_depth: standard\n', encoding="utf-8")
+        conn = sqlite3.connect(self.db)
+        conn.execute("INSERT INTO projects (scope_id, name, status) VALUES ('L-9004', '空', 'active')")
+        conn.commit()
+        conn.close()
+        self.assertTrue(self.reg.project_detail("L-9004")["launch_prompt"].startswith("/02-inception "))
+        (d / "intent.yaml").write_text('scope_id: "L-9004"\nstatus: active\nworkflow_depth: simple\n', encoding="utf-8")
+        self.assertTrue(self.reg.project_detail("L-9004")["launch_prompt"].startswith("/04-operation "))
+        (d / "intent.yaml").write_text('scope_id: "L-9004"\nstatus: completed\nworkflow_depth: simple\n', encoding="utf-8")
+        self.assertIn("Re-Collection", self.reg.project_detail("L-9004")["launch_prompt"])
+
     def test_detail_readonly_without_layer(self):
         d = self.reg.project_detail("L-9002")
         self.assertFalse(d["writable"])
@@ -248,6 +262,7 @@ class TaskWriteTests(Base):
         self.assertIsNotNone(ca)
         log = (self.root / "log" / "viewer_log.jsonl").read_text(encoding="utf-8").splitlines()
         self.assertEqual(json.loads(log[-1])["result"], "ok")
+        self.assertRegex(json.loads(log[-1])["at"], r"[+-]\d{2}:\d{2}$")  # タイムゾーンつき
 
     def test_status_first_key_item(self):
         self.reg.set_task_status("L-9001", "T003", "blocked", {"backlog": "in_progress", "registry": None})

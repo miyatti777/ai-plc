@@ -42,9 +42,5 @@ Notion版AI-PLCパイプラインをClaude Code / Cursor環境に移植したス
 
 ## 正本
 
-Notion上の `.notion` ルートページ（Explaza WS）が正本。
-このCC/Cursor版は nsync 同期スナップショットから変換・配置したミラー。
-
-- 同期元: `de91333c-2473-4cbd-a93b-05e6eac6a606`
-- 移植日: 2026-04-08
-- 移植ガイド: Cursor移植ガイド v1.3（修正版）
+公開版の正本は本リポジトリの `core/`（rules・skills）。Notion版の規定と同一内容を保つよう同期している。
+CC/Cursor/Codex向けの配置は installer（`install.sh`）が行う。

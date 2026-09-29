@@ -1,4 +1,4 @@
-# experimental/registry-viewer — Project Registry ビューア（アルファ版 0.1.0-alpha）
+# experimental/registry-viewer — Project Registry ビューア（アルファ版 0.1.1-alpha）
 
 AI-PLC の Project Registry（`.claude/db/ai_plc.db` の projects / tasks）を、ブラウザで見て、Project と Task の status を変えられるローカル専用のツールです。
 
@@ -18,7 +18,9 @@ AI-PLC の Project Registry（`.claude/db/ai_plc.db` の projects / tasks）を�
 
 ## 入れ方・外し方
 
-AI-PLC のリポジトリを checkout した場所で、プロジェクトのフォルダを指定してコピーします。
+AI-PLC のリポジトリを checkout した場所で、プロジェクトのフォルダを指定してコピーします。先に下の「バックアップと戻し方」でバックアップを取っておくと安心です。
+
+> 💡 **AI（Claude Code など）に頼むときは、バックアップ・コピー・`.gitignore` への追記・起動を1つずつ別のコマンドで実行させてください。** まとめて1つのコマンドにすると、元に戻せない操作が混ざっているとみなされて、安全判定で止められることがあります。
 
 ```bash
 cp -R experimental/registry-viewer <プロジェクト>/.claude/db/registry_viewer
@@ -26,7 +28,7 @@ cp -R experimental/registry-viewer <プロジェクト>/.claude/db/registry_view
 
 - 更新するときは、古い `<プロジェクト>/.claude/db/registry_viewer` を消してからコピーし直してください（残したままコピーすると、`registry_viewer/registry-viewer/` という入れ子ができます）
 - 外すときは、`<プロジェクト>/.claude/db/registry_viewer` を消すだけです。変更の記録（下の「変更の記録」）の `viewer_log.jsonl` は残るので、要らなければ消してください。`status_hygiene/` フォルダはステータス点検（Jev 実験版）のレポートと共用なので、Jev 実験版を入れていないときだけフォルダごと消してかまいません
-- プロジェクトを git で管理しているなら、`.gitignore` に次の1行を足してください（変更の記録を commit しないため。Jev 実験版を入れていれば、同じ行が既にあるかもしれません。Cursor だけの配置では `.cursor/db/status_hygiene/` になります）
+- プロジェクトを git で管理しているなら、`.gitignore` に次の1行を足してください。`.gitignore` が無ければ、プロジェクトのフォルダに新しく作ります（変更の記録とバックアップを commit しないため。Jev 実験版を入れていれば、同じ行が既にあるかもしれません。Cursor だけの配置では `.cursor/db/status_hygiene/` になります）
 
 ```gitignore
 .claude/db/status_hygiene/
@@ -40,11 +42,12 @@ cp -R experimental/registry-viewer <プロジェクト>/.claude/db/registry_view
 python3 .claude/db/registry_viewer/server.py
 ```
 
-- ブラウザで `http://127.0.0.1:8765/` が開きます。止めるときは Ctrl-C です。常駐はしません
-- 起動したときに `mode: full` か `mode: readonly（理由）` を表示します（下の「フル機能と閲覧のみ」）
-- `--port 0` で空いているポートを使います。ブラウザを開きたくないときは `--no-browser` を付けます
+- ブラウザで `http://127.0.0.1:8765/` が開きます。起動したときに、開く URL と `mode: full` か `mode: readonly（理由）` を表示します（下の「フル機能と閲覧のみ」）
+- **止め方:** ターミナルで動かしているなら Ctrl-C。バックグラウンドで起動したとき（AI に起動を頼んだときなど）は、そのプロセスを終了します（例: `pkill -f registry_viewer/server.py`。同じマシンで他のプロジェクトのビューアも動いていれば、それも止まるので注意）。常駐はしません
+- **ポート 8765 が使用中のとき**（他のプロジェクトのビューアやメニューバーアプリが動いているなど）は、理由を表示して終了コード 2 で止まります。`--port 0`（空いているポートを自動で選ぶ）か `--port 8766` のように別の番号を付けて起動し直し、表示された URL を開いてください。**8765 をそのまま開くと、別のプロジェクトの Registry を見てしまう**ことがあります（ヘッダに出る件数や Project 名で見分けてください）
+- ブラウザを開きたくないときは `--no-browser` を付けます
 - プロジェクトの場所は、server.py の場所から上にたどって `.claude/db/ai_plc.db`（無ければ `.cursor/db/ai_plc.db`）があるフォルダを使います。別の場所に置いたときは `--root <プロジェクト>` を、別の DB を見るときは `--db PATH`（または環境変数 `AIPLC_DB`）を指定します
-- ポート 8765 が使用中のとき、DB やプロジェクトが見つからないときは、理由を表示して終了コード 2 で止まります
+- DB やプロジェクトが見つからないときも、理由を表示して終了コード 2 で止まります
 
 ## フル機能と閲覧のみ
 
@@ -55,7 +58,17 @@ python3 .claude/db/registry_viewer/server.py
 | `aiplc_status_audit.py`（ステータス点検。Jev 実験版に入っています） | ① 環境変数 `AIPLC_STATUS_AUDIT` ② `<プロジェクト>/scripts/` ③ `<プロジェクト>/.claude/ai-plc-jev/scripts/`（`--with-jev` で入る場所） | 閲覧のみ。食い違い・機密判定・画面共有モードは出ません |
 | `plc_query.py`（core に入っています） | ① 環境変数 `AIPLC_PLC_QUERY` ② `<プロジェクト>/.claude/db/` ③ `<プロジェクト>/.cursor/db/` | 表示はそのまま、書き込みだけできません |
 
-- **両方あればフル機能**です。Jev 実験版を入れていない（core だけの）環境では閲覧のみになります。フル機能にしたいときは、Jev 実験版を入れるか（`./install-cc.sh --target <プロジェクト> --with-jev`）、`AIPLC_STATUS_AUDIT` で `experimental/jev/scripts/aiplc_status_audit.py` を指定します。status_audit を使うだけなら、Jev の API キーは要りません（外部送信は `--jev` を付けたときだけです）
+- **両方あればフル機能**です。Jev 実験版を入れていない（core だけの）環境では閲覧のみになります
+- **ステータス点検が無いと書き込みもできない理由:** Registry への書き込みは `plc_query.py` が行いますが、書き込みの前後に必要な処理（Project に対応する Layer フォルダの特定、YAML の status 1行だけの安全な書き換え、backlog と Registry の値の対応づけ）は `aiplc_status_audit.py` の関数を使っています。これが無いまま Registry だけを書くと Layer のファイルとずれるので、閲覧のみにしています
+- **フル機能にする方法:** Jev 実験版を追加で入れます（Jev の API キーは要りません。外部送信は `--jev` を付けたときだけです）。AI-PLC のリポジトリを checkout した場所で実行します
+
+```bash
+./install.sh --target <プロジェクト> cc --with-jev --dry-run
+```
+
+  予定を確かめたら `--dry-run` を外して実行します。`install.sh` では環境（`cc`）の指定が必要で、確認なしで進めるときは `--yes` を付けます（`./install-cc.sh --target <プロジェクト> --with-jev` でも同じです）。入れたあとはビューアを起動し直してください。書き込みができるようになるので、その前にバックアップを取り直しておくと安心です
+
+- もう1つの方法として、`AIPLC_STATUS_AUDIT` で checkout の `experimental/jev/scripts/aiplc_status_audit.py` を指定しても、フル機能になります
 - 環境変数でファイルを指定したのに見つからないときは、黙って閲覧のみにはせず、起動を止めます
 - 見つけた `aiplc_status_audit.py` に必要な関数が欠けている（版が違う）ときも閲覧のみになり、理由に欠けている関数名が出ます
 - 閲覧のみのとき、画面のヘッダに「閲覧のみ」のバッジが出ます（マウスを乗せると理由が出ます）
@@ -72,7 +85,7 @@ python3 .claude/db/registry_viewer/server.py
 | `食い違い N` | ステータス点検（`aiplc_status_audit.py`）が出す候補の数です（閉じ忘れ・停滞・タスクの不一致など） |
 | 🔒 | ステータス点検と同じ基準で機密と判定された Project です。迷うものは機密の側に倒すので、機密でない Project にも付くことがあります |
 | 画面共有モード | 🔒 の Project の名前・goal・Layer パス・起動プロンプト・食い違いの理由・メッセージ中のパスを伏せ、scope_id を `C-xxxxxxxx` にします。ブラウザの表示を伏せるだけで（API の応答には含まれます）、ハッシュから元の ID を逆引きできるので秘匿化ではありません |
-| 起動プロンプト | Claude Code の形式です。intent が completed なら Re-Collection の `/01-collection`、backlog が空なら `/02-inception`、それ以外は `/04-operation` を出します。Layer の intent.yaml に `pipeline_variant: jev` があれば `-jev` 付きになります。Cursor・Codex では、それぞれの起動形式（Cursor なら `@SKL_plc_*`）に読み替えてください |
+| 起動プロンプト | Claude Code の形式です。intent が completed なら Re-Collection の `/01-collection`、backlog が空なら `/02-inception`（ただし intent の `workflow_depth` が simple なら、Stage 2・3 を飛ばせるので `/04-operation`）、それ以外は `/04-operation` を出します。Layer の intent.yaml に `pipeline_variant: jev` があれば `-jev` 付きになります。Cursor・Codex では、それぞれの起動形式（Cursor なら `@SKL_plc_*`）に読み替えてください |
 
 ## status を変えると何が書き換わるか
 
@@ -81,7 +94,7 @@ python3 .claude/db/registry_viewer/server.py
 | 操作 | 書く順番と書く値 |
 | --- | --- |
 | Project を active / paused / completed に | ① `intent.yaml` の `status`（active / deferred / completed）→ ② `backlog.yaml` の `summary.status`（キーがあるときだけ、①と同じ値）→ ③ Registry の `projects.status`（active / paused / completed） |
-| Task の status を変更 | ① `backlog.yaml` の該当タスクの `status` → ② Registry の `tasks.status`（DB の語彙に合わせます。英語語彙なら completed・cancelled・dropped→completed、in_progress→active、それ以外→planned。日本語語彙なら 完了 / 進行中 / 未着手。英語語彙の DB では、Layer の intent.yaml の `sync_targets`（`type: sqlite`）に `status_map` があればそれに従います）。Registry で完了扱いになる値（completed・cancelled）にするときは、`completed_at` が空の場合だけ今日の日付を入れます。タスクが片方にしか無いときは、ある方だけを書きます |
+| Task の status を変更（選べるのは pending / in_progress / completed / blocked / deferred / cancelled の6つ） | ① `backlog.yaml` の該当タスクの `status` → ② Registry の `tasks.status`（DB の語彙に合わせます。英語語彙なら completed・cancelled・dropped→completed、in_progress→active、それ以外→planned。日本語語彙なら 完了 / 進行中 / 未着手。英語語彙の DB では、Layer の intent.yaml の `sync_targets`（`type: sqlite`）に `status_map` があればそれに従います）。Registry で完了扱いになる値（completed・cancelled）にするときは、`completed_at` が空の場合だけ今日の日付を入れます。タスクが片方にしか無いときは、ある方だけを書きます |
 
 守っている決まり:
 
@@ -108,21 +121,21 @@ python3 .claude/db/registry_viewer/server.py
 
 ## 変更の記録
 
-すべての変更を `viewer_log.jsonl` に1件1行（変更前 `before` と変更後 `after` つき）で記録します。置き場所は、DB と同じフォルダの `status_hygiene/`（既定では `.claude/db/status_hygiene/`）で、環境変数 `AIPLC_STATUS_HYGIENE_DIR` で変えられます。
+すべての変更を `viewer_log.jsonl` に1件1行（変更前 `before` と変更後 `after` つき）で記録します。時刻 `at` はタイムゾーンつきの現地時刻（例 `2026-09-29T17:17:51+09:00`）です。Registry の `updated_at` は UTC（例 `2026-09-29T08:17:51Z`）なので、突き合わせるときは時差を足し引きしてください。置き場所は、DB と同じフォルダの `status_hygiene/`（既定では `.claude/db/status_hygiene/`）で、環境変数 `AIPLC_STATUS_HYGIENE_DIR` で変えられます。
 
 ## バックアップと戻し方
 
-**試す前にバックアップを取ってください。** ビューアは自動ではバックアップを取りません。DB は WAL モードなので、ファイルのコピーではなく SQLite のバックアップ機能を使います。保存先は git で管理しない場所（例: `.claude/db/status_hygiene/`）にし、名前に日付を入れて毎回変えてください。Layer のファイルは git などで管理しておくと戻しやすくなります。
+**試す前にバックアップを取ってください。** ビューアは自動ではバックアップを取りません。DB は WAL モードなので、ファイルのコピーではなく SQLite のバックアップ機能を使います。保存先は git で管理しない場所（例: `.claude/db/status_hygiene/`）にし、名前は毎回変えてください。下の例の `YYYYMMDD` を今日の日付にし、同じ日に2回目を取るときは `_2` のように番号を付けます。Layer のファイルは git などで管理しておくと戻しやすくなります。
 
 ```bash
-python3 -c "import sqlite3; s=sqlite3.connect('.claude/db/ai_plc.db'); d=sqlite3.connect('.claude/db/status_hygiene/ai_plc_backup_20260101.db'); s.backup(d); d.close(); s.close()"
+python3 -c "import sqlite3; s=sqlite3.connect('.claude/db/ai_plc.db'); d=sqlite3.connect('.claude/db/status_hygiene/ai_plc_backup_YYYYMMDD.db'); s.backup(d); d.close(); s.close()"
 ```
 
 （`status_hygiene/` が無ければ先に `mkdir -p .claude/db/status_hygiene` で作ります）
 
 戻し方:
 
-1. **画面で選び直す:** Project の active / paused / completed と、Task の6つの値は、同じ画面で元の値を選び直せば戻ります。Registry には選んだ値を変換した値が入るので、もともと backlog と Registry が食い違っていた場合や、backlog の値が6択の外（done・dropped など）だった場合は、元どおりにはなりません（2 の手順で戻します）。また、completed・cancelled にした Task を戻しても Registry の `completed_at` は消えません。消すときは `python3 .claude/db/plc_query.py sql "UPDATE tasks SET completed_at=NULL WHERE scope_id='<scope_id>' AND task_id='<task_id>'"` を実行します
+1. **画面で選び直す:** Project の active / paused / completed と、Task の6つの値（上の表を参照）は、同じ画面で元の値を選び直せば戻ります。Registry には選んだ値を変換した値が入るので、もともと backlog と Registry が食い違っていた場合や、backlog の値が6択の外（done・dropped など）だった場合は、元どおりにはなりません（2 の手順で戻します）。また、completed・cancelled にした Task を戻しても Registry の `completed_at` は消えません。消すときは `python3 .claude/db/plc_query.py sql "UPDATE tasks SET completed_at=NULL WHERE scope_id='<scope_id>' AND task_id='<task_id>'"` を実行します
 2. **画面で選べない値に戻す:** intent の pending・blocked や Registry の planned には、画面からは戻せません。`viewer_log.jsonl` の該当行の `before` を見て、手で戻します
    - YAML: intent.yaml（または backlog.yaml の該当タスク）の `status:` の1行を `before` の値に書き換えます
    - Registry: `python3 .claude/db/plc_query.py sql "UPDATE projects SET status='<before>' WHERE scope_id='<scope_id>'"`（Task は `UPDATE tasks SET status='<before>' WHERE scope_id='<scope_id>' AND task_id='<task_id>'`）

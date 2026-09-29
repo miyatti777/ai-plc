@@ -25,7 +25,9 @@ usage() {
     echo "  --dry-run                  Show a read-only plan"
     echo "  --plan-only                Emit a machine-readable plan"
     echo "  --target PATH              Use the specified project directory"
-    echo "  --migrate-legacy VERSION   Adopt a verified legacy release"
+    echo "  --migrate-legacy VERSION   Adopt a verified legacy release (default: detected automatically)"
+    echo "  --backup-modified          Back up files you edited (<path>.bak.<UTC>.<n>) and continue"
+    echo "                             (cc/cursor/both/all; not for codex only)"
     echo "  --yes                      Confirm non-interactive operation"
     echo "  --with-jev                 Also install experimental/jev (${JEV_VERSION}; cc/both/all only)"
     echo "  -h, --help                 Show this help message"
@@ -39,7 +41,7 @@ while [[ $# -gt 0 ]]; do
         --target|--migrate-legacy)
             [[ $# -ge 2 ]] || { echo "[ERROR] $1 requires a value" >&2; exit 1; }
             ARGS+=("$1" "$2"); shift 2 ;;
-        --dry-run|--plan-only|--yes) ARGS+=("$1"); shift ;;
+        --dry-run|--plan-only|--yes|--backup-modified) ARGS+=("$1"); shift ;;
         --with-jev) WITH_JEV=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "[ERROR] Unknown option: $1" >&2; usage >&2; exit 1 ;;

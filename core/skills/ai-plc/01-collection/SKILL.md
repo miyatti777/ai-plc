@@ -62,11 +62,12 @@ deadline: "YYYY-MM-DD"
 parent_scope: null
 sub_agent_scopes: []          # Stage 2で生成
 sync_targets: []              # Phase 6.5で設定（スキーマ: RUL_plc_system §9）
+jev_monitor: false            # core では常に false。実験版 /01-collection-jev だけが opt-in で true にする
 ```
 
 ### Phase 3.5: Project Registry登録
 
-`.claude/db/ai_plc.db` の `projects` テーブルに登録（scope_id/name/goal/owner/status=active/mode/depth/system=AI-PLC/parent_scope/top_page_url/start_date/deadline）し、「📊 Project Registryに登録しました」と通知する。scope_reinit時はスキップ。
+`.claude/db/ai_plc.db` の `projects` テーブルに登録（scope_id/name/goal/owner/status=active/mode/depth/system=AI-PLC/parent_scope/top_page_url/start_date/deadline）し、「📊 Project Registryに登録しました」と通知する。scope_reinit時はスキップ。登録は `python3 .claude/db/plc_query.py add-project <scope_id> "<name>" "<goal>"` で行い、残りの列は `plc_query.py sql "UPDATE projects SET ... WHERE scope_id='<scope_id>'"` で更新する（SQLで直接INSERTしない）。
 
 ### Phase 4: Context Collection
 
@@ -106,6 +107,10 @@ inheritance_rules:
 
 intent.yamlのsync_targetsを設定する: ユーザー指定の同期先があればそれを、なければデフォルト（`.claude/db/ai_plc.db` の tasks テーブル、auto_create: true, push — RUL_plc_system §9）を自動設定し、「📊 External Sync設定: [設定内容]」とログ出力する。ユーザーが「同期不要」と明言した場合のみ `[]` のまま。
 
+> ⚠️ **Layer成果物をNotion同期する場合のスコープ注意（nsync）:** このLayerの成果物ページをNotionと双方向同期したいなら、**このLayer自身のNotionページをrootにした専用nsyncワークスペースを `nsync init <LayerページURL>` で切り出す**こと。既存の広域ワークスペース（例: プログラム全体をrootにした `.nsync.yaml`）の**サブフォルダとして相乗りしない** — nsyncの `sync` はroot配下全体が対象で、Layer単位に絞れず、無関係な変更や機密ファイルまで巻き込んでPushする。機密Context（会計実数・個人情報等）は同期ツリーの外に置くか `exclude_paths` に登録する。
+
+**Jev監視:** core の Collection では判定しない（`jev_monitor` は常に `false` のまま）。core のコマンド（`/01-collection`〜`/04-operation`）は Jev を**呼ばない**（外部API送信なし）。Jev 監視は実験版パッケージ experimental/jev（`--with-jev`）の `/01〜04-*-jev` コマンドで実行したときだけ動く。仕様は `.claude/ai-plc-jev/` 配下の実験版スキルと `scripts/README_jev.md` を参照。
+
 ### Phase 7: Mob Checkpoint（停止）
 
 ここで必ず停止し、ユーザーの応答を待つ:
@@ -128,4 +133,4 @@ BT-B（ゴールドリフト）/ BT-C（全完了GAP分析）から scope_reinit
 intent.yaml / context.yaml / Context/（常に） / backlog.yaml（空で初期生成） / variables.yaml（platform_builder時のみ）→ Stage 2: SKL_plc_02_inception へ。
 
 ---
-**作成日:** 2026-04-06 ｜ **更新日:** 2026-07-07 ｜ **バージョン:** 2.0（Fable観点軽量化: 指示形1本化。Wiki波及はOperation Propagationに一本化し本スキルから削除）
+**作成日:** 2026-04-06 ｜ **更新日:** 2026-09-24 ｜ **バージョン:** 2.1（intent.yamlに`jev_monitor`欄とopt-in判定は実験版 /01-collection-jev のみ〔core では常に false〕。Registry登録を plc_query.py 経由に。Phase 6.5にnsyncスコープ注意。2.0: Fable観点軽量化: 指示形1本化。Wiki波及はOperation Propagationに一本化し本スキルから削除）

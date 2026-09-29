@@ -142,16 +142,158 @@ def component_hash(entries: dict[str, Any], regions: dict[str, Any], component: 
     return safe.sha256(("\n".join(sorted(rows)) + "\n").encode())
 
 
+LEGACY_ESTIMATE_THRESHOLD = 0.5
+BACKUP_CODEX_ONLY = ("--backup-modified is not supported for Codex-only installs "
+                     "(Codex has no pre-manifest releases); use it with cc, cursor, both, or all")
+
+
+class RegionHandled(Exception):
+    """A managed-region conflict that was already recorded (not a marker error)."""
+
+
+BACKUP_HINT = ("[HINT] --backup-modified を付けると、編集済みのファイルを .bak に退避して更新を進められます "
+               "(rerun with --backup-modified to keep your edits as .bak files and continue)")
+BACKUP_RESTORE_NOTE = ("[NOTE] 自分の変更は上の .bak と diff して戻してください "
+                       "(diff each .bak file above with the updated file and restore your changes by hand)")
+
+
+def inventory_items(match: dict[str, Any]) -> set[tuple[str, str]]:
+    return set(match["inventory"].items())
+
+
+def chain_maximum(candidates: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The candidate whose inventory contains every other one (inventories must form a chain).
+
+    Equal inventories are merged (first in INDEX order is kept, versions are combined). Returns None
+    when the inventories do not form a chain (ambiguous)."""
+    ordered = sorted(enumerate(candidates), key=lambda x: (len(inventory_items(x[1]["match"])), -x[0]))
+    for (_, smaller), (_, larger) in zip(ordered, ordered[1:]):
+        if not inventory_items(smaller["match"]) <= inventory_items(larger["match"]):
+            return None
+    top = inventory_items(ordered[-1][1]["match"])
+    equal = [c for c in candidates if inventory_items(c["match"]) == top]
+    chosen = dict(equal[0])
+    chosen["versions"] = [v for c in equal for v in c["catalog"]["versions"]]
+    return chosen
+
+
+def select_legacy_catalog(catalogs: list[dict[str, Any]], root: safe.SafeRoot, env: str,
+                          allow_estimate: bool) -> dict[str, Any]:
+    """D1: pick one catalog for one environment (read-only).
+
+    Returns {"status": "exact"|"estimated"|"none"|"ambiguous"|"below-threshold", ...}."""
+    candidates = [{"catalog": c, "match": safe.legacy_match_counts(root, c["parsed"][env])} for c in catalogs]
+    full = [c for c in candidates if not (c["match"]["modified"] or c["match"]["missing"] or c["match"]["special"])]
+    if full:
+        chosen = chain_maximum(full)
+        if chosen is None:
+            return {"status": "ambiguous", "names": [c["catalog"]["name"] for c in full]}
+        # A strict superset catalog that matches more items is the likelier release (e.g. a v1.2.0 install
+        # whose db script was edited also matches all of v1.1.1). Then the exact match is not trusted: it is
+        # treated as "no exact match" (estimation only with --backup-modified).
+        chosen_items = inventory_items(chosen["match"])
+        dominated = any(
+            c not in full and chosen_items < inventory_items(c["match"])
+            and len(c["match"]["matched"]) > len(chosen["match"]["matched"])
+            for c in candidates)
+        if not dominated:
+            return {"status": "exact", **chosen}
+    if not allow_estimate:
+        return {"status": "none"}
+    best = max(len(c["match"]["matched"]) for c in candidates)
+    tops = [c for c in candidates if len(c["match"]["matched"]) == best]
+    chosen = chain_maximum(tops)
+    if chosen is None:
+        return {"status": "ambiguous", "names": [c["catalog"]["name"] for c in tops]}
+    ratio = best / max(1, len(chosen["match"]["inventory"]))
+    if ratio < LEGACY_ESTIMATE_THRESHOLD:
+        return {"status": "below-threshold", "names": [chosen["catalog"]["name"]], "ratio": ratio}
+    return {"status": "estimated", "ratio": ratio, **chosen}
+
+
+def legacy_adoption(root: safe.SafeRoot, catalogs: list[dict[str, Any]], detected: list[str],
+                    requested: set[str], allow_estimate: bool, conflicts: list[str]) -> dict[str, Any]:
+    """Run D1 for every detected environment independently.
+
+    Requested environments follow the full rules (ambiguity and estimation failures are conflicts).
+    Detected environments outside the requested mode are adopted only on an exact match; otherwise they
+    are left alone, as before."""
+    adopted: dict[str, dict[str, Any]] = {}
+    for env in detected:
+        in_mode = env in requested
+        result = select_legacy_catalog(catalogs, root, env, allow_estimate and in_mode)
+        status = result["status"]
+        if status == "ambiguous" and in_mode:
+            conflicts.append(f"legacy release ambiguous for {env}: catalogs " + ", ".join(result["names"])
+                             + " (use --migrate-legacy <version>)")
+        elif status == "below-threshold":
+            conflicts.append(f"legacy release not identified for {env}: best catalog {result['names'][0]} "
+                             f"matches {result['ratio']:.0%} (< {LEGACY_ESTIMATE_THRESHOLD:.0%})")
+        elif status in ("exact", "estimated"):
+            special = result["match"]["special"]
+            if special:
+                conflicts.extend(f"special file at legacy managed path: {p}" for p in special)
+            adopted[env] = result
+    return adopted
+
+
+def legacy_manifest_from_adoption(adopted: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Manifest seed for adopted legacy environments.
+
+    Matched and modified items keep the catalog hash (P1-4): modified ones then surface as
+    user-modified managed items. Missing and special items are not recorded."""
+    legacy: dict[str, Any] = {"environments": list(adopted), "managed_files": {}, "managed_regions": {}}
+    versions: dict[str, str] = {}
+    for env, result in adopted.items():
+        versions[env] = result["catalog"]["versions"][0]
+        inventory = result["catalog"]["parsed"][env]
+        keep = set(result["match"]["matched"]) | set(result["match"]["modified"])
+        for path, item in inventory["managed_files"].items():
+            if path in keep:
+                legacy["managed_files"][path] = {"source_sha256": item["source_sha256"], "owner": env}
+        for region_id, item in inventory["managed_regions"].items():
+            if region_id in keep:
+                legacy["managed_regions"][region_id] = {**item, "owner": env}
+    return manifest_from_legacy(legacy, versions)
+
+
+def legacy_report(adopted: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    report = {}
+    for env, result in adopted.items():
+        report[env] = {
+            "catalog": result["catalog"]["name"].removesuffix(".yaml"), "versions": result["versions"],
+            "match": result["status"], "modified": sorted(result["match"]["modified"]),
+            "missing": sorted(result["match"]["missing"]),
+        }
+    return report
+
+
+def legacy_info_line(report: dict[str, Any]) -> str:
+    parts = []
+    for env, item in sorted(report.items()):
+        versions = item["versions"]
+        span = f"v{versions[0]}" if len(versions) == 1 else f"v{versions[0]}–v{versions[-1]}"
+        extra = "" if item["match"] == "exact" else f", estimated: {len(item['modified'])} modified, {len(item['missing'])} missing"
+        parts.append(f"{env} {span} (catalog {item['catalog']}{extra})")
+    return "[INFO] legacy release detected: " + "; ".join(parts)
+
+
 def legacy_manifest(distribution: Path, root: safe.SafeRoot, version: str) -> dict[str, Any]:
     legacy = safe.legacy_state(root, safe.secure_source_read(
         distribution, f"migration/legacy-releases/{version}.yaml"))
+    return manifest_from_legacy(legacy, {env: version for env in legacy["environments"]})
+
+
+def manifest_from_legacy(legacy: dict[str, Any], versions: dict[str, str]) -> dict[str, Any]:
     manifest: dict[str, Any] = {
         "schema_version": 1, "status": "active", "environments": {}, "components": {},
         "managed_files": {}, "managed_regions": {}, "residuals": [],
     }
     for env in legacy["environments"]:
-        manifest["environments"][env] = {"version": version}
+        manifest["environments"][env] = {"version": versions[env]}
     for path, item in legacy["managed_files"].items():
+        if path == safe.VERSION_MARKER:  # handled by version_marker, never as a managed file (P1-1)
+            continue
         owner = item["owner"]
         component = "cursor_runtime" if owner == "cursor" else (
             "shared_claude_runtime" if path.startswith((".claude/skills/", ".claude/rules/", ".claude/db/")) else "cc_runtime")
@@ -169,7 +311,7 @@ def legacy_manifest(distribution: Path, root: safe.SafeRoot, version: str) -> di
         owners = sorted({o for x in manifest["managed_files"].values() if x["component"] == component for o in x["owners"]} |
                         {o for x in manifest["managed_regions"].values() if x["component"] == component for o in x["owners"]})
         manifest["components"][component] = {
-            "version": version, "owners": owners,
+            "version": max((versions[o] for o in owners), key=safe.semver), "owners": owners,
             "inventory_sha256": component_hash(manifest["managed_files"], manifest["managed_regions"], component),
         }
     return manifest
@@ -177,18 +319,33 @@ def legacy_manifest(distribution: Path, root: safe.SafeRoot, version: str) -> di
 
 def build_install_plan(distribution: Path, root: safe.SafeRoot, mode: str,
                        migrate_legacy: str | None = None, lock_held: bool = False,
-                       with_jev: bool = False) -> dict[str, Any]:
+                       with_jev: bool = False, backup_modified: bool = False) -> dict[str, Any]:
     environments = ENVIRONMENTS[mode]
     if with_jev and "cc" not in environments:
         raise safe.InstallError(JEV_ONLY_CC)
+    if backup_modified and "codex" in environments and not environments & {"cc", "cursor"}:
+        raise safe.InstallError(BACKUP_CODEX_ONLY)
     version = safe.secure_source_read(distribution, safe.VERSION_MARKER).decode().strip()
     safe.semver(version)
     jev_version = read_jev_package_version(distribution) if with_jev else None
     entries, payloads = inventory(distribution, environments, with_jev)
     manifest = safe.load_manifest(root)
     conflicts: list[str] = []
+    backups: list[dict[str, str]] = []  # planned user backups: {"path", "reason"}
     writes: list[str] = []
     preserved: list[str] = []
+    legacy_release: dict[str, Any] | None = None
+    legacy_missing: list[str] = []
+    legacy_detected = False
+
+    def user_change(path: str, reason: str, conflict: str) -> bool:
+        """True when the change is backed up and applied; otherwise the conflict is recorded."""
+        if backup_modified:
+            backups.append({"path": path, "reason": reason})
+            return True
+        conflicts.append(conflict)
+        return False
+
     if safe.control_artifacts(root) and not lock_held:
         conflicts.append("target is busy or needs recovery")
     if migrate_legacy:
@@ -198,9 +355,55 @@ def build_install_plan(distribution: Path, root: safe.SafeRoot, mode: str,
             conflicts.append("legacy migration requires a newer distribution version")
         else:
             try:
-                manifest = legacy_manifest(distribution, root, migrate_legacy)
+                catalogs = safe.load_legacy_catalogs(distribution)
+                named = [c for c in catalogs if migrate_legacy in c["versions"]]
+                if not named:
+                    raise safe.InstallError(f"no legacy catalog lists release {migrate_legacy}")
+                if not backup_modified:
+                    legacy = safe.legacy_state(root, named[0]["content"])
+                    manifest = manifest_from_legacy(legacy, {env: migrate_legacy for env in legacy["environments"]})
+                    legacy_release = {env: {"catalog": named[0]["name"].removesuffix(".yaml"), "versions": [migrate_legacy],
+                                            "match": "exact", "modified": [], "missing": []}
+                                      for env in legacy["environments"]}
+                else:
+                    detected = safe.detect_legacy_environments(root)
+                    if not detected:
+                        raise safe.InstallError("legacy markers do not identify CC or Cursor")
+                    adopted: dict[str, dict[str, Any]] = {}
+                    for env in detected:
+                        match = safe.legacy_match_counts(root, named[0]["parsed"][env])
+                        ratio = len(match["matched"]) / max(1, len(match["inventory"]))
+                        exact = not (match["modified"] or match["missing"] or match["special"])
+                        if env not in environments and not exact:
+                            continue  # outside the requested mode: adopted only on an exact match
+                        if ratio < LEGACY_ESTIMATE_THRESHOLD:
+                            raise safe.InstallError(f"{env} matches catalog {named[0]['name']} only {ratio:.0%}")
+                        conflicts.extend(f"special file at legacy managed path: {p}" for p in match["special"])
+                        adopted[env] = {"status": "exact" if exact else "estimated", "catalog": named[0],
+                                        "match": match, "versions": [migrate_legacy]}
+                    if not adopted:
+                        raise safe.InstallError("no requested environment matches the named release")
+                    manifest = legacy_manifest_from_adoption(adopted)
+                    for env in adopted:
+                        manifest["environments"][env] = {"version": migrate_legacy}
+                    legacy_release = legacy_report(adopted)
+                    legacy_missing = [k for r in adopted.values() for k in r["match"]["missing"]]
             except (safe.InstallError, FileNotFoundError) as exc:
                 conflicts.append(f"legacy migration failed: {exc}")
+    elif not manifest:
+        detected = safe.detect_legacy_environments(root)
+        if detected:
+            legacy_detected = True
+            try:
+                catalogs = safe.load_legacy_catalogs(distribution)
+            except safe.InstallError as exc:
+                conflicts.append(f"legacy release detection failed: {exc}")
+            else:
+                adopted = legacy_adoption(root, catalogs, detected, environments, backup_modified, conflicts)
+                if adopted:
+                    manifest = legacy_manifest_from_adoption(adopted)
+                    legacy_release = legacy_report(adopted)
+                    legacy_missing = [k for r in adopted.values() for k in r["match"]["missing"]]
     if manifest and manifest.get("status") == "detached":
         conflicts.append("manifest is detached; resolve residuals before install")
     old_files = (manifest or {}).get("managed_files", {})
@@ -212,13 +415,14 @@ def build_install_plan(distribution: Path, root: safe.SafeRoot, mode: str,
         old = old_files.get(path)
         if old:
             if current != old.get("source_sha256"):
-                conflicts.append(f"user-modified managed file: {path}")
+                if user_change(path, "user-modified managed file", f"user-modified managed file: {path}"):
+                    writes.append(path)
             elif current != item["source_sha256"]:
                 writes.append(path)
         elif current == item["source_sha256"]:
             preserved.append(path)
-        else:
-            conflicts.append(f"unmanaged file collision: {path}")
+        elif user_change(path, "unmanaged file collision", f"unmanaged file collision: {path}"):
+            writes.append(path)
 
     region_specs: dict[str, dict[str, Any]] = {}
     region_outputs: dict[str, bytes] = {}
@@ -234,9 +438,11 @@ def build_install_plan(distribution: Path, root: safe.SafeRoot, mode: str,
                     current_hash = safe.sha256(safe.extract_region(existing, CC_START, CC_END))
                     old = (manifest or {}).get("managed_regions", {}).get(region_id)
                     if old and current_hash != old.get("content_sha256"):
-                        raise safe.InstallError("user-modified managed region")
+                        if not user_change(path, "user-modified managed region", f"{path}: user-modified managed region"):
+                            raise RegionHandled()
                     if not old and current_hash != safe.sha256(safe.extract_region(template, CC_START, CC_END)):
-                        raise safe.InstallError("unmanaged marker region")
+                        if not user_change(path, "unmanaged marker region", f"{path}: unmanaged marker region"):
+                            raise RegionHandled()
                 output = region_result(existing, template, CC_START, CC_END)
                 region_outputs[path] = output
                 if output != existing:
@@ -246,6 +452,8 @@ def build_install_plan(distribution: Path, root: safe.SafeRoot, mode: str,
                     "end_marker": CC_END, "content_sha256": safe.sha256(safe.extract_region(template, CC_START, CC_END)),
                     "owners": ["cc"], "protection": None,
                 }
+            except RegionHandled:
+                pass
             except safe.InstallError as exc:
                 conflicts.append(f"{path}: {exc}")
     if "codex" in environments:
@@ -257,9 +465,12 @@ def build_install_plan(distribution: Path, root: safe.SafeRoot, mode: str,
                 current_hash = safe.sha256(safe.extract_region(existing, safe.CODEX_START, safe.CODEX_END))
                 old = (manifest or {}).get("managed_regions", {}).get(region_id)
                 if old and current_hash != old.get("content_sha256"):
-                    raise safe.InstallError("user-modified managed Codex region")
+                    if not user_change("AGENTS.md", "user-modified managed Codex region",
+                                       "AGENTS.md: user-modified managed Codex region"):
+                        raise RegionHandled()
                 if not old and current_hash != safe.sha256(safe.extract_region(template, safe.CODEX_START, safe.CODEX_END)):
-                    raise safe.InstallError("unmanaged Codex marker region")
+                    if not user_change("AGENTS.md", "unmanaged Codex marker region", "AGENTS.md: unmanaged Codex marker region"):
+                        raise RegionHandled()
             output = region_result(existing, template, safe.CODEX_START, safe.CODEX_END)
             region_outputs["AGENTS.md"] = output
             if output != existing:
@@ -269,6 +480,8 @@ def build_install_plan(distribution: Path, root: safe.SafeRoot, mode: str,
                 "end_marker": safe.CODEX_END, "content_sha256": safe.sha256(safe.extract_region(template, safe.CODEX_START, safe.CODEX_END)),
                 "owners": ["codex"], "protection": None,
             }
+        except RegionHandled:
+            pass
         except safe.InstallError as exc:
             conflicts.append(f"AGENTS.md: {exc}")
 
@@ -313,7 +526,8 @@ def build_install_plan(distribution: Path, root: safe.SafeRoot, mode: str,
         marker = root.read_bytes(safe.VERSION_MARKER)
         expected = (manifest or {}).get("version_marker", {}).get("expected_sha256")
         if expected and safe.sha256(marker) != expected:
-            conflicts.append(f"user-modified managed file: {safe.VERSION_MARKER}")
+            user_change(safe.VERSION_MARKER, "user-modified managed file",
+                        f"user-modified managed file: {safe.VERSION_MARKER}")
         try:
             if safe.semver(marker.decode().strip()) > safe.semver(version):
                 conflicts.append("downgrade refused")
@@ -348,12 +562,11 @@ def build_install_plan(distribution: Path, root: safe.SafeRoot, mode: str,
             old["owners"] = sorted(remaining)
         elif not root.exists(path):
             del new_manifest["managed_files"][path]
-        elif safe.sha256(root.read_bytes(path)) == old.get("source_sha256"):
+        elif safe.sha256(root.read_bytes(path)) == old.get("source_sha256") or user_change(
+                path, "user-modified stale managed file", f"user-modified stale managed file: {path}"):
             stale_files.append(path)
             writes.append(f"DELETE:{path}")
             del new_manifest["managed_files"][path]
-        else:
-            conflicts.append(f"user-modified stale managed file: {path}")
     for component in touched_components:
         owners = sorted({owner for item in new_manifest["managed_files"].values() if item["component"] == component for owner in item["owners"]} |
                         {owner for item in new_manifest["managed_regions"].values() if item["component"] == component for owner in item["owners"]})
@@ -383,12 +596,47 @@ def build_install_plan(distribution: Path, root: safe.SafeRoot, mode: str,
                 conflicts.append(f"mutable release refused: {component} {version}")
         new_manifest["components"][component] = updated
     new_manifest["version_marker"] = {"path": safe.VERSION_MARKER, "expected_sha256": safe.sha256((version + "\n").encode())}
-    return {
+    restored_missing = []
+    for key in legacy_missing:
+        if key in entries or (key in region_specs and region_specs[key]["path"] in region_outputs):
+            restored_missing.append(key)
+    unique_backups: dict[str, str] = {}
+    for item in backups:
+        reasons = unique_backups.get(item["path"])
+        unique_backups[item["path"]] = item["reason"] if not reasons else (
+            reasons if item["reason"] in reasons.split("; ") else f"{reasons}; {item['reason']}")
+    plan = {
         "version": version, "mode": mode, "entries": entries, "payloads": payloads,
         "regions": region_outputs, "seeds": seeds, "db_targets": db_targets,
         "manifest": new_manifest, "writes": sorted(set(writes)), "preserved": sorted(set(preserved)),
         "stale_files": sorted(stale_files), "conflicts": sorted(set(conflicts)),
     }
+    if legacy_detected or migrate_legacy or backup_modified:
+        # Upgrade details; absent for ordinary targets so their plans stay exactly as before.
+        plan["upgrade"] = {
+            "legacy_release": legacy_release, "legacy_detected": legacy_detected,
+            "restored_missing": sorted(restored_missing), "backup_modified": backup_modified,
+            "backups": [{"path": p, "reason": r} for p, r in sorted(unique_backups.items())],
+        }
+    return plan
+
+
+def upgrade_info(plan: dict[str, Any]) -> dict[str, Any]:
+    return plan.get("upgrade") or {"legacy_release": None, "legacy_detected": False, "restored_missing": [],
+                                   "backup_modified": False, "backups": []}
+
+
+RESOLVABLE_PREFIXES = (
+    "user-modified managed file: ", "unmanaged file collision: ", "user-modified stale managed file: ",
+    "CLAUDE.md: user-modified managed region", "CLAUDE.md: unmanaged marker region",
+    "AGENTS.md: user-modified managed region", "AGENTS.md: unmanaged marker region",
+    "AGENTS.md: user-modified managed Codex region", "AGENTS.md: unmanaged Codex marker region",
+)
+
+
+def backup_hint(conflicts: list[str]) -> bool:
+    """True when every conflict is one that --backup-modified resolves (so the hint is not misleading)."""
+    return bool(conflicts) and all(c.startswith(RESOLVABLE_PREFIXES) for c in conflicts)
 
 
 def jev_files(manifest: dict[str, Any] | None) -> dict[str, str]:
@@ -633,21 +881,47 @@ def resume_jev_cleanup(root: safe.SafeRoot, state: dict[str, Any], distribution:
     print_jev_warnings(warnings)
 
 
+def record_user_backups(root: safe.SafeRoot, tx: safe.Transaction, plan: dict[str, Any]) -> list[dict[str, str]]:
+    """Append this run's user backups to the manifest (just before it is written).
+
+    Only paths the plan classified as user changes are recorded; routine .bak files are not. Rows of
+    earlier runs whose .bak no longer exists are dropped (P3-4)."""
+    planned = {item["path"]: item["reason"] for item in upgrade_info(plan)["backups"]}
+    rows: list[dict[str, str]] = []
+    stamp = safe.utc_stamp()
+    for item in tx.state.get("backups", []):
+        if item.get("path") in planned and item.get("backup_inode") is not None:
+            rows.append({"path": item["path"], "backup": item["backup"], "sha256": item["sha256"],
+                         "reason": planned[item["path"]], "at": stamp})
+    manifest = plan["manifest"]
+    if rows or "user_backups" in manifest:
+        kept = [row for row in manifest.get("user_backups", [])
+                if isinstance(row, dict) and isinstance(row.get("backup"), str) and root.exists(row["backup"])]
+        manifest["user_backups"] = kept + rows
+    return rows
+
+
 def execute_install(distribution: Path, root: safe.SafeRoot, mode: str,
-                    migrate_legacy: str | None, with_jev: bool = False) -> int:
+                    migrate_legacy: str | None, with_jev: bool = False, backup_modified: bool = False) -> int:
     tx = safe.Transaction(root)
     tx.acquire()
     try:
         safe.validate_or_consume_tombstone(root, mutate=True)
         safe.assert_fresh_transaction_artifacts(root, tx)
         old_jev = jev_files(safe.load_manifest(root)) if with_jev else {}
-        plan = build_install_plan(distribution, root, mode, migrate_legacy, lock_held=True, with_jev=with_jev)
+        plan = build_install_plan(distribution, root, mode, migrate_legacy, lock_held=True, with_jev=with_jev,
+                                  backup_modified=backup_modified)
     except Exception:
         tx.rollback()
         raise
+    upgrade = upgrade_info(plan)
+    if upgrade["legacy_release"]:
+        print(legacy_info_line(upgrade["legacy_release"]), file=sys.stderr)
     if plan["conflicts"]:
         for conflict in plan["conflicts"]:
             print(f"[CONFLICT] {conflict}", file=sys.stderr)
+        if upgrade["legacy_detected"] and not backup_modified and backup_hint(plan["conflicts"]):
+            print(BACKUP_HINT, file=sys.stderr)
         tx.rollback()
         raise safe.InstallError("preflight failed; target unchanged")
     changed = 0
@@ -667,6 +941,7 @@ def execute_install(distribution: Path, root: safe.SafeRoot, mode: str,
                 db_data = db_data or safe.create_db_bytes(safe.secure_source_read(distribution, "core/db/init_db.py"))
                 changed += int(root.write_atomic(path, db_data, tx))
         changed += int(root.write_atomic(safe.VERSION_MARKER, (plan["version"] + "\n").encode(), tx))
+        user_backups = record_user_backups(root, tx, plan)
         manifest = json.dumps(plan["manifest"], ensure_ascii=False, indent=2, sort_keys=True).encode() + b"\n"
         changed += int(root.write_atomic(safe.MANIFEST, manifest, tx))
         warnings: list[str] = []
@@ -680,6 +955,12 @@ def execute_install(distribution: Path, root: safe.SafeRoot, mode: str,
         raise
     print(f"[OK] {plan['mode']} install committed: {changed} changed file(s)")
     print_jev_warnings(warnings)
+    if upgrade["restored_missing"]:
+        print("[RESTORED] missing legacy file(s) reinstalled: " + ", ".join(upgrade["restored_missing"]))
+    for row in user_backups:
+        print(f"[BACKUP] {row['path']} -> {row['backup']}")
+    if user_backups:
+        print(BACKUP_RESTORE_NOTE)
     return changed
 
 
@@ -702,8 +983,22 @@ def build_uninstall_plan(distribution: Path, root: safe.SafeRoot, mode: str) -> 
         if mode == "codex":
             raise safe.InstallError("no install manifest; Codex candidates are preserved for safety")
         requested = requested & {"cc", "cursor"}
-        version = safe.secure_source_read(distribution, safe.VERSION_MARKER).decode().strip()
-        manifest = legacy_manifest(distribution, root, version)
+        manifest = None
+        detected = safe.detect_legacy_environments(root)
+        if detected:  # D1 for uninstall: exact matches only, never estimated (P2-6)
+            try:
+                catalogs = safe.load_legacy_catalogs(distribution)
+            except safe.InstallError:
+                catalogs = []
+            ignored: list[str] = []
+            adopted = legacy_adoption(root, catalogs, detected, set(), False, ignored) if catalogs else {}
+            # Like the previous single-catalog check, every detected environment must match exactly;
+            # otherwise the unchanged error below stops the uninstall (no partial legacy uninstall).
+            if set(adopted) == set(detected) and not ignored:
+                manifest = legacy_manifest_from_adoption(adopted)
+        if manifest is None:  # unchanged fallback (and unchanged error when nothing matches)
+            version = safe.secure_source_read(distribution, safe.VERSION_MARKER).decode().strip()
+            manifest = legacy_manifest(distribution, root, version)
         legacy_mode = True
     installed = set(manifest.get("environments", {}))
     selected = requested & installed
@@ -849,6 +1144,8 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--yes", action="store_true")
     p.add_argument("--with-jev", action="store_true",
                    help="install only: also install experimental/jev (Claude Code only: cc, both, all)")
+    p.add_argument("--backup-modified", action="store_true",
+                   help="install only: back up files you edited (<path>.bak.<UTC>.<n>) and continue")
     return p
 
 
@@ -858,6 +1155,10 @@ def main(argv: list[str] | None = None) -> int:
         raise safe.InstallError("--with-jev is only valid for install; uninstall removes experimental/jev with cc")
     if args.with_jev and "cc" not in ENVIRONMENTS[args.mode]:
         raise safe.InstallError(JEV_ONLY_CC)
+    if args.backup_modified and args.action != "install":
+        raise safe.InstallError("--backup-modified is only valid for install")
+    if args.backup_modified and args.mode == "codex":
+        raise safe.InstallError(BACKUP_CODEX_ONLY)
     distribution = Path(__file__).resolve().parent.parent
     target = safe.determine_target(args.target)
     if args.action == "install" and args.mode in ("cc", "both", "codex", "all") and not (args.dry_run or args.plan_only):
@@ -875,15 +1176,28 @@ def main(argv: list[str] | None = None) -> int:
                 resume_jev_cleanup(root, pending, distribution)
         else:
             safe.validate_or_consume_tombstone(root, mutate=False)
-        plan = (build_install_plan(distribution, root, args.mode, args.migrate_legacy, with_jev=args.with_jev)
+        plan = (build_install_plan(distribution, root, args.mode, args.migrate_legacy, with_jev=args.with_jev,
+                                   backup_modified=args.backup_modified)
                 if args.action == "install" else build_uninstall_plan(distribution, root, args.mode))
         if args.dry_run or args.plan_only:
             summary = {k: plan[k] for k in ("mode", "conflicts")}
             summary["writes" if args.action == "install" else "deletes"] = plan["writes" if args.action == "install" else "deletes"]
+            if args.action == "install":
+                # Extra keys only when relevant, so plans of ordinary targets are byte-for-byte unchanged.
+                upgrade = upgrade_info(plan)
+                if upgrade["legacy_release"]:
+                    summary["legacy_release"] = upgrade["legacy_release"]
+                    summary["restored_missing"] = upgrade["restored_missing"]
+                if upgrade["backup_modified"]:
+                    summary["backups"] = upgrade["backups"]
+                if upgrade["legacy_release"]:
+                    print(legacy_info_line(upgrade["legacy_release"]), file=sys.stderr)
+                if upgrade["legacy_detected"] and not upgrade["backup_modified"] and backup_hint(plan["conflicts"]):
+                    print(BACKUP_HINT, file=sys.stderr)
             print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
             return 1 if plan["conflicts"] else 0
         if args.action == "install":
-            execute_install(distribution, root, args.mode, args.migrate_legacy, args.with_jev)
+            execute_install(distribution, root, args.mode, args.migrate_legacy, args.with_jev, args.backup_modified)
         else:
             execute_uninstall(distribution, root, args.mode)
     return 0

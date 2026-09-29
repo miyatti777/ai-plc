@@ -31,3 +31,18 @@ package's `.bak` files and empty directories).
 ```bash
 python3 -m unittest tests/installers/test_with_jev.py -v
 ```
+
+## Upgrades from older releases
+
+`test_legacy_upgrade.py` installs each older release with that release's own installer and then
+upgrades it with the current one. Tags are extracted with `git archive <tag> | tar -x` into a
+temporary directory under `/private/tmp` (the repository's `.git` is only read) and removed on exit.
+It covers every legacy group (G1-G6) for Claude Code and Cursor, dry-run / `--plan-only` with zero
+changes, edited files (stop with one hint, or `--backup-modified`), ambiguity and the 50% threshold,
+the superset rule, targets upgraded step by step with the old installers, a different release per
+environment, `--with-jev`, ordinary updates from v1.7.0 / v1.7.1 / v1.8.0-exp.1, a fault at the
+manifest write (rollback, then a successful run), legacy uninstall, and a broken catalog index.
+
+```bash
+python3 -m unittest tests/installers/test_legacy_upgrade.py -v
+```
