@@ -55,7 +55,7 @@ def fixed_texts():
     """(name, text) for every fixed text the scripts put into a request. Add new question constants here."""
     out = [(f"jev_bt_monitor.Q[{k}]", v) for k, v in mon.Q.items()]
     out += [("jev_coverage_check.QUESTION", cov.QUESTION.format(c=c)) for c in CRITERIA]
-    out += [("jev_coverage_check NONE choice", "どのタスクもこの成功条件を満たさない")]
+    out += [("jev_coverage_check.NONE_LABEL", cov.NONE_LABEL)]
     out += [("aiplc_status_audit.JEV_QUESTION", audit.JEV_QUESTION)]
     out += [(f"aiplc_status_audit.JEV_CHOICES[{k}]", v) for k, v in audit.JEV_CHOICES.items()]
     out += [("jev_regression_rank.QUESTION", rank_mod.QUESTION.format(c=ACCEPTANCE))]
@@ -209,7 +209,7 @@ class QuestionPayloadTest(unittest.TestCase):
         sent = self.assert_sent_unchanged(self.passed[-1][1])["questions"]
         self.assertEqual([q["instructions"] for q in sent.values()], [cov.QUESTION.format(c=c) for c in CRITERIA])
         for q in sent.values():
-            self.assertEqual(q["criteria"][cov.NONE], "どのタスクもこの成功条件を満たさない")
+            self.assertEqual(q["criteria"][cov.NONE], cov.NONE_LABEL)
 
     def test_status_audit_stale_hint(self):
         tasks = [{"id": "T001", "name": "予約画面を作る", "status": "completed", "completed_at": "2026-01-02",

@@ -174,7 +174,7 @@ installer は利用者のリポジトリの `.gitignore` に触りません。�
 | `JEV_DISABLE` | （なし） | `1` で全機能を停止（送信しない）。Claude Code の起動前のシェルか settings の `env` に書き、セッションを開き直す |
 | `JEV_REDACT_EXTRA` | （なし） | 送信禁止パターンを追加するファイル（`.claude/db/jev_redact_extra.txt` に加えて読む） |
 | `JEV_LOG_PATH` / `JEV_OVERRIDE_PATH` | `.claude/db/jev_*.jsonl` | ログの置き場所 |
-| `AIPLC_REPO` | （自動） | リポジトリの場所の上書き（テストや特殊な配置用。既定では、スクリプトの場所から、`.ai-plc-version` か `.ai-plc-install-manifest` がある `.claude` の親を探す） |
+| `AIPLC_REPO` | （自動） | リポジトリの場所の上書き（テストや特殊な配置用。空なら無視。既定では、スクリプトの場所から上へたどり、親に `.ai-plc-version` か `.ai-plc-install-manifest` がある `.claude` を見つけたらその親。見つからなければスクリプトの2つ上＝`<repo>/scripts/` に置いた場合の `<repo>`） |
 
 ## 費用と速さの目安
 

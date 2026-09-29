@@ -27,6 +27,7 @@ except ImportError:  # e.g. pyyaml missing: skip (the script always exits 0)
 jev_client = mon.jev_client
 USE_CASE = "coverage"
 NONE = "__NONE__"  # sentinel label; cannot collide with a task ID (tasks with this ID are excluded)
+NONE_LABEL = "どのタスクもこの成功条件を満たさない"  # the NONE choice as sent to Jev (tests import this)
 QUESTION = ("Which task in the backlog (the state) would, when completed, satisfy this success criterion? "
             "Criterion: {c} Choose NONE if no single task clearly covers it.")
 
@@ -53,7 +54,7 @@ def build(intent, backlog):
         desc = " ".join(str(t.get("description") or "").split())[:160]
         lines.append(f"- {tid}: {t.get('name', '')} — {desc}")
         choices[tid] = f"{tid}: {str(t.get('name', ''))[:60]}"
-    choices[NONE] = "どのタスクもこの成功条件を満たさない"
+    choices[NONE] = NONE_LABEL
     questions = {f"c{i + 1}": {"type": "choice", "instructions": QUESTION.format(c=c), "criteria": choices}
                  for i, c in enumerate(crit)}
     return "\n".join(lines), questions, crit

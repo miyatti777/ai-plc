@@ -158,7 +158,8 @@ class PendingTest(unittest.TestCase):
 
     def test_reject_verdict_and_function(self):
         sid, ids, info = self.m.override_pending(self.layer, "reject", except_ids=["b1"])
-        self.assertEqual((sid, ids, info), ("L-0000-1", ["b2", "c1", "c2", "h1"], {"excluded": 1, "not_pending": []}))
+        self.assertEqual((sid, ids, info),
+                         ("L-0000-1", ["b2", "c1", "c2", "h1"], {"excluded": 1, "not_pending": [], "pending": 5}))
         self.assertTrue(all(r["human_override"] == "reject" for r in self.ov_rows()))
         with self.assertRaises(ValueError):
             self.m.override_pending(self.layer, "maybe")
@@ -204,6 +205,37 @@ class PendingTest(unittest.TestCase):
         out = self.run_main(["--override-pending", "accept", "--layer", "Flow/no-such"])
         self.assertIn("何も記録していません", out)
         self.assertEqual(len(self.ov_rows()), 1)
+
+    def test_only_matching_none_is_not_reported_as_zero_pending(self):
+        out = self.run_main(["--override-pending", "accept", "--layer", "L-0000-1", "--only", "zz9"])
+        self.assertIn("記録対象なし（未確認は 5件残っています・L-0000-1）— 何も記録していません", out)
+        self.assertIn("未確認でないため記録しない: zz9", out)
+        self.assertNotIn("未確認の Jev 判定なし", out)
+        self.assertEqual(len(self.ov_rows()), 1)
+        self.assertEqual(self.ids(), ["b1", "b2", "c1", "c2", "h1"])
+
+    def test_except_excluding_all_is_not_reported_as_zero_pending(self):
+        out = self.run_main(["--override-pending", "reject", "--layer", str(self.layer),
+                             "--except", "b1・b2・c1・c2・h1"])
+        self.assertIn("記録対象なし（未確認は 5件残っています・L-0000-1）", out)
+        self.assertIn("除外 5件", out)
+        self.assertNotIn("未確認の Jev 判定なし", out)
+        self.assertEqual(len(self.ov_rows()), 1)
+
+    def test_value_not_shaped_like_a_scope_id_is_an_error_not_zero(self):
+        for bad in ["my-typo", "typo", "L-09", "L-0000-1 ", "L-0000-1\n"]:
+            self.assertIsNone(self.m._layer_scope_id(bad), repr(bad))
+            out = self.run_main(["--pending", "--layer", bad])
+            self.assertIn("scope_id が読めません", out, repr(bad))
+            self.assertNotIn("未確認の Jev 判定なし", out, repr(bad))
+        out = self.run_main(["--override-pending", "accept", "--layer", "my-typo"])
+        self.assertIn("何も記録していません", out)
+        self.assertIn("指定: my-typo", out)
+        self.assertEqual(len(self.ov_rows()), 1)
+        # well-formed scope_ids keep working, including ones that appear nowhere
+        for good in ["L-0000", "L-0000-1", "L-0000-SG1", "L000-SG1"]:
+            self.assertEqual(self.m._layer_scope_id(good), good)
+        self.assertEqual(self.run_main(["--pending", "--layer", "L000-SG1"]).strip(), "未確認の Jev 判定なし（L000-SG1）")
 
     def test_hook_uses_the_threshold_recorded_with_the_judgment(self):
         self.add_row(dict(row("t1", "prompt_hook", "L-0000-1", {"user_signal": 0.45}, task="prompt"), threshold=0.4))
