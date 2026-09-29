@@ -112,4 +112,4 @@ RUL_plc_session §7 の4パート（📍現在位置 / ✅完了サマリ / 📊
 Documents/（成果物） / Context Store・context.yaml（更新） / backlog.yaml（更新） / Production Skills（platform_builder時のみ）。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-09-28 ｜ **バージョン:** 2.7-jev（公開実験版 1.8.1-exp.1。公開 core 04-operation 2.7 に Jev 部分を足したもの。差分は冒頭の callout と `.claude/skills/ai-plc-jev/README.md`）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-09-29 ｜ **バージョン:** 2.7-jev（公開実験版 1.8.1-exp.1。公開 core 04-operation 2.7 に Jev 部分を足したもの。差分は冒頭の callout と `.claude/skills/ai-plc-jev/README.md`）

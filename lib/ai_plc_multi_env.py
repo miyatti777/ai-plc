@@ -1282,7 +1282,7 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 plan = build_uninstall_plan(distribution, root, args.mode)
             except Exception:
-                # Only when no manifest is left (U2): the experimental_jev .bak leftovers are swept, then the
+                # Only when no manifest is left (U2): experimental_jev .bak leftovers matching a known hash are swept, then the
                 # original error is raised unchanged (this includes a legacy mismatch without a manifest).
                 # A detached or unreadable manifest, or a legacy mismatch while a manifest exists, stops
                 # without any change.

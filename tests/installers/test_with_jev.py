@@ -38,7 +38,8 @@ MODES = ("cc", "both", "all", "cursor", "codex")
 JEV_VERSION = (REPO / "experimental/jev/VERSION").read_text().strip()
 # A package version newer than the current one (same core prefix, exp number + 98), so version bumps
 # of the package never turn the upgrade tests into downgrades.
-_JEV_CORE, _JEV_EXP = JEV_VERSION.split("-exp.")
+_JEV_CORE, _sep, _JEV_EXP = JEV_VERSION.partition("-exp.")
+assert _sep and _JEV_EXP.isdigit(), f"experimental/jev/VERSION must look like X.Y.Z-exp.N: {JEV_VERSION!r}"
 NEWER_JEV_VERSION = f"{_JEV_CORE}-exp.{int(_JEV_EXP) + 98}"
 JEV_FILES = sorted([
     ".claude/skills/ai-plc-jev/README.md",
@@ -651,7 +652,7 @@ with safe.SafeRoot(Path(target)) as root:
 
 
 class CleanupAfterCodexOrSecondCrash(unittest.TestCase):
-    """exp.2: the cleanup survives a Codex run in between (#1) and a second crash while resuming (#2)."""
+    """The cleanup survives a Codex run in between (#1) and a second crash while resuming (#2)."""
 
     # Dies inside the resumed cleanup (after_acquire=0) or right after the resume acquired the lock (=1).
     RESUME_CRASH = r"""

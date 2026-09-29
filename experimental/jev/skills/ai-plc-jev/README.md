@@ -72,7 +72,7 @@ Linux / Windows / CI では環境変数で渡します（パスワードマネ�
 | 1つの Layer だけ止める | intent.yaml を `jev_monitor: false` に |
 | 会話監視だけ止める | `python3 .claude/ai-plc-jev/scripts/jev_prompt_hook.py --deactivate`。完全にやめるなら settings から hook を消す |
 | 送信を完全にやめる | 登録したキーを消す（キーチェーンでも環境変数でも。両方のキーがあれば両方） |
-| 実験版を外す | `uninstall.sh cc`（both / all も可）。実験版だけを外すオプションは無い。hook を settings に足した人は、そこからも消す。`.claude/db/jev_*`・`.claude/db/status_hygiene/`・自分で作った `jev_redact_extra.txt` は uninstall 後も残る（一覧・消し方・既知の制約は公開 README の実験版の節） |
+| 実験版を外す | `uninstall.sh cc`（both / all も可）。実験版だけを外すオプションは無い。hook を settings に足した人は、そこからも消す。`.claude/db/jev_*`・`.claude/db/status_hygiene/`・自分で作った `jev_redact_extra.txt` は uninstall 後も残る（一覧・消し方・既知の制約は[AI-PLC 公開リポジトリの README](https://github.com/miyatti777/ai-plc#readme)の実験版の節） |
 
 ## 実験機能: 会話監視 hook（任意）
 

@@ -13,7 +13,7 @@ AI-PLC の作業中に、判断専用モデル **Jev**（TypeSafe）で「Backtr
 | `jev_regression_rank.py` | 規約を変えたとき、過去の成果物を「悪化が疑わしい順」に並べる（合否は出さない） | 手動 |
 | `jev_prompt_hook.py` | 会話ごとの監視（Claude Code の UserPromptSubmit hook。settings への登録が必要） | 実験版 |
 | `jev_coverage_check.py` | Inception の成功条件カバー判定（どのタスクにも対応しない成功条件を探す） | 実験版（`/02-inception-jev`） |
-| `aiplc_status_audit.py` | Layer・Registry の食い違いの点検（`/04-operation-jev` Phase 7。手順は `README_status_audit.md`） | 実験版 |
+| `aiplc_status_audit.py` | Layer・Registry の食い違いの点検（`/04-operation`・`/04-operation-jev` の Phase 7。手順は `README_status_audit.md`） | 実験版 |
 
 必要なもの: Python 3.9 以上、`pyyaml`（`pip install pyyaml`）。ほかの依存はありません。
 
@@ -148,7 +148,7 @@ find .claude/db -maxdepth 1 -type f \( -name 'jev_*' -o -name '.jev_*' \) ! -nam
 rm -rf .claude/db/status_hygiene
 ```
 
-ローカルの送信禁止語ファイル（`jev_redact_extra.txt`）は、ほかでも使うかを確かめてから自分で消してください。hook を settings に足した人は、そこからも消します。uninstall の後処理中にプロセスが落ちた場合に `.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/` が残る既知の制約と手での消し方は、公開 README（リポジトリ直下の `README.md`）の実験版の節にあります。
+ローカルの送信禁止語ファイル（`jev_redact_extra.txt`）は、ほかでも使うかを確かめてから自分で消してください。hook を settings に足した人は、そこからも消します。uninstall の後処理中にプロセスが落ちた場合に `.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/` が残る既知の制約と手での消し方は、[AI-PLC 公開リポジトリの README](https://github.com/miyatti777/ai-plc#readme)の実験版の節にあります。
 
 ## .gitignore に足す行
 
