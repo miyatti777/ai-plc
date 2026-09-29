@@ -5,7 +5,7 @@ description: 【実験版・Jev監視つき】ai_plc_inception - AI-PLC Stage 2�
 
 # AI-PLC Stage 2: Inception（Jev実験版）
 
-> 🧪 **実験版（ai-plc-jev 1.8.0-exp.1）:** 手順は本体 `.claude/skills/ai-plc/02-inception/SKILL.md` を**そのまま読んで実行する**。本ファイルは差分だけを定義する。
+> 🧪 **実験版（ai-plc-jev 1.8.1-exp.1）:** 手順は本体 `.claude/skills/ai-plc/02-inception/SKILL.md` を**そのまま読んで実行する**。本ファイルは差分だけを定義する。
 
 ## 本体との差分
 1. **Phase 4（分解承認）の直前:** intent.yaml が `jev_monitor: true` のとき、分解案を backlog.yaml（または一時ファイル）に書いた状態で `python3 .claude/ai-plc-jev/scripts/jev_coverage_check.py --layer <Layer> [--backlog <一時backlog>]` を実行し、出力の1行目を分解テーブルの直後に「🧭 Jev成功条件カバー判定」として示す。「対応しない可能性」が出た成功条件は、メインモデルが本当にタスクが欠けているかを判断し、欠けていれば分解案に追加するか理由を書く（ヒントに止める権限はない・自動でタスクを足さない）。スキップ・無効の場合はそのまま続行する

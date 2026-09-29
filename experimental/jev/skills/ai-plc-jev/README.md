@@ -1,8 +1,8 @@
-# ai-plc-jev（実験版 1.8.0-exp.1）
+# ai-plc-jev（実験版 1.8.1-exp.1）
 
 公開 core の AI-PLC（`.claude/skills/ai-plc/`）と並べて使う、**Jev 監視つきの実験版**です。判断専用モデル **Jev**（TypeSafe）に「前の段階に戻るべき兆しがないか」などを1問だけ聞き、**1行のヒント**を出します。ヒントに作業を止める権限はなく、判断はメインのモデルとあなたが行います。
 
-- **実験版です。** 仕様・コマンド名・ファイルの置き場所は予告なく変わることがあります。core の版は 1.7.1 のままで、この実験版パッケージの版が 1.8.0-exp.1 です
+- **実験版です。** 仕様・コマンド名・ファイルの置き場所は予告なく変わることがあります。この実験版パッケージの版は 1.8.1-exp.1 で、公開 core 1.8.1 の上に作っています（前の実験版 1.8.0-exp.1 の次の版）。スキルは公開 core 1.8.1 のスキル（01-collection v2.1・02-inception v2.0・03-construction v2.2・04-operation v2.7）を元にしており、違いは Jev 部分だけです
 - **本体（core）の SKILL・rules は書き換えません。** `/01-collection-jev`〜`/04-operation-jev` を使ったときだけ動きます。公開 core の `/01-collection`〜`/04-operation` の動きは変わりません
 - **APIキーを登録しなければ、何も外部に送らず、すべて自動でスキップされます**
 
@@ -15,29 +15,26 @@
 | 1 | `/01-collection-jev` | intent.yaml に `jev_monitor` 欄を追加。送信禁止の区分に当たらなければ、有効にするかを1行で聞く。`pipeline_variant: jev` を記録する |
 | 2 | `/02-inception-jev` | 公開 core の 02-inception を読む薄いラッパー。**分解承認（Phase 4）の前に Jev 成功条件カバー判定**（`.claude/ai-plc-jev/scripts/jev_coverage_check.py`）を1回行い、どのタスクにも対応しない成功条件をヒントとして示す |
 | 3 | `/03-construction-jev` | 公開 core の 03-construction を読む薄いラッパー（Jev の判定なし。Next Action の表記と会話監視の有効化だけ） |
-| 4 | `/04-operation-jev` | Phase 5.5b・6b で `.claude/ai-plc-jev/scripts/jev_bt_monitor.py` を呼び、異常ありなら1行ヒントを出す。判定ごとに採否を `--override` で記録する。Phase 7 にステータス点検（`aiplc_status_audit.py --brief --layer`）を足す |
+| 4 | `/04-operation-jev` | Phase 5.5b・6b で `.claude/ai-plc-jev/scripts/jev_bt_monitor.py` を呼び、異常ありなら1行ヒントを出す。判定ごとに採否を `--override` で記録する。Phase 7 のステータス点検は公開 core 04-operation v2.7 と同じ（点検ツール `aiplc_status_audit.py` はこのパッケージに同梱） |
 
 - 既存の Layer で試す場合は、intent.yaml に `jev_monitor: true` を手で書き、Stage 4 を `/04-operation-jev` で回せばよい
 - 判断ログは `.claude/db/jev_decisions.jsonl`、採否は `.claude/db/jev_overrides.jsonl` に出る（入力のハッシュと確率だけで、本文は残らない）
 - 機密PJ・経費・人事・顧客名や人名・私生活に関わる Layer では有効にしない
 
-### 04-operation-jev と公開 core 04-operation（v2.4）の違い
+### 公開 core との違い（Jev 部分だけ）
 
-1. Jev 監視（Phase 5.5b / 6b。opt-in）。規定はスキル本文の「Jev監視ルール」に全文で書いてあり、公開 core の rules には依存しない
-2. Phase 7 のステータス点検（8項目目）。公開 core の RUL_plc_system §8 は7項目のままで、8項目目はスキル本文で定義する
-3. Phase 5.5 の独立 reviewer 起動を明示的な実行要求にし、未解決 P0/P1/P2 を完了ゲートにした（公開 RUL_plc_system §18 の停止条件に沿ったもの。公開 core 2.4 では P2 の持ち越しを許す）
-4. type 別レンズ表に「validation / review は対象外」の行を足し、最近縁フォールバックの書き方を変えた
-
-このほかは、Phase 8 / 9-11 の参照先を本体側のパス（`.claude/skills/ai-plc/04-operation/`）に変えただけです。01-collection-jev は公開 core 01-collection（v2.0）に Jev の段落を足したものです。
+- **04-operation-jev** は公開 core 04-operation（v2.7）の全文に、次の Jev 部分だけを足したものです: ①冒頭の「Jev監視ルール」（core の rules は Jev 監視を実験版だけに限定しており、その具体的な手順をスキル本文で定める）②Phase 5.5b / 6b の Jev 呼び出し（core の「Jev を呼ばない」段落を置き換え）③未確認の Jev 判定の件数表示と回収 ④Next Action のコピペ用プロンプトを `-jev` 表記に。このほかは、Phase 8 / 9-11 の参照先を本体側のパス（`.claude/skills/ai-plc/04-operation/`）に変えただけです
+- **01-collection-jev** は公開 core 01-collection（v2.1）の全文に、Jev の opt-in 判定（core の「Collection では判定しない」段落を置き換え）・intent.yaml の `jev_monitor` 欄のコメント・Next Action の `-jev` 表記を足したものです
+- **02-inception-jev・03-construction-jev** は公開 core の 02-inception・03-construction をそのまま読む薄いラッパーで、差分だけを書いています
 
 ## ファイル（インストール後の配置）
 
 | パス | 内容 |
 | --- | --- |
-| `.claude/skills/ai-plc-jev/01-collection-jev/SKILL.md` | 公開 core 01-collection v2.0 ＋ Jev の opt-in |
+| `.claude/skills/ai-plc-jev/01-collection-jev/SKILL.md` | 公開 core 01-collection v2.1 ＋ Jev の opt-in |
 | `.claude/skills/ai-plc-jev/02-inception-jev/SKILL.md` | 公開 core 02-inception を読むラッパー（カバー判定） |
 | `.claude/skills/ai-plc-jev/03-construction-jev/SKILL.md` | 公開 core 03-construction を読むラッパー |
-| `.claude/skills/ai-plc-jev/04-operation-jev/SKILL.md` | 公開 core 04-operation v2.4 を元にした自己完結の実験版（上の4点） |
+| `.claude/skills/ai-plc-jev/04-operation-jev/SKILL.md` | 公開 core 04-operation v2.7 の全文＋ Jev 部分（上の①〜④）の自己完結の実験版 |
 | `.claude/commands/01-collection-jev.md`〜`04-operation-jev.md` | 起動用のコマンド |
 | `.claude/ai-plc-jev/scripts/` | `jev_client.py`・`jev_bt_monitor.py`・`jev_prompt_hook.py`・`jev_coverage_check.py`・`jev_regression_rank.py`・`aiplc_status_audit.py` と README 2 本・送信禁止語の例 |
 
@@ -75,7 +72,7 @@ Linux / Windows / CI では環境変数で渡します（パスワードマネ�
 | 1つの Layer だけ止める | intent.yaml を `jev_monitor: false` に |
 | 会話監視だけ止める | `python3 .claude/ai-plc-jev/scripts/jev_prompt_hook.py --deactivate`。完全にやめるなら settings から hook を消す |
 | 送信を完全にやめる | 登録したキーを消す（キーチェーンでも環境変数でも。両方のキーがあれば両方） |
-| 実験版を外す | `uninstall.sh cc`（both / all も可）。実験版だけを外すオプションは無い。hook を settings に足した人は、そこからも消す。`.claude/db/jev_*`・`.claude/db/status_hygiene/`・自分で作った `jev_redact_extra.txt` は uninstall 後も残る（一覧・消し方・既知の制約は[公開 README の実験版の節](https://github.com/miyatti777/ai-plc#-実験版-jev-監視v180-exp1)） |
+| 実験版を外す | `uninstall.sh cc`（both / all も可）。実験版だけを外すオプションは無い。hook を settings に足した人は、そこからも消す。`.claude/db/jev_*`・`.claude/db/status_hygiene/`・自分で作った `jev_redact_extra.txt` は uninstall 後も残る（一覧・消し方・既知の制約は公開 README の実験版の節） |
 
 ## 実験機能: 会話監視 hook（任意）
 

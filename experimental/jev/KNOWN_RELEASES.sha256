@@ -2,4 +2,24 @@
 # Format: "<sha256>  <installed relative path>" (one per line; '#' starts a comment).
 # uninstall removes leftover "<path>.bak.<utc>.<seq>" files at experimental/jev locations only when
 # their content matches the pre-uninstall manifest or one of these hashes. Not installed itself.
-# 1.8.0-exp.1: first release, so no earlier hashes are listed.
+# Earlier releases are kept when a new one is added (cumulative).
+
+# 1.8.0-exp.1 (18 files)
+b7974043babf861ac239efe05845fd9e563d8bba7e8ba0f38ac86fe2d53cea8e  .claude/skills/ai-plc-jev/01-collection-jev/SKILL.md
+7266a213b0567ee08efc76443245372faad65639c1544265821975aea24cee85  .claude/skills/ai-plc-jev/02-inception-jev/SKILL.md
+931963697c91fe829915f42141f52ef235144e1f27133ac720c63f3dc81cf35e  .claude/skills/ai-plc-jev/03-construction-jev/SKILL.md
+373d346e527626cae33dc5bb3065dfe770b2b0f390cb0b56a222f25093599a32  .claude/skills/ai-plc-jev/04-operation-jev/SKILL.md
+b26f5adcf8435c8e8779b55ea12fb2d237536235ba917eaa331e1be15943c5fc  .claude/skills/ai-plc-jev/README.md
+5d1a726c7d3bccdfea07f568adf4a8d7364827fe21af912bd8eb3346b12a8c6c  .claude/commands/01-collection-jev.md
+fccf4053ae8f7b7cae6d4380341804bf5da2f36aa3da12b787793bf122583186  .claude/commands/02-inception-jev.md
+00612e60b476c622c7d3ea295218e1ba9d33eec36066f31564f1cdba05579a13  .claude/commands/03-construction-jev.md
+ccdcc03f761b78a40325c28c6f27f0561f17605ed6b9c4f12fb482e7c36d01d2  .claude/commands/04-operation-jev.md
+e26f345d113c7058a96c5345caf85d1fa347c64a780e85c3eda4a2eca1b79c76  .claude/ai-plc-jev/scripts/README_jev.md
+a89f7970360af8454212b165fb70683c48e040dcd2061d0b681ebb6cf1699972  .claude/ai-plc-jev/scripts/README_status_audit.md
+e845adf74a6f6782553d9487f1909828f96250b6c8f5c909e58eda81db64e1bf  .claude/ai-plc-jev/scripts/aiplc_status_audit.py
+8ceb633f2ca4645dca47b036e0d230a3f0d79bc9a9fddd3788cf47e5faeaa6dd  .claude/ai-plc-jev/scripts/jev_bt_monitor.py
+bd278c23abd90efab3d906efa0d4056774b8fb98de529216bf5ca03cb5394351  .claude/ai-plc-jev/scripts/jev_client.py
+50f6f44cb2871f1e9615972e1fd4f8359cd1d095850187021397ef6940b0245e  .claude/ai-plc-jev/scripts/jev_coverage_check.py
+1b1736b7ab57188b0ca4c832d67583a7760285bb35ce87a853661de023406f5e  .claude/ai-plc-jev/scripts/jev_prompt_hook.py
+8abd445a13bb90727172550671d2ede7b446156f2222142f0dc779f4dc43297b  .claude/ai-plc-jev/scripts/jev_redact_extra.example.txt
+0cc51b603f23542213266dd7b2dbabfe2b88fb4e93bc7e979d349463d80c635a  .claude/ai-plc-jev/scripts/jev_regression_rank.py

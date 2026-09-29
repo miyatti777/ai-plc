@@ -36,6 +36,10 @@ INSTALLER_FILES = ("install.sh", "install-cc.sh", "install-cursor.sh", "install-
                    "lib/ai_plc_safe_fs.py", "lib/ai_plc_multi_env.py")
 MODES = ("cc", "both", "all", "cursor", "codex")
 JEV_VERSION = (REPO / "experimental/jev/VERSION").read_text().strip()
+# A package version newer than the current one (same core prefix, exp number + 98), so version bumps
+# of the package never turn the upgrade tests into downgrades.
+_JEV_CORE, _JEV_EXP = JEV_VERSION.split("-exp.")
+NEWER_JEV_VERSION = f"{_JEV_CORE}-exp.{int(_JEV_EXP) + 98}"
 JEV_FILES = sorted([
     ".claude/skills/ai-plc-jev/README.md",
     ".claude/skills/ai-plc-jev/01-collection-jev/SKILL.md",
@@ -491,14 +495,14 @@ class WithJevUpgrade(unittest.TestCase):
         with distribution_copy() as dist, target_repo() as root:
             self.assertEqual(install(dist, root, "cc", "--with-jev").returncode, 0)
             core_before = {k for k in normalized_tree(root) if ".bak." in k}
-            self.make_release(dist, "1.8.0-exp.99", drop="scripts/jev_regression_rank.py")
+            self.make_release(dist, NEWER_JEV_VERSION, drop="scripts/jev_regression_rank.py")
             result = install(dist, root, "cc", "--with-jev")
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertNotIn("[WARN]", result.stdout)
             self.assertFalse((root / ".claude/ai-plc-jev/scripts/jev_regression_rank.py").exists())
             self.assertEqual([p for p in jev_leftovers(root) if ".bak." in p], [])
             data = manifest(root)
-            self.assertEqual(data["components"]["experimental_jev"]["package_version"], "1.8.0-exp.99")
+            self.assertEqual(data["components"]["experimental_jev"]["package_version"], NEWER_JEV_VERSION)
             self.assertNotIn(".claude/ai-plc-jev/scripts/jev_regression_rank.py", data["managed_files"])
             # core backups: only what the core already had (the manifest/marker writes are core behaviour)
             core_after = {k for k in normalized_tree(root) if ".bak." in k and not k.startswith(".ai-plc-")}
@@ -601,7 +605,7 @@ with safe.SafeRoot(Path(target)) as root:
     def test_crash_during_upgrade_cleanup_is_resumed(self) -> None:
         with distribution_copy() as dist, target_repo() as root:
             self.assertEqual(install(dist, root, "cc", "--with-jev").returncode, 0)
-            WithJevUpgrade.make_release(dist, "1.8.0-exp.99")
+            WithJevUpgrade.make_release(dist, NEWER_JEV_VERSION)
             result = run(sys.executable, "-c", self.CRASH, str(dist), str(root), "install")
             self.assertEqual(result.returncode, 9)
             self.assertTrue(any(".bak." in p for p in jev_leftovers(root)))
@@ -609,7 +613,7 @@ with safe.SafeRoot(Path(target)) as root:
             self.assertEqual(again.returncode, 0, again.stderr)
             self.assertIn("experimental_jev cleanup resumed after recovery", again.stdout)
             self.assertEqual([p for p in jev_leftovers(root) if ".bak." in p], [])
-            self.assertEqual(manifest(root)["components"]["experimental_jev"]["package_version"], "1.8.0-exp.99")
+            self.assertEqual(manifest(root)["components"]["experimental_jev"]["package_version"], NEWER_JEV_VERSION)
 
     def test_lock_release_failure_does_not_roll_back(self) -> None:
         sys.path.insert(0, str(REPO / "lib"))
@@ -772,7 +776,12 @@ multi.main(["install", "cc", "--target", target])
             self.assertEqual(jev_leftovers(root), [])
             lines = result.stdout.splitlines()
             self.assertTrue(lines[0].startswith("[OK] cc uninstall committed"), lines)
-            self.assertTrue(lines[1].startswith("[OK] experimental_jev: removed 18 "), lines)
+            # the count comes from the leftovers actually present, so it does not depend on the package size
+            backups = [rel for rel in left if re.search(r"\.bak\.\d{8}T\d{6}Z\.\d+$", rel)]
+            self.assertTrue(backups, left)
+            self.assertRegex(lines[1], r"^\[OK\] experimental_jev: removed (\d+) leftover backup file\(s\)")
+            self.assertEqual(int(re.match(r"\[OK\] experimental_jev: removed (\d+) ", lines[1]).group(1)),
+                             len(backups), lines)
 
     def test_detached_manifest_is_not_swept(self) -> None:
         # The manifest-less sweep (U2) does not run when the manifest is detached: stop without any change.

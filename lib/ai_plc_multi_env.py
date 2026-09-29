@@ -1282,8 +1282,10 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 plan = build_uninstall_plan(distribution, root, args.mode)
             except Exception:
-                # Only when no manifest is left (U2): a detached or unreadable manifest, or a legacy
-                # mismatch, must stop without any change.
+                # Only when no manifest is left (U2): the experimental_jev .bak leftovers are swept, then the
+                # original error is raised unchanged (this includes a legacy mismatch without a manifest).
+                # A detached or unreadable manifest, or a legacy mismatch while a manifest exists, stops
+                # without any change.
                 if (not (args.dry_run or args.plan_only) and "cc" in ENVIRONMENTS[args.mode]
                         and not root.exists(safe.MANIFEST) and jev_leftovers_present(root)):
                     sweep_before_uninstall_error(root, distribution)

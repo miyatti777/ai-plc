@@ -52,6 +52,7 @@ AI-PLC のステータスは、次の置き場所に分かれて記録されて�
 - `--brief` は `--jev` / `--approval-template` / `--out` と同時に使えません（終了コード 2）
 - Registry にも Layer にも無い scope を `--scope` に渡すと終了コード 2（打ち間違いで「食い違いなし」にならないように。表示はハッシュ ID）。`--layer` の先に intent.yaml が無い・scope_id が無いときも 2
 - `--yes` は `--apply` と一緒のときだけ使えます
+- 環境変数 `AIPLC_REPO`: リポジトリの場所の上書き（テストや特殊な配置用。空なら無視）。既定では、スクリプトの場所から上へたどり、親に `.ai-plc-version` か `.ai-plc-install-manifest` がある `.claude` を見つけたらその親をリポジトリとし、見つからなければスクリプトの2つ上（`<repo>/scripts/` に置いた場合の `<repo>`）。`--db` / `--state-dir` の既定の場所はこのリポジトリを基準にします
 
 ### 1.1 短い要約（`--brief`）
 

@@ -5,7 +5,7 @@ description: 【実験版・Jev監視つき】ai_plc_collection - AI-PLC Stage 1
 
 # AI-PLC Stage 1: Collection（Jev実験版）
 
-> 🧪 **実験版（ai-plc-jev 1.8.0-exp.1）:** 公開 core の `.claude/skills/ai-plc/01-collection/SKILL.md`（v2.0）の代わりに `/01-collection-jev` で使う試行用のスキル。**本体の SKILL・rules は書き換えない。** 公開 core 2.0 との違いは Jev 監視（opt-in）に関わる箇所だけ（intent.yaml の `jev_monitor` 欄、Phase 6.5 の opt-in 判定、Phase 7 の Next Action を `-jev` に）。詳細は `.claude/skills/ai-plc-jev/README.md`。
+> 🧪 **実験版（ai-plc-jev 1.8.1-exp.1）:** 公開 core の `.claude/skills/ai-plc/01-collection/SKILL.md`（v2.1）の代わりに `/01-collection-jev` で使う試行用のスキル。**本体の SKILL・rules は書き換えない。** 公開 core 2.1 との違いは Jev 監視（opt-in）に関わる箇所だけ（intent.yaml の `jev_monitor` 欄のコメント、Phase 6.5 の opt-in 判定、Phase 7 の Next Action を `-jev` に）。詳細は `.claude/skills/ai-plc-jev/README.md`。
 
 パイプライン（Collection → Inception → Construction → Operation）の初期化ステージ。Goal と Mode を受け取り、Execution Context（Scope）を確立し、Context を収集・構造化する。
 
@@ -69,7 +69,7 @@ jev_monitor: false            # Phase 6.5で判定。trueのLayerのみ04-operat
 
 ### Phase 3.5: Project Registry登録
 
-`.claude/db/ai_plc.db` の `projects` テーブルに登録（scope_id/name/goal/owner/status=active/mode/depth/system=AI-PLC/parent_scope/top_page_url/start_date/deadline）し、「📊 Project Registryに登録しました」と通知する。scope_reinit時はスキップ。
+`.claude/db/ai_plc.db` の `projects` テーブルに登録（scope_id/name/goal/owner/status=active/mode/depth/system=AI-PLC/parent_scope/top_page_url/start_date/deadline）し、「📊 Project Registryに登録しました」と通知する。scope_reinit時はスキップ。登録は `python3 .claude/db/plc_query.py add-project <scope_id> "<name>" "<goal>"` で行い、残りの列は `plc_query.py sql "UPDATE projects SET ... WHERE scope_id='<scope_id>'"` で更新する（SQLで直接INSERTしない）。
 
 ### Phase 4: Context Collection
 
@@ -109,6 +109,8 @@ inheritance_rules:
 
 intent.yamlのsync_targetsを設定する: ユーザー指定の同期先があればそれを、なければデフォルト（`.claude/db/ai_plc.db` の tasks テーブル、auto_create: true, push — RUL_plc_system §9）を自動設定し、「📊 External Sync設定: [設定内容]」とログ出力する。ユーザーが「同期不要」と明言した場合のみ `[]` のまま。
 
+> ⚠️ **Layer成果物をNotion同期する場合のスコープ注意（nsync）:** このLayerの成果物ページをNotionと双方向同期したいなら、**このLayer自身のNotionページをrootにした専用nsyncワークスペースを `nsync init <LayerページURL>` で切り出す**こと。既存の広域ワークスペース（例: プログラム全体をrootにした `.nsync.yaml`）の**サブフォルダとして相乗りしない** — nsyncの `sync` はroot配下全体が対象で、Layer単位に絞れず、無関係な変更や機密ファイルまで巻き込んでPushする。機密Context（会計実数・個人情報等）は同期ツリーの外に置くか `exclude_paths` に登録する。
+
 **Jev監視（opt-in）の判定:** 既定は `jev_monitor: false`。Goal・Contextが外部送信禁止の区分（機密PJ・経費/finance・人事/キャリア・顧客名/人名・趣味/私生活）に当たらない場合だけ、Phase 7の確認表示で「Jev監視（Backtrackの異常ヒント、外部API送信あり）を有効にするか」を1行で示し、承認されたら `true` にする。該当する場合は提示せず `false` のまま（理由を1行ログ）。仕組みは `04-operation-jev` の「Jev監視ルール」。**Jev版で始めたLayerは intent.yaml に `pipeline_variant: jev` を記録し、以降も `/02-inception-jev` → `/03-construction-jev` → `/04-operation-jev` で実行する**（02・03は本体スキルを読む薄いラッパー）。
 
 ### Phase 7: Mob Checkpoint（停止）
@@ -133,4 +135,4 @@ BT-B（ゴールドリフト）/ BT-C（全完了GAP分析）から scope_reinit
 intent.yaml / context.yaml / Context/（常に） / backlog.yaml（空で初期生成） / variables.yaml（platform_builder時のみ）→ Stage 2: SKL_plc_02_inception へ。
 
 ---
-**作成日:** 2026-04-06 ｜ **更新日:** 2026-09-28 ｜ **バージョン:** 2.0-jev（公開実験版 1.8.0-exp.1。公開 core 01-collection 2.0 に Jev 監視の opt-in を足したもの）
+**作成日:** 2026-04-06 ｜ **更新日:** 2026-09-29 ｜ **バージョン:** 2.1-jev（公開実験版 1.8.1-exp.1。公開 core 01-collection 2.1 に Jev 監視の opt-in を足したもの）
