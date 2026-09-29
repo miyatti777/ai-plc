@@ -68,7 +68,7 @@ RUL_plc_system（本ファイル）→ 全SKL_plc_* が参照。補助ルール:
 
 ## 8. 🔄 Post-Deliver Propagation ルール
 
-SKL_plc_04_operation Phase 7として必ず実行する（省略禁止）。各項目は「確認→判断→結果出力」の3ステップを踏む。確認せずにスキップすることは禁止（確認の結果「該当なし」でのスキップは可）。
+SKL_plc_04_operation Phase 7として必ず実行する（省略禁止）。最後の「ステータス点検」は、Registry DB 更新まで終えた後に完了するLayer自身の食い違い（intent・backlog・Registry）を判定器で確かめる項目。判定器 `aiplc_status_audit.py` は実験版パッケージ experimental/jev に同梱（`--with-jev` で `.claude/ai-plc-jev/scripts/` に入る。説明書は同じ場所の `README_status_audit.md`）で、core だけの環境には無いため「点検ツールなし — スキップ」と出力して進む。各項目は「確認→判断→結果出力」の3ステップを踏む。確認せずにスキップすることは禁止（確認の結果「該当なし」でのスキップは可）。
 
 Phase 7では以下のチェックリストを必ず出力する:
 
@@ -78,9 +78,10 @@ Phase 7では以下のチェックリストを必ず出力する:
 - [x] context.yaml更新 — 成果物エントリ [ファイル名] を追加
 - [x] native memory — [概念ページ追記/新規/PJメモリ更新 or 「変更なし — スキップ」]（§7の2系統振り分けに従う）
 - [x] External Sync — [sync_targets確認: 「未定義→スキップ」 or 「push実行: N件」]
-- [x] Wiki波及更新 — [更新内容 or 「新規性なし — スキップ」]
+- [x] Wiki波及更新 — [ingest / query-return の更新内容 or 「新規性なし — スキップ」]（Query結果が §11発火点①に該当すればqueryページ化＋概念還元）
 - [x] log.md — [エントリ追加 or 「Wiki更新なしのためスキップ」]
 - [x] Project Registry DB — [「未完了タスクあり→スキップ」 or 「全完了→completed更新」]
+- [x] ステータス点検 — [`python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --brief --layer <Layer>` の結果: 「食い違いなし」 or 「N件→承認後に `--quiet --approval-template --layer <Layer>` → `--apply <承認ファイル>`（dry-run）→ `--apply <承認ファイル> --yes` で反映」 or 「点検ツールなし（experimental/jev 未導入）／`--brief` が終了コード1・2 — スキップ」]（`--brief` は読み取り専用。検出と提示まで・反映は承認後。`--apply --yes` が終了コード1・3 ならスキップせず結果を提示して人が判断）
 ```
 
 順序: Phase 5.5 Verification（§18）→ Phase 6 Status Update → Phase 7 Propagation。検証未完了の成果物をPropagationしない。
@@ -116,7 +117,7 @@ sync_targets:
     sync_direction: push # push / pull / bidirectional
 ```
 
-**実行手順:** ①intent.yamlのsync_targetsを読む ②空→デフォルト（`.claude/db/ai_plc.db` の tasks テーブル、auto_create: true, push）を自動適用 ③mapping/status_mapで変換しsync_directionに従い同期 ④結果をログ出力「✅ External Sync: [type] [target] — [タスクID] を [ステータス] に更新」。ユーザーが「同期不要」と明言した場合のみ `sync_targets: []` のまま。
+**実行手順:** ①intent.yamlのsync_targetsを読む ②空→デフォルト（`.claude/db/ai_plc.db` の tasks テーブル、auto_create: true, push）を自動適用 ③mapping/status_mapで変換しsync_directionに従い同期（sqliteの新規タスク行は `python3 .claude/db/plc_query.py add-task` で追加し、直接INSERTしない） ④結果をログ出力「✅ External Sync: [type] [target] — [タスクID] を [ステータス] に更新」。ユーザーが「同期不要」と明言した場合のみ `sync_targets: []` のまま。
 
 ## 10. 🧹 Knowledge Lint ルール
 
@@ -220,5 +221,5 @@ intent.yamlの`extensions`フィールドで宣言し、該当時のみ追加チ
 適用: Collection時にextensionsを読み込み、各Stageで追加チェックを適用、§18のL2/L3に項目を追加する。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-07-07 ｜ **ステータス:** Active
-**バージョン:** 2.0（Fable観点軽量化: §番号据え置きで本文圧縮、§13→§11統合、Lint詳細を分離ファイルへ、Wiki波及はOperation Propagation時のみに一本化）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-09-28 ｜ **ステータス:** Active
+**バージョン:** 2.1（§8 Phase 7 チェックリストにステータス点検を追加。点検ツールは experimental/jev 同梱のため、未導入ならスキップ）｜ 2.0（Fable観点軽量化: §番号据え置きで本文圧縮、§13→§11統合、Lint詳細を分離ファイルへ、Wiki波及はOperation Propagation時のみに一本化）

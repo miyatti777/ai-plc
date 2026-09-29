@@ -897,13 +897,152 @@ def parse_legacy_catalog(content: bytes) -> dict[str, dict[str, Any]]:
     return result
 
 
-def legacy_state(root: SafeRoot, catalog_content: bytes) -> dict[str, Any]:
-    catalog = parse_legacy_catalog(catalog_content)
+LEGACY_DIR = "migration/legacy-releases"
+LEGACY_INDEX = f"{LEGACY_DIR}/INDEX"
+LEGACY_CATALOG_NAME = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.yaml$")
+LEGACY_REGION_FILES = {"CLAUDE.md", "AGENTS.md"}
+LEGACY_CC_START = "<!-- AI-PLC START -->"
+LEGACY_CC_END = "<!-- AI-PLC END -->"
+
+
+def parse_legacy_release_versions(content: bytes) -> list[str]:
+    """Top-level `release_versions: ["a", "b"]`; falls back to the single `release_version`."""
+    for raw in content.decode().splitlines():
+        match = re.fullmatch(r"release_versions: \[(.*)\]", raw)
+        if match:
+            items = [x.strip() for x in match.group(1).split(",") if x.strip()]
+            versions = []
+            for item in items:
+                value = re.fullmatch(r'"([^"]+)"', item)
+                if not value:
+                    raise InstallError(f"invalid release_versions entry: {item!r}")
+                versions.append(value.group(1))
+            if not versions:
+                raise InstallError("empty release_versions")
+            return versions
+    for raw in content.decode().splitlines():
+        match = re.fullmatch(r'release_version: "([^"]+)"', raw)
+        if match:
+            return [match.group(1)]
+    raise InstallError("legacy catalog has no release_version")
+
+
+def load_legacy_catalogs(distribution: Path) -> list[dict[str, Any]]:
+    """Catalogs listed in migration/legacy-releases/INDEX, in INDEX order.
+
+    Only files named in INDEX are trusted (the directory is never listed). A missing or corrupt INDEX,
+    a missing catalog or an invalid catalog raises InstallError so the caller stops with no change."""
+    try:
+        index = secure_source_read(distribution, LEGACY_INDEX).decode()
+    except FileNotFoundError as exc:
+        raise InstallError(f"legacy catalog index missing: {LEGACY_INDEX}") from exc
+    except (OSError, UnicodeDecodeError) as exc:
+        raise InstallError(f"legacy catalog index unreadable: {exc}") from exc
+    lines = index.splitlines()
+    if not lines or not index.endswith("\n"):
+        raise InstallError("legacy catalog index is empty or truncated")
+    catalogs: list[dict[str, Any]] = []
+    for name in lines:
+        if not LEGACY_CATALOG_NAME.fullmatch(name):
+            raise InstallError(f"legacy catalog index has an invalid entry: {name!r}")
+        if any(c["name"] == name for c in catalogs):
+            raise InstallError(f"legacy catalog index repeats {name}")
+        try:
+            content = secure_source_read(distribution, f"{LEGACY_DIR}/{name}")
+        except FileNotFoundError as exc:
+            raise InstallError(f"legacy catalog listed in index is missing: {name}") from exc
+        try:
+            versions = parse_legacy_release_versions(content)
+            parsed = parse_legacy_catalog(content)
+        except (UnicodeDecodeError, InstallError) as exc:
+            raise InstallError(f"invalid legacy catalog {name}: {exc}") from exc
+        for version in versions:
+            semver(version)
+        if versions[0] != name.removesuffix(".yaml"):
+            raise InstallError(f"legacy catalog {name} does not start with its own release")
+        for env in ("cc", "cursor"):
+            inventory = parsed.get(env)
+            if not inventory or not inventory["managed_files"]:
+                raise InstallError(f"legacy catalog {name} has no {env} inventory")
+            for path, item in inventory["managed_files"].items():
+                canonical_rel(path)
+                if path != canonical_rel(path) or not re.fullmatch(r"[0-9a-f]{64}", item.get("source_sha256", "")):
+                    raise InstallError(f"legacy catalog {name} has an invalid entry: {path}")
+            for region_id, item in inventory["managed_regions"].items():
+                if (item.get("path") not in LEGACY_REGION_FILES or item.get("start_marker") != LEGACY_CC_START
+                        or item.get("end_marker") != LEGACY_CC_END
+                        or not re.fullmatch(r"[0-9a-f]{64}", item.get("content_sha256", ""))):
+                    raise InstallError(f"legacy catalog {name} has an invalid region: {region_id}")
+        catalogs.append({"name": name, "versions": versions, "content": content, "parsed": parsed})
+    return catalogs
+
+
+def detect_legacy_environments(root: SafeRoot) -> list[str]:
     detected: list[str] = []
     if root.exists(".claude/commands/01-collection.md") and root.exists("CLAUDE.md") and root.exists("AGENTS.md"):
         detected.append("cc")
     if root.exists(".cursor/skills/ai-plc/01-collection/SKILL.md") and root.exists(".cursor/rules/ai-plc-system.mdc"):
         detected.append("cursor")
+    return detected
+
+
+def legacy_match_counts(root: SafeRoot, inventory: dict[str, Any]) -> dict[str, Any]:
+    """Read-only comparison of one environment inventory; never raises for mismatches.
+
+    matched / modified / missing / special are lists of catalog keys (file paths or region ids);
+    `inventory` maps every key to its catalog hash."""
+    result: dict[str, Any] = {"matched": [], "modified": [], "missing": [], "special": [], "inventory": {}}
+
+    def regular(path: str) -> bool | None:
+        try:
+            st = root.lstat(path)
+        except OSError:  # a parent is a symlink or not a directory
+            return False
+        if st is None:
+            return None
+        return stat.S_ISREG(st.st_mode)
+
+    for path, item in inventory["managed_files"].items():
+        expected = item.get("source_sha256")
+        result["inventory"][path] = expected
+        state = regular(path)
+        if state is None:
+            result["missing"].append(path)
+        elif not state:
+            result["special"].append(path)
+        elif sha256(root.read_bytes(path)) == expected:
+            result["matched"].append(path)
+        else:
+            result["modified"].append(path)
+    for region_id, item in inventory["managed_regions"].items():
+        expected = item.get("content_sha256")
+        result["inventory"][region_id] = expected
+        path = item.get("path", "")
+        state = regular(path)
+        if state is None:
+            result["missing"].append(region_id)
+            continue
+        if not state:
+            result["special"].append(region_id)
+            continue
+        try:
+            text = root.read_bytes(path).decode()
+        except UnicodeDecodeError:
+            result["modified"].append(region_id)
+            continue
+        starts, ends = text.count(item["start_marker"]), text.count(item["end_marker"])
+        if starts == 0 and ends == 0:
+            result["missing"].append(region_id)
+        elif starts == 1 and ends == 1 and sha256(extract_region(text.encode(), item["start_marker"], item["end_marker"])) == expected:
+            result["matched"].append(region_id)
+        else:  # edited, or markers broken (the planner refuses broken markers separately)
+            result["modified"].append(region_id)
+    return result
+
+
+def legacy_state(root: SafeRoot, catalog_content: bytes) -> dict[str, Any]:
+    catalog = parse_legacy_catalog(catalog_content)
+    detected = detect_legacy_environments(root)
     if not detected:
         raise InstallError("legacy markers do not identify CC or Cursor")
     files: dict[str, dict[str, Any]] = {}
@@ -1219,11 +1358,15 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--plan-only", action="store_true", help="emit the machine-readable plan without changing target")
     p.add_argument("--migrate-legacy", metavar="VERSION", help="explicitly adopt a verified legacy release")
     p.add_argument("--yes", action="store_true", help="confirm a non-interactive legacy migration")
+    p.add_argument("--backup-modified", action="store_true", help="not supported for Codex-only installs")
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.backup_modified:
+        raise InstallError("--backup-modified is not supported for Codex-only installs "
+                           "(Codex has no pre-manifest releases); use it with cc, cursor, both, or all")
     distribution = Path(__file__).resolve().parent.parent
     target = determine_target(args.target)
     is_git = subprocess.run(

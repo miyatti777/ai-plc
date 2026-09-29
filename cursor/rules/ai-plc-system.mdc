@@ -57,3 +57,4 @@ After completing each task, execute the following checklist:
 3. native memory — Update user model/preferences (Claude Code native memory; or skip)
 4. Wiki update — Propagate new knowledge to .claude/wiki/
 5. External Sync / log.md / Project Registry — see rules/ai-plc-system.md §8
+6. Status audit — after the Registry update, run `python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --brief --layer <Layer>` (read-only; propose fixes, apply only after approval). The tool ships only with the Claude Code experimental package (experimental/jev, `--with-jev`): if it is absent, or `--brief` exits 1/2, output "no audit tool — skip" / a one-line reason and continue

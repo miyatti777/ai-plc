@@ -23,6 +23,7 @@ Collection  →  Inception  →  Construction  →  Operation
 - [なぜ AI-PLC なのか](#なぜ-ai-plc-なのか)
 - [ループエンジニアリングとの関係](#ループエンジニアリングとの関係)
 - [インストール](#-インストール5分)
+- [アップデート手順](#-アップデート手順)
 - [はじめての AI-PLC（自分のGoalで）](#-はじめての-ai-plc自分のgoalで)
 - [こんな使い方ができる](#-こんな使い方ができる)
 - [チュートリアル: コトノハで一周する](#-チュートリアル-コトノハで一周する発散収束仕様化)
@@ -149,6 +150,219 @@ grep -q '<!-- AI-PLC CODEX START -->' /path/to/your/project/AGENTS.md
 Codex向けSkillは`.agents/skills/`、永続指示は既存本文を保持した`AGENTS.md`のmanaged regionに配置されます。同じスレッドでSkillが表示されない場合は、まず新しいスレッドを開始します。それでも表示されなければ、インストール先のプロジェクトを開いているか確認してCodexを再起動してください。
 
 > うまくコマンドが出ないときは [FAQ](#-faq) を参照。
+> すでに入れている人の更新は、次の [アップデート手順](#-アップデート手順) を見てください。
+
+---
+
+## 🔄 アップデート手順
+
+すでに AI-PLC を入れたプロジェクトを、新しい版に上げる手順です。どの版からでも、流すコマンドは同じです。変わった点は [CHANGELOG.md](CHANGELOG.md) にあります。
+
+AI にお願いするなら、プロジェクトを開いたチャットで「AI-PLC（`https://github.com/miyatti777/ai-plc`）を最新版に更新して。README のアップデート手順に沿って、まず `--dry-run` の結果を見せて」のように頼めます。以下は手で行う場合の手順です。
+
+**更新の前に、プロジェクトの変更を git で commit しておくことをおすすめします。** 更新をまるごと取り消したくなったときに、git で元に戻せます（[5. 更新を取り消す・`.bak` を片付ける](#5-更新を取り消すbak-を片付ける)）。
+
+```bash
+cd /path/to/your/project
+git status                        # 未 commit の変更が無いかを見る
+git add .claude CLAUDE.md AGENTS.md   # 例。一覧を見て、commit してよいものだけを足す（.env など秘密のファイルは足さない）
+git commit -m "AI-PLC 更新の前"   # 変更があったときだけ
+git status --ignored --short -- .claude .cursor .agents CLAUDE.md AGENTS.md .ai-plc-version .ai-plc-install-manifest | grep '^!!'
+```
+
+最後の行で表示されたファイル（`!!` の行）は、`.gitignore` で git の管理外になっているので、git では戻せません。その部分は、更新で残る `.bak` から戻すことになります（DB の `.claude/db/ai_plc.db` のように installer が書き換えないものなら、気にしなくてかまいません）。
+
+### 1. 自分の版と入れ方を確かめる
+
+AI-PLC を入れたプロジェクトのフォルダ（installer に `--target` で渡したフォルダ）で、次を実行します。
+
+```bash
+ls .ai-plc-install-manifest   # インストール台帳（installer が入れたファイルの記録）があるか
+cat .ai-plc-version           # 版の表示
+```
+
+| 台帳（`.ai-plc-install-manifest`） | 版 | `.ai-plc-version` の表示 |
+| --- | --- | --- |
+| ある | v1.7.0 以降 | そのままの版（`1.7.1` など） |
+| ない（`No such file or directory`） | v1.1.0〜v1.6.0 の旧版 | どの旧版でも `1.1.0` と出ます。本当の版は、次の手順で installer が中身から自動で判別します |
+
+**どの環境向けに入れたか**も確かめます。更新は、最初に入れたときと同じ指定（`cc` / `cursor` / `both` / `all` / `codex`）で流します。指定を変えると、指定しなかった環境は古いまま残ったり、使っていない環境のファイルが増えたりします。
+
+- 台帳がある場合: 台帳の `environments` に入っている環境が、最初に入れた環境です
+  ```bash
+  python3 -c "import json; print(sorted(json.load(open('.ai-plc-install-manifest'))['environments']))"
+  ```
+  `['cc']` なら `cc`、`['cursor']` なら `cursor`、`['cc', 'cursor']` なら `both`、`['cc', 'codex', 'cursor']` なら `all`、`['codex']` なら `codex` です。環境別のスクリプトで別々に入れた `['cc', 'codex']` なら `cc` を流してから `codex`、`['codex', 'cursor']` なら `cursor` を流してから `codex` を、それぞれ `--dry-run` から流します
+- 台帳がない場合（旧版は Claude Code と Cursor だけ）: `.claude/commands/01-collection.md` があれば Claude Code、`.cursor/rules/ai-plc-system.mdc` があれば Cursor が入っています。両方あれば `both` です（installer が旧版と判別するには、Claude Code なら `CLAUDE.md` と `AGENTS.md`、Cursor なら `.cursor/skills/ai-plc/01-collection/SKILL.md` も必要です。消していると判別されず、配ったファイルのほとんどが衝突として並びます。そのときも 3-1 の `--backup-modified` で進められますが、編集していないファイルも `[BACKUP]` 行に並びます）
+  ```bash
+  ls .claude/commands/01-collection.md .cursor/rules/ai-plc-system.mdc
+  ```
+
+**実験版（Jev 監視）を入れているか:** `.claude/ai-plc-jev/` フォルダや、`.claude/commands/01-collection-jev.md` のような `-jev` の付いたコマンドがあれば入れています（`ls -d .claude/ai-plc-jev`）。
+
+### 2. 更新する（Claude Code の例）
+
+```bash
+cd /path/to/ai-plc   # AI-PLC を clone した場所（無ければ「インストール」の手順で clone し直す）
+git pull             # 最新の版を取ってくる（失敗したら git status で、clone に自分の変更が無いか・main ブランチにいるかを確かめる）
+
+# まず何が起きるかを見る（ファイルは1つも書き換えません）
+./install.sh --dry-run --target /path/to/your/project cc
+
+# 問題がなければ実行
+./install.sh --target /path/to/your/project cc
+```
+
+- `--dry-run` の出力の `"conflicts": []`（空）なら、そのまま実行して大丈夫です。`"writes"` が書き換わるファイルの一覧です。`DELETE:` で始まる行は、新しい版で配らなくなったので消すファイル（消す前の中身は `.bak` に残ります）、`CLAUDE.md#ai-plc-cc` のように `#` の付いた行は、そのファイルのマーカーの中だけの書き換えです
+- **`"conflicts"` に1行でも入っていたら、実行しても止まります。** 下の [3. 止まったとき](#3-止まったとき) を見てください
+- 旧版からの場合は、`[INFO] legacy release detected: cc v1.2.1–v1.4.1 (catalog 1.2.1)` のように、判別した版が出ます。中身が同じ版はまとめて表示されます
+- 成功すると `[OK] cc install committed: 13 changed file(s)` のように出て、`.ai-plc-version` が新しい版（`1.8.0`）になり、台帳 `.ai-plc-install-manifest` ができます（または更新されます）。同じ版でもう一度実行しても何も変わりません（`0 changed file(s)`）
+- 書き換える前のファイルは、同じ場所に `<ファイル名>.bak.<日時>.<番号>` として残ります（自分で編集していないファイルの分も残ります。自動では消しません。片付け方は [5.](#5-更新を取り消すbak-を片付ける)）
+- wiki・DB・`soul.md`・成果物と、`CLAUDE.md` / `AGENTS.md` の AI-PLC マーカー（`<!-- AI-PLC START -->`〜`END`、Codex では `<!-- AI-PLC CODEX START -->`〜`END`）の外の本文は書き換えません（wiki の説明ファイルや DB のように、無いものだけ新しく足すことはあります）。自分で足したファイル（例: `.claude/rules/` に自作したルール）も触りません
+- 更新が終わったら、インストールのときと同じく、**新しいチャット／スレッドを開始して**から使ってください
+
+**ほかの環境:** 最後の `cc` を、1. で確かめた指定に置き換えます。`cursor`（Cursor）・`both`（Claude Code + Cursor）・`all`（3環境）・`codex`（Codex）。`./install-cc.sh --target …` のような環境別のスクリプトでも同じように更新できます。旧版（台帳なし）の Claude Code / Cursor 環境に Codex を足すときは、`codex` だけを指定すると旧版を判別できずに止まるので、先に `cc`（または `both`）で上げてから `codex` を実行してください（Claude Code・Cursor・Codex の3つを使うなら `all` でもかまいません）。
+
+**実験版（Jev 監視）を入れている人:** 実験版も一緒に上げるときは `--with-jev` を付けます（`./install.sh --target /path/to/your/project cc --with-jev`）。付けずに更新すると、実験版のファイルは今のまま残ります。実験版 v1.8.0-exp.1 を入れた環境の `.ai-plc-version` は、その時点の core の版の `1.7.1` と出ます（[実験版の節](#-実験版-jev-監視v180-exp1)）。
+
+### 3. 止まったとき
+
+installer は、プロジェクトを壊すおそれがあると**書き換えを始める前に止まります**。本実行で最後の行が次のどちらかなら、プロジェクトは何も変わっていません（終了コード 2）。
+
+```
+[ERROR] preflight failed; target unchanged                     # cc / cursor / both / all
+[ERROR] preflight failed with 1 conflict(s); target unchanged  # codex
+```
+
+`--dry-run` ではこの行は出ず、`"conflicts"` が空でない JSON を出して終了コード 1 で終わります（`--dry-run` はもともと何も書き換えません）。
+
+止まった理由は、本実行ではその上の `[CONFLICT]` 行、`--dry-run` では `"conflicts"` の中身です。
+
+- **`[CONFLICT]` の後が `unmanaged …` か `user-modified …` で始まる行**（`CLAUDE.md: unmanaged marker region` のようにファイル名が先に付くものも含む）は、編集が理由です → 3-1
+- それ以外の行 → 3-2。両方あるときは、3-2 の行を先に片付けます
+
+最後の行が `preflight failed` ではない `[ERROR]` 行のときは、書き換えの途中や後で止まったことがあります。`git status` で変わったファイルを確かめてから、3-2 の表を見てください。
+
+#### 3-1. 自分で編集したファイルがある場合
+
+AI-PLC が配ったファイルを自分で編集していると、上書きで編集が消えないように止まります。
+
+```
+[CONFLICT] unmanaged file collision: .claude/rules/ai-plc-system.md
+[HINT] --backup-modified を付けると、編集済みのファイルを .bak に退避して更新を進められます (…)
+[ERROR] preflight failed; target unchanged
+```
+
+出る行は場合によって違います。
+
+- `[CONFLICT]` 行の頭は、旧版（v1.1.0〜v1.6.0）では `unmanaged file collision`、v1.7.0 以降では `user-modified managed file`、`CLAUDE.md` / `AGENTS.md` のマーカーの中を編集したときは `…: user-modified managed region` か `…: unmanaged marker region`（Codex のマーカーなら `user-modified managed Codex region` か `unmanaged Codex marker region`）、新しい版で配らなくなったファイルを編集していたときは `user-modified stale managed file` です
+- **旧版では、編集していないファイルも `unmanaged file collision` として並びます。** 1つでも編集があると installer は旧版の版を中身から決めきれず、どのファイルが元のままかも判断できないためです。`--backup-modified` を付ければ、版を推定して、本当に編集したファイルだけを退避します
+- `[HINT]` 行は、旧版からの更新で、しかも止まった理由がすべて `--backup-modified` で解決できるときだけ出ます。v1.7.0 以降からの更新では出ませんが、`--backup-modified` は同じように使えます
+
+編集を退避して先に進めるには、`--backup-modified` を付けます。
+
+```bash
+./install.sh --dry-run --target /path/to/your/project cc --backup-modified   # "backups" に退避されるファイルが出る
+./install.sh --target /path/to/your/project cc --backup-modified
+```
+
+実行すると、編集したファイルごとに1行出ます。
+
+```
+[BACKUP] .claude/rules/ai-plc-system.md -> .claude/rules/ai-plc-system.md.bak.20260929T072851Z.8
+[NOTE] 自分の変更は上の .bak と diff して戻してください (…)
+```
+
+**自分の変更の戻し方:** `[BACKUP]` 行の `.bak` が、編集していたときのファイルそのものです。`diff`（2つのファイルの違う行を表示するコマンド）で差分を見て、必要な部分を手で新しいファイルに戻します。
+
+```bash
+cd /path/to/your/project
+diff .claude/rules/ai-plc-system.md.bak.20260929T072851Z.8 .claude/rules/ai-plc-system.md
+```
+
+- `.bak` は、更新で上書きされたファイルすべてに作られます。自分の編集が入っているのは `[BACKUP]` 行に出たものだけです。**`[BACKUP]` 行に出ていない `.bak` は、編集していないファイルの古い版なので消してかまいません**（diff すると、更新で変わった行が出るだけです）
+- 旧版から `--backup-modified` で上げたときは、判別行が `[INFO] legacy release detected: cc v1.2.1–v1.4.1 (catalog 1.2.1, estimated: 1 modified, 0 missing)` のように、編集・欠落の数つきで出ます
+- `[BACKUP]` 行を見失ったら、台帳に残っている記録（`user_backups`）で `.bak` の名前を確かめられます:
+  `python3 -c "import json; [print(b['path'], '->', b['backup']) for b in json.load(open('.ai-plc-install-manifest')).get('user_backups', [])]"`
+- `CLAUDE.md` / `AGENTS.md` のマーカーの中を編集していた場合は、ファイル全体が `.bak` に残り、マーカーの中だけが新しい内容になります（マーカーの外の本文はそのまま）
+- 戻した変更は「編集あり」として扱われるので、次に installer を実行したときも止まります。そのときも `--backup-modified` を付け、同じ手順で戻します。**自分用の追記は、AI-PLC が配らない別のファイルや、`CLAUDE.md` のマーカーの外に書くと、更新で止まりません**
+- **`--backup-modified` を付けても止まったら、** 編集以外の理由です。出た `[CONFLICT]` / `[ERROR]` 行を、次の 3-2 の表で探してください
+
+**`codex` を指定して流すとき（Codex だけの人、`cc` や `cursor` の後に `codex` を流す人）:** Codex 対応は v1.7.0 からなので、Codex には台帳のない旧版がありません。旧版の判別は要らず、`./install.sh --target /path/to/your/project codex` だけで上がります。ただし `--backup-modified` は `codex` の指定では使えません（`[ERROR] --backup-modified is not supported for Codex-only installs …` で終了コード 2）。編集したファイルがあって止まったら、次のようにします。
+
+- **`AGENTS.md` 以外のファイル**（`.agents/skills/` の下や、Codex 用にも配られる `.claude/skills/`・`.claude/rules/`・`.claude/db/` の下。`[CONFLICT] user-modified managed file: …` や `user-modified stale managed file: …`）: そのファイルをプロジェクトの外へ移してから実行します。移したファイルは新しい版で入れ直される（配らなくなったファイルなら入れ直されない）ので、移したファイルと diff して手で戻します。移す先に同じ名前のファイルが無いことを、先に `ls` で確かめてください
+  ```bash
+  mv /path/to/your/project/.agents/skills/ai-plc/01-collection/SKILL.md ~/SKILL.mine.md   # 例: 編集したファイルを外へ移す
+  ./install.sh --target /path/to/your/project codex
+  diff ~/SKILL.mine.md /path/to/your/project/.agents/skills/ai-plc/01-collection/SKILL.md
+  ```
+- **`AGENTS.md`**（`[CONFLICT] AGENTS.md: user-modified managed Codex region`）: `AGENTS.md` には自分の本文（マーカーの外）も入っているので、**ファイルごと捨てずに、プロジェクトの外へ控えを取ってから**実行します。新しい `AGENTS.md` は AI-PLC の部分（`<!-- AI-PLC CODEX START -->`〜`END`）だけになるので、控えからマーカーの外の本文を貼り戻します。マーカーの中に書いていた自分の追記は、マーカーの外に移して書きます（マーカーの外なら、次の更新で止まりません）
+  ```bash
+  ls ~/AGENTS.mine.md    # 「No such file or directory」なら次へ（同じ名前のファイルがあれば、別の名前にする）
+  mv -n /path/to/your/project/AGENTS.md ~/AGENTS.mine.md   # 控えを取る（-n: 同じ名前があれば上書きしない）
+  ./install.sh --target /path/to/your/project codex
+  diff ~/AGENTS.mine.md /path/to/your/project/AGENTS.md  # 消えた本文と、マーカーの中の自分の追記が出る
+  ```
+  Claude Code も入れている人は、新しい `AGENTS.md` から Claude Code 用のマーカー部分（`<!-- AI-PLC START -->`〜`END`）も一時的に無くなります。続けて `cc` を流すと入り直します
+
+#### 3-2. それ以外の理由で止まった場合
+
+| 出た行 | 意味 | どうするか |
+| --- | --- | --- |
+| `legacy release ambiguous for cc: catalogs 1.2.0.yaml, 1.2.1.yaml (use --migrate-legacy <version>)` | 旧版の版を、中身から1つに決められなかった（`--backup-modified` を付けたときに、候補が並ぶことがあります） | 自分の版を `--migrate-legacy <版>` で指定して、同じコマンドを流し直します（`--migrate-legacy` は「この旧版として扱う」と installer に教えるオプションです）。版には、表示された候補から `.yaml` を除いたもの（例: `1.2.1`）を指定します。どちらか分からなければ新しい方を指定します。合わなかったファイルは編集ありとして `.bak` に退避されるだけです。例: `./install.sh --target /path/to/your/project cc --backup-modified --migrate-legacy 1.2.1` |
+| `legacy release not identified for cc: …` や `legacy migration failed: cc matches catalog … only 45%` | ほとんどのファイルが編集されていて、旧版を判別できない | 下の「上のどれにも当たらないとき」へ |
+| `target is busy or needs recovery`（`--dry-run` のとき） | 前回の installer が途中で止まった（強制終了・電源断など）跡が残っている | `--dry-run` では直しません。`--dry-run` を外して一度実行すると、installer が前回の途中までの変更を元に戻して（または前回の分を仕上げて）から、今回の更新に進みます。`--dry-run` で先に中身を見たいときは、その後にもう一度 `--dry-run` を流します |
+| `[ERROR] target is busy: live installer lock` | 別の installer が、いま同じプロジェクトで動いている | その installer が終わるのを待ってから、もう一度実行します |
+| `[ERROR] … manual recovery required` や `[ERROR] … requires manual inspection` など、`recovery` / `manual inspection` を含む `[ERROR]` 行 | 途中で止まった跡が、再起動の前のものや別のマシンのもので、installer が自動では戻せない | **更新の前に commit していなければ、何も消さずに Issue へ。** commit していれば: ① 別の installer が動いていないことを確かめます（`ps aux \| grep '[a]i_plc_'` で何も出なければ、このマシンでは動いていません。共有フォルダや同期フォルダにあるプロジェクトなら、ほかのマシンでも確かめる）② [5.](#5-更新を取り消すbak-を片付ける) の手順で commit の状態に戻します ③ 途中の跡がまだ残っていれば、次の1行目で一覧を見て、途中の跡（`.ai-plc-install.lock`・`.ai-plc-install-journal.…`・`.ai-plc-tmp.…`）だけが並んでいることを確かめてから、2行目で消し、もう一度実行します。一覧: `find . -path ./.git -prune -o \( -name '.ai-plc-install.lock*' -o -name '.ai-plc-install-journal.*' -o -name '.ai-plc-tmp.*' \) -prune -print` / 消す: `find . -path ./.git -prune -o \( -name '.ai-plc-install.lock*' -o -name '.ai-plc-install-journal.*' -o -name '.ai-plc-tmp.*' \) -prune -print -exec rm -rf {} +`（台帳 `.ai-plc-install-manifest` と `.ai-plc-version` は一覧に出ず、消えません） |
+| `manifest is detached; resolve residuals before install` | 以前 uninstall したとき、自分で編集したファイルが残された（台帳が「切り離し」状態） | 次のコマンドで、残っている環境と残されたファイルを見ます: `python3 -c "import json; d=json.load(open('.ai-plc-install-manifest')); print(d['environments'], [r['path'] for r in d['residuals']])"`。最初が `{}`（残っている環境なし）なら、表示されたファイルと `.ai-plc-install-manifest` をプロジェクトの外へ移してから実行し、移したファイルと diff して手で戻します。`{}` 以外なら Issue へ |
+| `special file at legacy managed path: <パス>`、または `Too many levels of symbolic links` / `Not a directory` を含む `[ERROR]` 行（例: `[ERROR] [Errno 62] Too many levels of symbolic links: …`。番号は OS で違います） | AI-PLC のファイルやフォルダが、シンボリックリンク（別の場所を指す見かけだけのファイル）などになっている | リンクを実物のコピーに置き換えてから、もう一度実行します。ファイルなら `cp <パス> <パス>.real` → `mv <パス>.real <パス>`。フォルダなら、リンク先のフォルダを同じ名前でコピーしてからリンクと入れ替えます |
+| `CLAUDE.md: managed region markers are missing or duplicated`（`AGENTS.md` も同じ）、`AGENTS.md: existing AGENTS.md has invalid Codex marker count` | AI-PLC のマーカー（`<!-- AI-PLC START -->` と `<!-- AI-PLC END -->`、Codex なら `<!-- AI-PLC CODEX START -->` と `<!-- AI-PLC CODEX END -->`）が片方だけ、または2つ以上ある | ファイルを開き、`START` と `END` が1つずつになるように、余分な行を消すか足りない行を戻してから、もう一度実行します |
+| `downgrade refused`（`component downgrade refused: …` も） | プロジェクトに入っている版より、clone した AI-PLC の方が古い | clone した場所で `git pull` し直して（2. を参照）、もう一度実行します |
+| `[ERROR] non-git target requires --yes or interactive confirmation` | プロジェクトが git リポジトリではない | プロジェクトで `git init` してから実行します（git なしで進めるなら、ターミナルから直接実行して確認に `y` と答えます） |
+
+**上のどれにも当たらないとき:** 最後の行が `preflight failed … target unchanged` なら、プロジェクトは変わっていません。それ以外の `[ERROR]` 行なら、`git status` で変わったファイルを確かめておきます。そのうえで、出た行をすべて（`--dry-run` の出力もあれば一緒に）添えて [Issue](https://github.com/miyatti777/ai-plc/issues) で知らせてください。
+
+### 4. installer では更新されないもの
+
+- **Registry ビューア（アルファ版）:** 入れている人だけ。手でコピーしたものなので、自分で入れ直します。AI-PLC を clone した場所で、新しいものを横にコピーしてから入れ替え、最後に古いものを消します（途中で失敗しても、ビューアが無くなることはありません。古いものを残したまま上からコピーすると入れ子になるので、この順にします）
+  ```bash
+  cd /path/to/ai-plc
+  cp -R experimental/registry-viewer /path/to/your/project/.claude/db/registry_viewer.new
+  mv /path/to/your/project/.claude/db/registry_viewer /path/to/your/project/.claude/db/registry_viewer.old
+  mv /path/to/your/project/.claude/db/registry_viewer.new /path/to/your/project/.claude/db/registry_viewer
+  rm -rf /path/to/your/project/.claude/db/registry_viewer.old   # 新しいビューアが動くのを確かめてから
+  ```
+  Mac のメニューバーアプリを出力先を指定せずにビルドしていた場合、アプリも古いフォルダの中にあるので一緒に消えます。ビルドし直してください
+
+### 5. 更新を取り消す・`.bak` を片付ける
+
+**更新をまるごと取り消す（更新の前に commit していた場合）:** プロジェクトのフォルダで、まず何が変わったかを見ます。
+
+```bash
+cd /path/to/your/project
+git status --short   # " M" は書き換わったファイル、"??" は増えたファイル
+```
+
+` M` の行が AI-PLC のファイル（`.claude/`・`.cursor/`・`.agents/` の下、`CLAUDE.md`・`AGENTS.md`・`.ai-plc-version`）だけなら、次を実行します。**`git restore` は、commit していない変更を確認なしに捨て、取り戻せません。**
+
+```bash
+git restore .   # 書き換わったファイルを commit の状態に戻す
+git clean -nd   # 更新で増えたファイル（台帳・.bak・新しいファイル）の一覧。まだ消さない
+git clean -fd   # 一覧が更新で増えたものだけなら、消す
+```
+
+- ` M` の行に、commit していない自分の変更（AI-PLC 以外のファイル）が混ざっていたら、`git restore .` は使わず、AI-PLC のパスだけを指定します: `git restore -- .claude CLAUDE.md AGENTS.md .ai-plc-version`（Cursor も入れているなら `.cursor`、Codex なら `.agents` を足す。入れていない環境のフォルダを書くと、エラーで何も戻りません）。このときも、指定したパスの中の commit していない変更は消えます
+- `git clean -nd` の一覧に、自分で作って commit していないファイルが混ざっていたら、`git clean -fd` は使わず、一覧のうち更新で増えたものだけを手で消してください
+
+**commit していなかった場合:** 上書きされたファイルは `.bak` から戻せます（例: `mv .claude/rules/ai-plc-system.md.bak.20260929T072851Z.8 .claude/rules/ai-plc-system.md`）。ただし、更新で新しく足されたファイルと台帳は残るので、まるごと元どおりにするのは難しくなります。
+
+**残った `.bak` の片付け:** 自分の変更を戻し終えたら、`.bak` は消してかまいません。まず一覧を見て、AI-PLC が作った `.bak` だけが並んでいることを確かめてから消します。
+
+```bash
+cd /path/to/your/project
+find . -path ./.git -prune -o -type f -name '*.bak.[0-9]*T[0-9]*Z.[0-9]*' -print           # 一覧だけ（消さない）
+find . -path ./.git -prune -o -type f -name '*.bak.[0-9]*T[0-9]*Z.[0-9]*' -print -delete   # 一覧を確かめた後で消す
+```
 
 ---
 
@@ -536,9 +750,9 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 >
 > ⚠️ **外部送信あり（opt-in）。** APIキーを登録し、Layer の `intent.yaml` に `jev_monitor: true` を書いたときだけ、Layer の文や発話を字数で切ったもの（下の表。要約ではなく原文の抜粋です）を外部の判断専用モデル **Jev**（TypeSafe）に送ります。キーが無ければ何も送らず、すべてスキップされます。
 >
-> core の版は **1.7.1 のまま**です。`1.8.0-exp.1` は実験版パッケージ（`experimental/jev/`）の版です。
+> core の版は **1.8.0**、`1.8.0-exp.1` は実験版パッケージ（`experimental/jev/`）の版です。2つの版は別々に数えます（実験版の番号は core の版と連動しません）。実験版のインストールされる中身は exp.1 のまま変わっていません（中の説明文に残る「core の版は 1.7.1」などの表記は exp.1 を出した時点のものです。[CHANGELOG.md](CHANGELOG.md)）。
 
-AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか」などを1問だけ聞き、**1行のヒント**を出します。ヒントに作業を止める権限はなく、判断はメインのモデルとあなたが行います。**Claude Code 専用**で、`/01-collection-jev` → `/02-inception-jev` → `/03-construction-jev` → `/04-operation-jev` を使ったときだけ動きます（core の `/01-collection` 等の動きは変わりません）。
+AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか」などを1問だけ聞き、**1行のヒント**を出します。ヒントに作業を止める権限はなく、判断はメインのモデルとあなたが行います。**Claude Code 専用**で、Jev への問い合わせ（外部送信）は `/01-collection-jev` → `/02-inception-jev` → `/03-construction-jev` → `/04-operation-jev` を使ったときだけ動きます（core の `/01-collection`〜`/04-operation` は Jev を呼びません）。例外として、下の表の「ステータス点検」（Jev には送らず、ローカルのファイルと DB を読むだけの点検）は、core 1.8.0 からは core の `/04-operation` の Phase 7 でも、実験版を入れてあれば動きます（実験版が無ければ「点検ツールなし — スキップ」と出して進みます）。
 
 ### できること（4機能）と外部送信の内容
 
@@ -547,7 +761,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 | 異常ヒント（Backtrack の兆し） | `/04-operation-jev` の Phase 5.5b・6b | ゴール1行（200字まで）・進捗（件数）・直近のタスク完了報告（backlog の `result`、無ければタスクの説明。1200字まで） |
 | 成功条件カバー判定 | `/02-inception-jev` の分解承認の前 | ゴール1行（200字まで）・成功条件（全文）・各タスクの ID・名前・説明（説明は1件160字まで） |
 | 会話監視 hook（任意・**手動で有効化**） | 発話ごと（Claude Code の `UserPromptSubmit` hook） | あなたの直前の発話1件の原文（貼り付けた部分は除き、空白を詰めて400字で切る）・ゴール1行・進捗（件数） |
-| ステータス点検 | `/04-operation-jev` の Phase 7 | 既定は**送らない**（読み取り専用）。スクリプトに `--jev` を手で付けたときだけ、停滞 Layer のうち `jev_monitor: true` で機密でないものについて、ゴール1行・最後に完了したタスクの名前と結果（400字まで）・進捗・停滞日数。例: `python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --jev --layer <Layer パス>` |
+| ステータス点検 | `/04-operation-jev` と、core 1.8.0 以降の `/04-operation` の Phase 7（どちらも実験版を入れたときだけ） | 既定は**送らない**（読み取り専用）。スクリプトに `--jev` を手で付けたときだけ、停滞 Layer のうち `jev_monitor: true` で機密でないものについて、ゴール1行・最後に完了したタスクの名前と結果（400字まで）・進捗・停滞日数。例: `python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --jev --layer <Layer パス>` |
 
 - 送信先: 公式経路なら TypeSafe の1社、OpenRouter 経由なら OpenRouter と TypeSafe の2社
 - 送る前に、送信禁止の語の検査（コードの汎用語＋自分で書くローカルの `.claude/db/jev_redact_extra.txt`）と命令文の除去が働きます。**キーワードでの判定なので、言い換えた機密は通ります。** 機密PJ・経費・人事・顧客名や人名・私生活に関わる Layer では有効にしないでください
@@ -683,6 +897,8 @@ AI-PLC は深度（Simple/Standard/Complex）を自動判定し、**要らない
 <summary><b>Q. 既存の設定（CLAUDE.md 等）を壊さない？</b></summary>
 
 壊しません。更新対象はtransaction内で`.bak.<timestamp>.<sequence>`へ退避し、`CLAUDE.md`/`AGENTS.md`は環境別managed markerで**マージ**します。Codexのmarkerは`<!-- AI-PLC CODEX START/END -->`です。`--dry-run`で事前確認し、環境を指定した`./uninstall.sh`で除去できます。
+
+更新のときも同じです。AI-PLC が配ったファイルを自分で編集していた場合、installer は何も書き換えずに止まります。`--backup-modified` を付けると、編集したファイルを `.bak` に残してから更新します（Codex だけの指定では使えません）。手順と戻し方は [アップデート手順](#-アップデート手順) を見てください。
 </details>
 
 <details>
@@ -761,6 +977,7 @@ DBは**任意**（複数PJ横断の台帳・外部同期用。核ループはDB�
 - 既存のmanaged外本文、変更済みfile、wiki、DB、成果物は保持
 - `AGENTS.md`は環境別markerで統合し、Claude CodeとCodexが共存可能
 - `--dry-run`で事前確認、`--plan-only`で機械可読planを出力
+- 旧版（台帳のない v1.1.0〜v1.6.0）は中身から自動で判別して更新。自分で編集したファイルがあれば止まり、`--backup-modified` で `.bak` に退避して進める（[アップデート手順](#-アップデート手順)）
 - manifestのowner情報に基づいて環境別にuninstall
 
 ```

@@ -17,6 +17,7 @@
 2. 出力の検証 — Agent完了前に、指定インプットを実際に使用したか、出力がインプットの規模・範囲と整合しているかを確認する
 3. 出力エンティティの明確化 — 「Kanbanビュー/進捗管理」はDatabase+適切なビュー・プロパティ、「テンプレート/ガイド」はPageとして作る（ページ内の説明文・テーブルで代用しない）
 4. 「動くシステム」ルール — implementationタスクは実際に動くDatabase/システムを生み出さなければ完了としない（設計書だけでは不可）
+5. maker≠checker — research / content / design / planning / implementation / codingの生成AGTは、Operation Phase 5.5で作成者とは別のsub-agent reviewerによる独立レビューを必須とする。complexは実際の成果物typeへ、operationは各量産成果物のtypeへ解決して同じ契約を適用する。`delegable: false`は成果物作成の委譲だけを制御し、reviewer起動を禁止しない
 
 ## 汎用検証ステップ（全Agent共通 — system §18連動）
 
@@ -29,6 +30,15 @@
 | L3 | 受け手チェック | 受け手が見て価値があるか（理解・アクション可能性） |
 
 検証タイミング: research=レポート完成後（セルフチェック+Mob）/ implementation=構築後（テスト実行+Mob）/ content=執筆後（セルフレビュー+Mobレビュー）/ operation=各量産サイクル後（Evalデータで自動判定）/ validation=検証自体が成果物のため不要。
+
+### 独立レビュー契約（生成AGTのGuardrailsへ転記）
+
+- reviewerはmakerと異なるsub-agentとし、作成会話を渡さない
+- 入力は成果物snapshot、Goal、Output、acceptance criteria、検証Level、type別レンズに限定する
+- reviewerはread-onlyかつAutonomous-onlyとし、成果物を直接修正せず、Mob承認待ちを発生させない
+- 出力はP0-P3のフラットリスト、または`No findings`
+- 未解決P0/P1/P2が0件になるまでPhase 6へ進まない
+- management / coordinationは対象外。validation / reviewは自身がcheckerのため再帰reviewerを起動しない
 
 ## Phase構造の標準パターン
 

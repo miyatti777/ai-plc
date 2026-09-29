@@ -68,11 +68,12 @@ Stage 1でGoalの性質から自動判定し、templates/roles/ から読み込�
 3. 戻り先Stageは scope_reinit モードで実行（既存成果物を保持）
 4. 理由をbacklog.yamlのrefactoring_logに記録する
 5. **独立checkerによる判定（maker≠checker — BT-B/BT-C既定 / BT-A任意）:** ドリフト検知（BT-B）とGAP分析（BT-C）は、パイプラインを実行してきたmaker自身が構造的に最も盲目な判断のため、作成文脈から独立したcheckerに判定を通す（既定。実現手段は04-operation Phase 5.5と同一 — CC=Subagent / サブエージェント機能のない環境=別スレッド）。checkerには**元intent.yamlのgoal+success_criteria+実際の成果物リスト**を渡す（「独立」=実行ナラティブを剥ぐ意味であり、元ゴールは必ず渡す。goal/planレンズを適用）。出力はP0-P3 or「No findings」。BT-A（ブロッカー起点の差分分解）は機械的かつ高頻度のため任意。checker出力が得られなければmaker自己判定にフォールバックし1行記録（silent skip禁止）
+6. **Jev監視（実験版のみ）:** core のコマンド（`/01-collection`〜`/04-operation`）は Jev を**呼ばない**（外部API送信なし）。Jev 監視は実験版パッケージ experimental/jev（`--with-jev`）の `/01〜04-*-jev` コマンドで実行したときだけ動く。仕様は `.claude/ai-plc-jev/` 配下の実験版スキルと `scripts/README_jev.md` を参照。
 
 ## 6. Stage 3 必須ルール（Standard以上）
 
 workflow_depth が standard / complex の場合、Stage 3（Construction）は必ず経由する（スキップ禁止）。Stage 2完了時のNext ActionでStage 4直行の選択肢を提示しない。simple のみ Stage 1→4 直行を許可。Agent定義ティア（Lite/Full）は自動判定されるためオーバーヘッドは小さい。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-07-07 ｜ **ステータス:** Active
-**バージョン:** 2.1（BT-B/BT-Cに独立checker判定を既定化 — maker≠checkerをドリフト・GAP分析に拡張）｜ 2.0（Fable観点軽量化: BT-1〜10を BT-A/B/C に統合、会話中監視は提案のみの1行ルール化）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-09-24 ｜ **ステータス:** Active
+**バージョン:** 2.2（§5実行ルール6: Jev監視は実験版 `/0x-*-jev` のみ・core からは呼ばないと明記）｜ 2.1（BT-B/BT-Cに独立checker判定を既定化 — maker≠checkerをドリフト・GAP分析に拡張）｜ 2.0（Fable観点軽量化: BT-1〜10を BT-A/B/C に統合、会話中監視は提案のみの1行ルール化）

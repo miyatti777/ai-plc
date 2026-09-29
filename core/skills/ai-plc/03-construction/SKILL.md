@@ -24,7 +24,7 @@ Backlogの各タスクに対して実行可能なAgent定義を生成するス�
 
 backlog.yamlを読み込み、各タスクのcommand / command_template_ref を確認し、typeからAgent定義ティアを自動判定する（ユーザー指定優先）:
 
-- **Lite**（design / research / content / planning）: Goal + Input + Output + Guardrails の4セクション。Execution FlowとInstructionsはテンプレートから暗黙適用
+- **Lite**（design / research / content / planning）: Goal + Input + Output + Guardrails の4セクション。Execution FlowとInstructionsはテンプレートから暗黙適用し、Guardrails内に独立レビュー契約を必ず含める
 - **Full**（implementation / validation / complex / coding）: 全6セクション（Goal / Input / Output / Execution Flow / Guardrails / Agent Instructions）
 
 commandフィールドがないタスクはスキップする。
@@ -41,8 +41,9 @@ commandフィールドがないタスクはスキップする。
 2. Task未指定時は全commandありタスクを一括生成（Mob CPは1回のみ）。Task指定時は単体生成
 3. Agent定義はHITL統合型（Autonomous Phase + Mob Checkpoint交互）を標準構造とし、実行可能な詳細度で書く
 4. **Subagent互換frontmatterを全AGTに付与する**: `name`（kebab-case）/ `description` / `tools`（最小権限。reviewer系はWrite/Edit除外）/ `delegable`（FlowにMob CPを含むなら`false`）。Guardrailsに「変更禁止ファイル」欄（backlog.yaml / context.yaml / intent.yaml / sqlite / rules / SKILL等）を、Agent Instructionsに返り値規約（最終メッセージで成果物パス+実測値を返す）を必ず含める — AGT本文はそのままAgent toolのpromptに渡せる自己完結指示書にする
-5. 生成中にスコープ外タスク（別チーム作業の前提・別システムでの実装要求・スコープ外の改善点）を発見したら、Self-Describing Task構造（RUL_plc_system §9）でチケット化し「外部DBに書き出しますか？」と確認→承認後push
-6. 結果をユーザーに提示する:
+5. **独立レビュー契約を全AGTへ埋め込む**: research / content / design / planning / implementation / codingは、Guardrailsに「Operation Phase 5.5でmakerと別のsub-agent reviewerを自動起動」「`delegable: false`はreviewerを禁止しない」「reviewerへ渡すのは成果物snapshot + Goal / Output / acceptance criteria / 検証Level / typeレンズのみ」「reviewerはread-onlyかつAutonomous-only」「出力はP0-P3またはNo findings」「未解決P0/P1/P2=0を完了ゲート」と明記する。complexは実際の成果物typeへ、operationは各量産成果物のtypeへ解決して同じ契約を適用する。management / coordinationは独立レビュー対象外と明記する。validation / reviewタスクは自分自身がcheckerであるため再帰reviewerを起動しない
+6. 生成中にスコープ外タスク（別チーム作業の前提・別システムでの実装要求・スコープ外の改善点）を発見したら、Self-Describing Task構造（RUL_plc_system §9）でチケット化し「外部DBに書き出しますか？」と確認→承認後push
+7. 結果をユーザーに提示する:
 
 ```
 【発見されたテンプレート・参考Agent】[一覧]
@@ -67,7 +68,7 @@ RUL_plc_session §7 の4パートを出力して停止する。Next Action: A=/0
 | Input | 必要な入力データ・コンテキスト |
 | Output | 生成される成果物（完了判定基準） |
 | Execution Flow | Phase構造（Autonomous + Mob Checkpoint） |
-| Guardrails | 各Phaseの品質保証条件 |
+| Guardrails | 各Phaseの品質保証条件 + type別の独立レビュー契約 |
 | Agent Instructions | Stage 4実行時のAI指示 |
 
 全ティア共通でfrontmatter（name / description / tools / delegable）を付与する（Phase 3の4項参照）。
@@ -77,4 +78,4 @@ RUL_plc_session §7 の4パートを出力して停止する。Next Action: A=/0
 Agents/ 配下のAgent定義群 → Stage 4: SKL_plc_04_operation へ。Exit条件: commandありの全タスクにAgent定義が存在すること。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-07-07 ｜ **バージョン:** 2.1（AGT-Subagent互換化: frontmatter必須化・変更禁止欄・返り値規約）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-07-10 ｜ **バージョン:** 2.2（全AGTへ独立レビュー契約を埋め込み、`delegable`とreviewer起動を分離。2.1: AGT-Subagent互換化: frontmatter必須化・変更禁止欄・返り値規約）

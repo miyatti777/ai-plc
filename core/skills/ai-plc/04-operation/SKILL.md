@@ -51,11 +51,11 @@ intent.yamlのworkflow_depthに応じて3層検証（RUL_plc_system §18）を�
 - [x] L3 + NFR: [チェック内容と結果]（complexのみ。NFRはRUL_plc_system §19）
 ```
 
-P0-P1相当の問題はPhase 4に戻って必ず修正する（同格・例外なし）。P2は原則その場で対応し、影響が限定的なら後続タスクへの持ち越しをMaker判断で選べる（持ち越し先タスクのdescriptionに反映）。P3は差し戻し対象外（語彙: RUL_plc_system §18）。タスク内で修正できない前提崩壊・外部依存・設計矛盾は Phase 5.5b のBT-A判定に委ねる。
+P0-P2相当の問題はPhase 4に戻って必ず修正する（同格・例外なし）。未解決P0/P1/P2が0件になるまでPhase 6へ進めない。P3は差し戻し対象外（語彙: RUL_plc_system §18）。タスク内で修正できない前提崩壊・外部依存・設計矛盾は Phase 5.5b のBT-A判定に委ねる。
 
-**独立検証（maker≠checker・全タスク既定動作）:** Phase 5.5の自己検証チェックリストを出力した直後、「する/しない」を質問せず原則毎回、作成文脈から独立したreviewerによる検証を実施（または提示）する — maker≠checkerの原則はコードに限らない（企画書・記事・設計書も作った本人は自分の欠陥に盲目）。検証は作成した文脈から分離する — CC / Cursor=Subagent reviewer（Agent tool・delegableなreviewer AGT、`TPL_review_agent`）/ Codex=sub-agent / Notion AI等サブエージェント機能のない環境=別チャットで独立reviewerを起動（成果物のみを入力にした別会話）。共通規定: reviewerには成果物と検証に必要な定義（Goal/Output・受け入れ基準・検証Level・該当typeのレンズ・snapshot）のみ渡し、作成文脈・会話履歴は渡さない / 出力は P0-P3 のフラットリスト or「No findings」（語彙: RUL_plc_system §18）/ 対象スナップショット（commit / ファイル更新時刻）を1行記録する（版ズレ重複指摘の防止）。reviewer結果はチェックリストの該当Level欄に転記する（例: `- [x] L1: 独立reviewer検証（snapshot: …）— No findings`）。reviewer出力が得られない場合はセルフ検証（L1/L2）にフォールバックし、その旨を1行記録して進む（silent skip禁止）。並列委譲（Phase 4）されたタスクでは、独立reviewer検証をもって親のL1裏取りに代えてよい（reviewerは実行Subagentと別文脈のため）。
+**独立検証（maker≠checker・全タスク既定動作）:** Phase 5.5の自己検証チェックリストを出力した直後、「する/しない」を質問せず原則毎回、作成文脈から独立したreviewerを起動して結果を取得する — maker≠checkerの原則はコードに限らない（企画書・記事・設計書も作った本人は自分の欠陥に盲目）。この段落は、CC / Cursor / Codexでsub-agent reviewerを起動する明示的な実行要求である。Agent定義の`delegable: false`はPhase 4の成果物作成委譲だけに適用し、Phase 5.5のreviewer起動には適用しない。検証は作成した文脈から分離する — CC / Cursor=Subagent reviewer（Agent tool・Autonomous-onlyなreviewer AGT、`TPL_review_agent`）/ Codex=sub-agent / Notion AI等サブエージェント機能のない環境=別チャットで独立reviewerを起動し、結果をこのTaskへ戻す（成果物のみを入力にした別会話）。共通規定: reviewerには成果物と検証に必要な定義（Goal/Output・受け入れ基準・検証Level・該当typeのレンズ・snapshot）のみ渡し、作成文脈・会話履歴は渡さない / 出力は P0-P3 のフラットリスト or「No findings」（語彙: RUL_plc_system §18）/ 対象スナップショット（commit / ファイル更新時刻）を1行記録する（版ズレ重複指摘の防止）。reviewer結果はチェックリストの該当Level欄に転記する（例: `- [x] L1: 独立reviewer検証（snapshot: …）— No findings`）。未解決P0/P1/P2があればPhase 6へ進まない。reviewer出力が得られない場合はセルフ検証（L1/L2）にフォールバックし、利用不能・起動失敗・出力未取得のいずれかの理由を1行記録して進む（silent skip禁止）。並列委譲（Phase 4）されたタスクでは、独立reviewer検証をもって親のL1裏取りに代えてよい（reviewerは実行Subagentと別文脈のため）。
 
-**発動強度（上から順に判定。レンズ表で対象外のtypeは常に対象外）:** 必須=complexのL3検証／受け手に渡る最終成果物（外部向け資料・公開コンテンツ・意思決定文書）→ reviewer結果を得るまで完了しない。既定=workflow_depth standard以上 → 毎回実施（または提示）し、reviewer出力が返らなければセルフ検証にフォールバック。省略可=simple・内部メモ・中間生成物・management/coordination・レビュー対象のない意思決定オンリー → セルフ検証L1でよい（省略時は「独立レビュー省略（基準: …）」と1行出力）。
+**発動強度（上から順に判定。レンズ表で対象外のtypeは常に対象外）:** 必須=complexのL3検証／受け手に渡る最終成果物（外部向け資料・公開コンテンツ・意思決定文書）→ reviewer結果を得るまで完了しない。既定=workflow_depth standard以上 → 毎回sub-agent reviewerを起動して結果を取得し、reviewer出力が返らない場合だけ理由を記録してセルフ検証にフォールバック。省略可=simple・内部メモ・中間生成物・management/coordination・レビュー対象のない意思決定オンリー → セルフ検証L1でよい（省略時は「独立レビュー省略（基準: …）」と1行出力）。
 
 **type別検証レンズ（reviewerへの指示に使う。§18/§19の具体化）:**
 
@@ -67,12 +67,15 @@ P0-P1相当の問題はPhase 4に戻って必ず修正する（同格・例外�
 | research | ソースの信頼性・反証可能性 / 主張とエビデンスの対応 / 欠落した対立見解 |
 | goal / plan（Re-Collection GAP分析・Re-Inception残タスク再評価） | 元goal+success_criteriaとの充足・未達 / スコープ逸脱（ドリフト） / 見落とされた前提・欠落タスク / 完了宣言の妥当性 |
 | management / coordination | 対象外（独立レビュー不要・セルフチェックで可） |
+| validation / review | 対象外（自身がcheckerのため再帰reviewerを起動しない） |
 
-backlog.yamlの`type`値が表にない場合は最近縁の行を適用する（例: validation→implementation行 / operation→実行対象成果物のtype行）。
+backlog.yamlの`type`値が表にない場合は最近縁の行を適用する。complexは実際の成果物typeへ、operationは各量産成果物のtypeへ解決する。validation / reviewは最近縁フォールバックの対象外とする。
 
 ### Phase 5.5b: Backtrack判定（タスク単位）
 
 検証結果からBT-A（ブロッカー: critical NG / 外部依存未解決 / 設計矛盾 — RUL_plc_adaptive §5）を判定する。該当時のみNext ActionにD/E選択肢を追加し、該当なしなら何も出力しない。
+
+**Jev監視:** core のコマンド（`/01-collection`〜`/04-operation`）は Jev を**呼ばない**（外部API送信なし）。Jev 監視は実験版パッケージ experimental/jev（`--with-jev`）の `/01〜04-*-jev` コマンドで実行したときだけ動く。仕様は `.claude/ai-plc-jev/` 配下の実験版スキルと `scripts/README_jev.md` を参照。
 
 ### Phase 6: Status Update
 
@@ -82,9 +85,11 @@ backlog.yamlを更新（status → completed + 成果物リンク）し、contex
 
 BT-B（節目再評価: 完了率50% / ゴールドリフト）と BT-C（全完了GAP分析）を判定する（RUL_plc_adaptive §5）。**この判定は独立checkerに通すのが既定**（maker≠checker。実行してきた本人はドリフト・未達に最も盲目）: 作成文脈から独立したreviewer（CC=Subagent / Notion AI等サブエージェント機能のない環境=別スレッド）に、元intent.yamlのgoal+success_criteria+成果物リストを渡し（実行ナラティブは剥ぐが元ゴールは渡す）、上表の`goal/plan`レンズで「達成/未達/スコープ逸脱/見落とし前提」を判定させる。checker出力が返らなければmaker自己判定にフォールバックし1行記録。該当時のみNext ActionにD/E選択肢を統合する。
 
+**Jev監視:** 5.5b と同じく core からは呼ばない（実験版の `/04-operation-jev` のときだけ）。
+
 ### Phase 7: Propagation（省略禁止）
 
-RUL_plc_system §8 のチェックリスト7項目（backlog / context / native memory / External Sync / Wiki波及 / log / Registry DB）を全て「確認→判断→結果出力」で処理し、チェックリストを必ず出力する。Wiki波及はここが唯一の発動ポイント（RUL_plc_system §11）。
+RUL_plc_system §8 のチェックリスト8項目（backlog / context / native memory / External Sync / Wiki波及 / log / Registry DB / ステータス点検）を全て「確認→判断→結果出力」で処理し、チェックリストを必ず出力する。**ステータス点検**は Registry DB 更新の後に、完了するLayer自身の食い違い（intent・backlog・Registry）を判定器で確かめる項目。判定器 `aiplc_status_audit.py` は実験版パッケージ experimental/jev に同梱されており（`--with-jev` で `.claude/ai-plc-jev/scripts/` に入る）、**core だけの環境ではスクリプトが無いため「点検ツールなし — スキップ」と出力して次へ進む**。導入済みなら `python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --brief --layer <Layer>` を実行し（読み取り専用・外部送信なし・終了コード0=食い違いなし／10=あり）、候補があれば1行ずつ提示して承認を求める。SubLayerを持つLayerを閉じるときは子も `--layer` を重ねて指定する（子は自動では含まれない）。反映は承認後に ①`python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --quiet --approval-template --layer <Layer>` で雛形を作る ②コピーして承認する行だけ `approve` にする ③`--apply <承認ファイル>`（dry-run）→ `--apply <承認ファイル> --yes` の順。`--brief` が終了コード2（DBが無い・scope_idが無い等）や終了コード1（pyyaml が無いなどの起動失敗）で終わったときは要点を1行出してスキップする。`--apply <承認ファイル> --yes` が終了コード1（書き込み失敗）・3（書かなかった行がある）で終わったときはスキップせず、結果とログを提示して人の判断を待つ。詳細は `.claude/ai-plc-jev/scripts/README_status_audit.md`。Wiki波及はここが唯一の発動ポイント（RUL_plc_system §11）。
 
 ### Phase 8: Knowledge Lint [月次/手動]
 
@@ -103,4 +108,4 @@ RUL_plc_session §7 の4パート（📍現在位置 / ✅完了サマリ / 📊
 Documents/（成果物） / Context Store・context.yaml（更新） / backlog.yaml（更新） / Production Skills（platform_builder時のみ）。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-07-09 ｜ **バージョン:** 2.4（Phase 6b BT-B/BT-C判定に独立checker既定化 + goal/planレンズ追加 — Re-Collection/Re-Inceptionにもmaker≠checkerを適用。2.3: 独立検証を全タスク既定動作化〔常時提示+セルフフォールバック・silent skip禁止〕+ type別レンズ表 + 発動強度、P0-P1差し戻し/P2持ち越し可。2.2: 独立検証の全type化。2.1: AGT-Subagent並列委譲。2.0: Fable観点軽量化・Lint/PB分離・BT 3種統合）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-09-28 ｜ **バージョン:** 2.7（Phase 7にステータス点検を追加〔点検ツールは experimental/jev 同梱。未導入ならスキップ〕。2.6: Phase 5.5b/6bのJev監視は実験版 /04-operation-jev のみと明記〔core からは呼ばない〕。2.5: Codexを含むsub-agent reviewer起動を明示要求化し、`delegable: false`との適用範囲を分離。未解決P0/P1/P2を完了ゲート化。validation / reviewをレンズ対象外に。2.4: Phase 6b BT-B/BT-C判定に独立checker既定化 + goal/planレンズ追加 — Re-Collection/Re-Inceptionにもmaker≠checkerを適用。2.3: 独立検証を全タスク既定動作化〔常時提示+セルフフォールバック・silent skip禁止〕+ type別レンズ表 + 発動強度、P0-P1差し戻し/P2持ち越し可。2.2: 独立検証の全type化。2.1: AGT-Subagent並列委譲。2.0: Fable観点軽量化・Lint/PB分離・BT 3種統合）
