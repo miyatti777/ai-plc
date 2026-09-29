@@ -47,6 +47,15 @@ RUL_plc_system（本ファイル）→ 全SKL_plc_* が参照。補助ルール:
 | ロール | `ROL_plc_` | ROL_plc_product_manager |
 | サブエージェント | `AGT_plc_` | AGT_plc_research |
 
+**呼び出し名（実行環境での名前）:** 論理名とは別に、Claude Code で打つ名前を次で決める。
+
+| 種別 | 形 | 置き場所（CC） | 例 |
+| --- | --- | --- | --- |
+| パイプライン Stage | `0N-<stage>` | `.claude/skills/ai-plc/`（本体）＋ `.claude/commands/`（呼び出し用ラッパー） | `/01-collection` |
+| ユーティリティ | `plc-<機能>`（kebab-case） | `.claude/skills/plc-<機能>/SKILL.md`（直下。Claude Code は `.claude/skills/` の1階層だけをスキルとして認識する。中身は SKILL.md 1ファイルで、処理は既存スクリプトを呼ぶ） | `/plc-registry` |
+
+ユーティリティの論理名は `SKL_plc_<機能>`（例: SKL_plc_registry）。現行: plc-db-sync（旧 `ai-plc-db-sync`）/ plc-registry / plc-status-audit（Jev 実験版を入れたとき）/ plc-viewer（experimental/registry-viewer を入れたとき）。
+
 旧AIPO名称は使用禁止（本表がプロジェクト唯一の定義。各スキルはここを参照する）:
 
 | 旧AIPO（❌禁止） | AI-PLC（✅正） |
@@ -221,5 +230,5 @@ intent.yamlの`extensions`フィールドで宣言し、該当時のみ追加チ
 適用: Collection時にextensionsを読み込み、各Stageで追加チェックを適用、§18のL2/L3に項目を追加する。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-09-28 ｜ **ステータス:** Active
-**バージョン:** 2.1（§8 Phase 7 チェックリストにステータス点検を追加。点検ツールは experimental/jev 同梱のため、未導入ならスキップ）｜ 2.0（Fable観点軽量化: §番号据え置きで本文圧縮、§13→§11統合、Lint詳細を分離ファイルへ、Wiki波及はOperation Propagation時のみに一本化）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-09-29 ｜ **ステータス:** Active
+**バージョン:** 2.2（§6 に呼び出し名の表を追加: ユーティリティは `plc-<機能>`・`.claude/skills/` 直下）｜ 2.1（§8 Phase 7 チェックリストにステータス点検を追加。点検ツールは experimental/jev 同梱のため、未導入ならスキップ）｜ 2.0（Fable観点軽量化: §番号据え置きで本文圧縮、§13→§11統合、Lint詳細を分離ファイルへ、Wiki波及はOperation Propagation時のみに一本化）

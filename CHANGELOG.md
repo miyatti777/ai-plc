@@ -11,6 +11,23 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 
 この版より前の変更は、GitHub のリリースとタグを見てください。
 
+## [1.9.0] - 2026-09-29
+
+実験版パッケージは **1.8.1-exp.1 のまま**です（中身も変えていません。そのため実験版の `README_status_audit.md` には旧名 `ai-plc-db-sync` の記述が残っています。読み替えてください）。
+
+### 追加: AI-PLC ユーティリティスキル（`plc-<機能>`）
+
+- ユーティリティのスキル名を **`plc-<機能>`** にそろえ、`.claude/skills/` の直下に置くようにしました（Claude Code は `.claude/skills/` の1階層だけをスキルとして読みます）。名前の決まりは `core/rules/ai-plc-system.md` §6（v2.2）の「呼び出し名」の表にあります
+- 新しく入るスキル: `plc-registry`（Registry の照会と追加）、`plc-status-audit`（ステータス点検。実験版を入れたときだけ使える）、`plc-viewer`（Registry ビューア。`experimental/registry-viewer` を手でコピーしたときだけ使える）。Codex 用のアダプター（`.agents/skills/ai-plc/plc-*`）も入ります
+
+### 変更: DB 同期スキルの改名
+
+- `ai-plc-db-sync` → **`plc-db-sync`**。置き場所は `.claude/skills/ai-plc/db-sync/` → `.claude/skills/plc-db-sync/`（Cursor は `.cursor/skills/plc-db-sync/`、Codex は `.agents/skills/ai-plc/plc-db-sync/`）。更新すると古いファイルは自動で消えます（編集していた場合は止まります）。手順は README の「アップデート手順」
+
+### 修正
+
+- `spec-story-starter` と `wire-aa-authoring` は `.claude/skills/utility/` の下に入るだけで、Claude Code から呼べませんでした。`.claude/commands/` にラッパーを同梱し、`/spec-story-starter`・`/wire-aa-authoring` で呼べるようにしました
+
 ## [実験版 1.8.1-exp.1] - 2026-09-29
 
 実験版パッケージ（`experimental/jev/`、`--with-jev` のときだけ入る）の新しい版です。前の実験版 1.8.0-exp.1 の次の版で、**core の版は 1.8.1 のまま**です（installer の `--help` の表示も `v1.8.1`）。`1.8.1-exp.1` は core 1.8.1 に合わせて出した版で、末尾の `exp.1` はその版での通し番号です（前の実験版 1.8.0-exp.1 は core 1.7.1 の上に作ったもので、頭の数字が core の版と一致するとは限りません）。1.8.0 の「未対応・既知の点」に書いた実験版の古い版表記と、README の実験版の節の「既知の制約」に書いていた uninstall の後片付けの制約は、この版で直しました。

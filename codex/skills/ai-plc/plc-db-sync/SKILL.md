@@ -1,5 +1,5 @@
 ---
-name: ai-plc-db-sync
+name: plc-db-sync
 description: AI-PLCのローカルSQLite DBとNotion DBをpull、push、sync、statusで双方向同期する。
 ---
 
@@ -11,7 +11,7 @@ description: AI-PLCのローカルSQLite DBとNotion DBをpull、push、sync、s
 
 repository root基準で、次の4ファイルがregular fileとして存在し読めることを確認する。
 
-- `.claude/skills/ai-plc/db-sync/SKILL.md`
+- `.claude/skills/plc-db-sync/SKILL.md`
 - `.claude/rules/ai-plc-system.md`
 - `.claude/rules/ai-plc-session.md`
 - `.claude/rules/ai-plc-adaptive.md`
@@ -21,7 +21,7 @@ repository root基準で、次の4ファイルがregular fileとして存在し�
 ## 実行
 
 1. 必須3 Rulesを上記順で最後まで読む。
-2. 正本`.claude/skills/ai-plc/db-sync/SKILL.md`を最後まで読む。
+2. 正本`.claude/skills/plc-db-sync/SKILL.md`を最後まで読む。
 3. コマンド、DB、同期設定は正本に記載された`.claude/db/`配下を使用する。
 4. `status`とdry-runはread-only確認として実行できる。pull、push、syncはユーザーが明示した操作範囲だけ実行する。
 5. Claude Code固有のAgent toolまたは起動表記が現れた場合は、許可されたCodex sub-agentまたは対応する`$skill-name`へ変換する。
