@@ -502,6 +502,19 @@ python3 .claude/db/sync.py sync     # 双方向同期
 
 > 💡 **Notion のページ本文そのものを往復させたい場合**は、姉妹ツール [nsync](https://github.com/miyatti777/nsync) が使えます。DB だけでなく企画ページ・タスクページの本文・装飾まで Notion⇔ローカル Markdown で双方向同期でき、「企画は Notion／実装・執筆は Claude Code」の往復ワークフローの実行手段になります。
 
+### 画面で見る（アルファ版: `experimental/registry-viewer/`）
+
+Registry をブラウザで一覧（親子のツリー・status・進捗率）し、Project と Task の status を変えられるローカル専用のビューアを、**アルファ版**として置いています。installer の対象外なので、プロジェクトに手でコピーして使います。
+
+```bash
+cp -R experimental/registry-viewer <プロジェクト>/.claude/db/registry_viewer
+cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http://127.0.0.1:8765/
+```
+
+- core だけの環境では**閲覧のみ**、Jev 実験版（`--with-jev`）を入れた環境では status の変更やステータス点検の指摘も使えます
+- status を変えると Layer のファイルと Registry の両方を書き換えます。試す前にバックアップを取ってください（手順と、書き換わる範囲・戻し方は [`experimental/registry-viewer/README.md`](experimental/registry-viewer/README.md)）
+- macOS のメニューバーアプリのソース（自分でビルドする）も同梱しています。試した結果の報告は Issue で歓迎します
+
 ---
 
 ## 🛠 同梱スキル
@@ -765,6 +778,7 @@ ai-plc/
 ├── templates/             # soul.md / wiki
 ├── examples/kotonoha/     # 試せるサンプル
 ├── experimental/jev/      # 実験版（--with-jev のときだけ入る。Claude Code 専用）
+├── experimental/registry-viewer/  # Registry ビューア（アルファ版。installer 対象外・手でコピー）
 └── docs/                  # ARCHITECTURE.md
 ```
 </details>

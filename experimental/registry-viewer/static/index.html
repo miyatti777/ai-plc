@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI-PLC Registry</title>
+<style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --text: #1f2328; --muted: #6a737d; --line: #e3e3de;
+  --accent: #2f6fdb; --accent-soft: #e8f0fd;
+  --active: #1a7f37; --active-soft: #e6f4ea; --completed: #57606a; --completed-soft: #eef0f2;
+  --paused: #9a6700; --paused-soft: #fff4d6; --planned: #6f42c1; --planned-soft: #f1ebfb;
+  --warn: #bc4c00; --warn-soft: #fff1e5; --danger: #cf222e; --bar: #d0d7de;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111418; --panel: #181c21; --text: #e6e8eb; --muted: #9aa4af; --line: #2a3038;
+    --accent: #6ea8fe; --accent-soft: #1b2a41;
+    --active: #56d364; --active-soft: #12301c; --completed: #a0a9b3; --completed-soft: #23282e;
+    --paused: #e3b341; --paused-soft: #3a2e0f; --planned: #b392f0; --planned-soft: #2b2142;
+    --warn: #ffa657; --warn-soft: #3b2412; --danger: #ff7b72; --bar: #30363d;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+header { position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line);
+  padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+header h1 { font-size: 16px; margin: 0; }
+.meta { color: var(--muted); font-size: 12px; }
+.counts { display: flex; gap: 6px; flex-wrap: wrap; }
+.spacer { flex: 1; }
+button, select, input[type=search] { font: inherit; color: var(--text); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; }
+button { cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled, select:disabled { opacity: .5; cursor: not-allowed; }
+main { display: grid; grid-template-columns: minmax(340px, 44%) 1fr; gap: 0; min-height: calc(100vh - 54px); }
+#list { border-right: 1px solid var(--line); overflow: auto; max-height: calc(100vh - 54px); }
+#detail { overflow: auto; max-height: calc(100vh - 54px); padding: 16px 20px 40px; }
+.filters { position: sticky; top: 0; background: var(--bg); padding: 10px 12px; display: flex; gap: 6px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--line); z-index: 2; }
+.filters input[type=search] { flex: 1; min-width: 140px; }
+.chip { border-radius: 999px; padding: 2px 10px; font-size: 12px; }
+.chip[aria-pressed=true] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 7px 12px 7px calc(12px + var(--depth, 0) * 18px);
+  border-bottom: 1px solid var(--line); cursor: pointer; }
+.row:hover { background: var(--accent-soft); }
+.row.sel { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.row.ghost { opacity: .55; }
+.row .t { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
+.row .sid { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); white-space: nowrap; }
+.row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .r { display: flex; gap: 4px; align-items: center; justify-content: flex-end; }
+.row .p { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
+.bar { height: 6px; background: var(--bar); border-radius: 3px; overflow: hidden; width: 120px; flex: none; }
+.bar > i { display: block; height: 100%; background: var(--active); }
+.badge { font-size: 11px; border-radius: 4px; padding: 0 6px; white-space: nowrap; border: 1px solid transparent; }
+.s-active { color: var(--active); background: var(--active-soft); }
+.s-completed { color: var(--completed); background: var(--completed-soft); }
+.s-paused { color: var(--paused); background: var(--paused-soft); }
+.s-planned { color: var(--planned); background: var(--planned-soft); }
+.warn { color: var(--warn); background: var(--warn-soft); }
+.lock { color: var(--muted); border-color: var(--line); }
+.caret { width: 14px; color: var(--muted); display: inline-block; text-align: center; }
+h2 { font-size: 18px; margin: 4px 0 2px; }
+.goal { white-space: pre-wrap; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+dl.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 12px 0; }
+dl.kv dt { color: var(--muted); }
+dl.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--completed-soft); padding: 1px 5px; border-radius: 4px; }
+.copyline { display: flex; gap: 6px; align-items: center; }
+.copyline code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+section { margin-top: 18px; }
+section h3 { font-size: 14px; margin: 0 0 6px; }
+table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; }
+td.mono { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+tr.mismatch td { background: var(--warn-soft); }
+.ops { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.note { color: var(--muted); font-size: 12px; }
+.issues li { margin: 4px 0; }
+.empty { color: var(--muted); padding: 40px 0; text-align: center; }
+.legend { font-size: 12px; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 24px; border-top: 1px solid var(--line); padding-top: 10px; }
+dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); max-width: 560px; width: calc(100% - 32px); }
+dialog::backdrop { background: rgba(0,0,0,.35); }
+dialog ul { padding-left: 18px; }
+#toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg);
+  padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); }
+#toast.on { opacity: 1; }
+#toast.err { background: var(--danger); color: #fff; }
+@media (max-width: 760px) {
+  main { grid-template-columns: 1fr; }
+  #list, #detail { max-height: none; border-right: 0; }
+  #list { border-bottom: 1px solid var(--line); max-height: 50vh; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>AI-PLC Registry <span class="badge lock" id="ver" data-testid="header-version"></span></h1>
+  <span class="badge warn" id="modeBadge" hidden data-testid="header-mode"></span>
+  <div class="counts" id="counts" data-testid="header-counts"></div>
+  <span class="spacer"></span>
+  <span class="meta" id="asof" data-testid="header-asof"></span>
+  <label class="meta" id="shareLabel"><input type="checkbox" id="share" data-testid="header-share-toggle"> 画面共有モード</label>
+  <button id="reload" data-testid="header-reload-button">再読み込み</button>
+</header>
+<main>
+  <div id="list">
+    <div class="filters">
+      <input type="search" id="q" placeholder="scope_id・名前で絞り込み" data-testid="filter-search-input">
+      <span id="statusChips"></span>
+      <button class="chip" id="issuesOnly" aria-pressed="false" data-testid="filter-issues-chip">食い違いあり</button>
+    </div>
+    <div id="rows" data-testid="project-list"></div>
+  </div>
+  <div id="detail" data-testid="project-detail"><div class="empty">左の一覧から Project を選んでください</div></div>
+</main>
+<dialog id="confirm" data-testid="confirm-dialog">
+  <form method="dialog">
+    <h3 id="cfTitle" style="margin-top:0"></h3>
+    <div id="cfBody"></div>
+    <p class="ops" style="justify-content:flex-end">
+      <button value="cancel" data-testid="confirm-cancel-button">やめる</button>
+      <button value="ok" class="primary" data-testid="confirm-ok-button">変更する</button>
+    </p>
+  </form>
+</dialog>
+<div id="toast" role="status"></div>
+<script>
+"use strict";
+const TOKEN = "__VIEWER_TOKEN__";
+const STATUSES = ["active", "planned", "paused", "completed"];
+const PROJECT_CHOICES = ["active", "paused", "completed"];
+const TASK_CHOICES = ["pending", "in_progress", "completed", "blocked", "deferred", "cancelled"];
+const INTENT_WRITE = { active: "active", completed: "completed", paused: "deferred" };
+const st = { data: null, sel: null, filter: new Set(["active"]), issuesOnly: false, q: "", collapsed: new Set(),
+  share: false, detail: null };
+try { const saved = JSON.parse(localStorage.getItem("rv-prefs") || "{}");
+  if (Array.isArray(saved.filter)) st.filter = new Set(saved.filter); st.share = !!saved.share; } catch (e) {}
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function savePrefs() { try { localStorage.setItem("rv-prefs", JSON.stringify({ filter: [...st.filter], share: st.share })); } catch (e) {} }
+function toast(msg, err) { const t = $("toast"); t.textContent = msg; t.className = "on" + (err ? " err" : "");
+  clearTimeout(toast._t); toast._t = setTimeout(() => (t.className = ""), err ? 6000 : 2500); }
+const masked = (p) => st.share && p.confidential;
+const label = (p) => masked(p) ? p.hash_id : p.scope_id;
+const pname = (p) => masked(p) ? "（機密のため非表示）" : p.name;
+const badge = (s) => `<span class="badge s-${esc(s)}">${esc(s)}</span>`;
+function pct(pr) { return pr.total ? Math.round((pr.done / pr.total) * 100) : null; }
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const j = await r.json().catch(() => ({ ok: false, error: `HTTP ${r.status}` }));
+  if (!r.ok) { const e = new Error(j.error || `HTTP ${r.status}`); e.body = j; e.status = r.status; throw e; }
+  return j;
+}
+async function post(path, body) {
+  return api(path, { method: "POST", headers: { "Content-Type": "application/json", "X-Viewer-Token": TOKEN }, body: JSON.stringify(body) });
+}
+
+async function load(keepSel) {
+  $("rows").innerHTML = '<div class="empty">読み込み中…</div>';
+  try { st.data = await api("/api/projects"); }
+  catch (e) { $("rows").innerHTML = `<div class="empty">読み込みに失敗しました: ${esc(e.message)}</div>`; return; }
+  renderHeader(); renderList();
+  if (keepSel && st.sel) openDetail(st.sel);
+}
+
+function renderHeader() {
+  const c = st.data.counts;
+  $("ver").textContent = st.data.version || "";
+  const ro = st.data.viewer_mode === "readonly", noAudit = !st.data.audit_available;
+  $("modeBadge").hidden = !ro;
+  $("modeBadge").textContent = ro ? "閲覧のみ" : "";
+  $("modeBadge").title = st.data.viewer_mode_reason || "";
+  $("shareLabel").hidden = noAudit;  // status_audit が無いと機密判定ができないので画面共有モードも出さない
+  $("issuesOnly").hidden = noAudit;
+  $("counts").innerHTML = STATUSES.map((s) => `<span class="badge s-${s}">${s} ${c.by_status[s] || 0}</span>`).join("") +
+    (c.issues ? `<span class="badge warn" title="aiplc_status_audit の候補数">食い違い ${c.issues}</span>` : "");
+  $("asof").textContent = `DB更新 ${st.data.db_mtime.replace("T", " ")} ／ 読込 ${st.data.generated_at.slice(11)}`;
+  $("statusChips").innerHTML = STATUSES.map((s) =>
+    `<button class="chip" data-s="${s}" aria-pressed="${st.filter.has(s)}" data-testid="filter-status-${s}">${s}</button>`).join("");
+  $("statusChips").querySelectorAll("button").forEach((b) => b.onclick = () => {
+    const s = b.dataset.s; st.filter.has(s) ? st.filter.delete(s) : st.filter.add(s); savePrefs(); renderHeader(); renderList(); });
+  $("issuesOnly").setAttribute("aria-pressed", st.issuesOnly);
+  $("share").checked = st.share;
+}
+
+function tree() {
+  const by = new Map(st.data.projects.map((p) => [p.scope_id, p]));
+  const kids = new Map();
+  const roots = [];
+  for (const p of st.data.projects) {
+    const par = p.parent_scope && by.has(p.parent_scope) && p.parent_scope !== p.scope_id ? p.parent_scope : null;
+    if (par) { if (!kids.has(par)) kids.set(par, []); kids.get(par).push(p); } else roots.push(p);
+  }
+  const key = (p) => p.scope_id;
+  // 新しい順: start_date（無ければ最後）→ scope_id の降順
+  const sortFn = (a, b) => (b.start_date || "").localeCompare(a.start_date || "") || key(b).localeCompare(key(a));
+  roots.sort(sortFn); for (const v of kids.values()) v.sort((a, b) => key(a).localeCompare(key(b)));
+  return { roots, kids };
+}
+
+function matches(p) {
+  if (!st.filter.has(p.status)) return false;
+  if (st.issuesOnly && !p.issues && !p.status_mismatch) return false;
+  if (st.q) { const q = st.q.toLowerCase();
+    const hay = (label(p) + " " + (masked(p) ? "" : p.name + " " + p.scope_id)).toLowerCase();
+    if (!hay.includes(q)) return false; }
+  return true;
+}
+
+function renderList() {
+  const { roots, kids } = tree();
+  const out = [];
+  const visit = (p, depth) => {
+    const ch = kids.get(p.scope_id) || [];
+    const childHtml = [];
+    let childHit = false;
+    const saveLen = out.length;
+    for (const c of ch) { const hit = visit(c, depth + 1); childHit = childHit || hit; }
+    const sub = out.splice(saveLen);
+    const self = matches(p);
+    if (!self && !childHit) return false;
+    const col = st.collapsed.has(p.scope_id);
+    const pr = p.progress, pc = pct(pr);
+    out.push(`<div class="row${st.sel === p.scope_id ? " sel" : ""}${self ? "" : " ghost"}" style="--depth:${depth}" data-sid="${esc(p.scope_id)}" data-testid="project-row">
+      <div class="t"><span class="caret" data-toggle="${esc(p.scope_id)}">${ch.length ? (col ? "▸" : "▾") : ""}</span>
+        <span class="sid">${esc(label(p))}</span><span class="nm">${esc(pname(p))}</span></div>
+      <div class="r">${p.confidential ? '<span class="badge lock" title="機密判定（status_audit と同じ基準）">🔒</span>' : ""}
+        ${p.status_mismatch ? '<span class="badge warn" title="intent と Registry の status が違う">status差</span>' : ""}
+        ${p.issues ? `<span class="badge warn" title="aiplc_status_audit の候補">食い違い ${p.issues}</span>` : ""}
+        ${badge(p.status)}</div>
+      <div class="p"><span class="caret"></span>${pc === null ? "タスクなし" :
+        `<span class="bar"><i style="width:${pc}%"></i></span>${pr.done}/${pr.total}（${pc}%）`}
+        ${p.layer_path ? "" : '<span title="Layer フォルダが見つからない">Layerなし</span>'}
+        ${p.deadline ? `<span>期限 ${esc(p.deadline)}</span>` : ""}</div></div>`);
+    if (!col) out.push(...sub);
+    return true;
+  };
+  for (const r of roots) visit(r, 0);
+  $("rows").innerHTML = out.length ? out.join("") : '<div class="empty">条件に合う Project はありません</div>';
+  $("rows").querySelectorAll(".row").forEach((el) => el.onclick = (ev) => {
+    const tg = ev.target.closest("[data-toggle]");
+    if (tg && tg.textContent) { const s = tg.dataset.toggle; st.collapsed.has(s) ? st.collapsed.delete(s) : st.collapsed.add(s); renderList(); return; }
+    openDetail(el.dataset.sid);
+  });
+}
+
+async function openDetail(sid) {
+  st.sel = sid; renderList();
+  $("detail").innerHTML = '<div class="empty">読み込み中…</div>';
+  let d;
+  try { d = await api(`/api/projects/${encodeURIComponent(sid)}`); }
+  catch (e) { $("detail").innerHTML = `<div class="empty">読み込みに失敗しました: ${esc(e.message)}</div>`; return; }
+  st.detail = d; renderDetail();
+}
+
+function renderDetail() {
+  const d = st.detail, m = st.share && d.confidential;
+  const pr = d.progress, pc = pct(pr);
+  const byId = new Map(st.data.projects.map((p) => [p.scope_id, p]));
+  const link = (s) => { const p = byId.get(s); return p ? `<a href="#" data-go="${esc(s)}">${esc(label(p))}</a>` : esc(s); };
+  const copy = (text, tid) => `<span class="copyline"><code>${esc(text)}</code><button data-copy="${esc(text)}" data-testid="${tid}">コピー</button></span>`;
+  const ro = !d.writable;
+  $("detail").innerHTML = `
+    <div class="note">${m ? esc(d.hash_id) : esc(d.scope_id)} ${d.confidential ? "🔒" : ""}</div>
+    <h2 data-testid="detail-title">${m ? "（機密のため非表示）" : esc(d.name)}</h2>
+    <div class="goal" data-testid="detail-goal">${m ? "（機密のため非表示）" : esc(d.goal || "（goal なし）")}</div>
+    <dl class="kv">
+      <dt>status</dt><dd>${badge(d.status)} <span class="note">intent: ${esc(d.intent_status ?? "—")}${d.summary_status ? ` ／ backlog summary: ${esc(d.summary_status)}` : ""}</span>
+        ${d.status_mismatch ? '<span class="badge warn">intent と Registry が違う</span>' : ""}
+        ${d.duplicate_folder ? '<span class="badge warn">同じ scope_id のフォルダが複数あります（最初の1つを表示）</span>' : ""}</dd>
+      <dt>進捗</dt><dd>${pc === null ? "タスクなし" : `<span class="ops"><span class="bar"><i style="width:${pc}%"></i></span>${pr.done}/${pr.total}（${pc}%・${pr.source === "backlog" ? "backlog.yaml" : "Registry"} 基準）</span>`}</dd>
+      <dt>depth / mode</dt><dd>${esc(d.depth)} / ${esc(d.mode)}</dd>
+      <dt>期間</dt><dd>${esc(d.start_date || "—")} 〜 ${esc(d.deadline || "—")}</dd>
+      <dt>親</dt><dd>${d.parent_scope ? link(d.parent_scope) : "—"}</dd>
+      <dt>子</dt><dd>${d.children.length ? d.children.map(link).join("、") : "—"}</dd>
+      <dt>Layer</dt><dd>${d.layer_path ? (m ? "（機密のため非表示）" : copy(d.layer_path, "detail-layer-copy")) : '<span class="badge warn">Layer フォルダが見つかりません</span>'}</dd>
+      <dt>起動</dt><dd>${d.launch_prompt ? (m ? "（機密のため非表示）" : copy(d.launch_prompt, "detail-prompt-copy")) : "—"}</dd>
+    </dl>
+    <section>
+      <h3>Project の status を変える</h3>
+      <div class="ops">
+        <select id="pStatus" ${ro ? "disabled" : ""} data-testid="project-status-select">
+          ${PROJECT_CHOICES.includes(d.status) ? "" : `<option value="" disabled selected>${esc(d.status)}（現在の値・画面からは選べません）</option>`}
+          ${PROJECT_CHOICES.map((s) => `<option ${s === d.status ? "selected" : ""}>${s}</option>`).join("")}</select>
+        <button id="pApply" ${ro ? "disabled" : ""} data-testid="project-status-apply">変更</button>
+        <span class="note">${ro ? `読み取り専用: ${esc(d.readonly_reason)}` : "intent.yaml → backlog の summary → Registry の順に書きます"}</span>
+      </div>
+    </section>
+    <section>
+      <h3>タスク（${d.tasks.length}）</h3>
+      ${d.tasks.length ? `<table data-testid="task-table"><thead><tr><th>ID</th><th>名前</th><th>pri</th><th>backlog</th><th>Registry</th><th>変更</th></tr></thead><tbody>
+      ${d.tasks.map((t) => `<tr class="${t.mismatch ? "mismatch" : ""}" data-testid="task-row">
+        <td class="mono">${esc(t.task_id)}</td><td>${m ? "—" : esc(t.name)}</td><td class="mono">${esc(t.priority ?? "")}</td>
+        <td class="mono">${t.in_layer ? esc(t.layer_status ?? "—") : '<span class="note">なし</span>'}</td>
+        <td class="mono">${t.in_registry ? esc(t.registry_status) : '<span class="note">なし</span>'}</td>
+        <td>${!ro && !t.editable ? `<span class="note" title="${esc(t.readonly_reason)}">変更不可</span>` : `<span class="ops"><select data-task="${esc(t.task_id)}" ${ro ? "disabled" : ""} data-testid="task-status-select">
+          ${TASK_CHOICES.map((s) => `<option ${s === currentTaskChoice(t) ? "selected" : ""}>${s}</option>`).join("")}</select>
+          <button data-apply="${esc(t.task_id)}" ${ro ? "disabled" : ""} data-testid="task-status-apply">変更</button></span>`}</td></tr>`).join("")}
+      </tbody></table>
+      <p class="note">色つきの行は backlog と Registry の値が対応していないタスクです。「変更」は backlog.yaml → Registry の順に、ある写しをすべて同じ値にします。</p>` : '<p class="note">タスクはありません</p>'}
+    </section>
+    <section>
+      <h3>食い違い（aiplc_status_audit）</h3>
+      ${!d.audit_available ? '<p class="note">aiplc_status_audit.py が無いため表示しません</p>' : d.issues.length ? `<ul class="issues">${d.issues.map((i) => `<li><span class="badge warn">${esc(i.kind)}</span> ${m ? "（機密のため理由は非表示）" : esc(i.reason)}</li>`).join("")}</ul>
+        <p class="note">反映は <code>python3 ${esc(d.audit_path || "aiplc_status_audit.py")} --quiet --approval-template --layer &lt;Layer&gt;</code> から（承認つき）</p>` : '<p class="note">食い違いはありません</p>'}
+    </section>
+    <div class="legend"><b>読み方</b> ${STATUSES.map(badge).join("")}
+      <span>進捗＝完了 / 対象（cancelled・deferred は除外）</span>
+      ${d.audit_available ? '<span class="badge warn">食い違い</span><span>＝status_audit の候補</span><span class="badge lock">🔒</span><span>＝機密判定</span>' : ""}</div>`;
+  $("detail").querySelectorAll("[data-go]").forEach((a) => a.onclick = (e) => { e.preventDefault(); openDetail(a.dataset.go); });
+  $("detail").querySelectorAll("[data-copy]").forEach((b) => b.onclick = async () => {
+    try { await navigator.clipboard.writeText(b.dataset.copy); toast("コピーしました"); } catch (e) { toast("コピーできませんでした", true); } });
+  const pa = $("pApply"); if (pa) pa.onclick = () => changeProject($("pStatus").value);
+  $("detail").querySelectorAll("[data-apply]").forEach((b) => b.onclick = () =>
+    changeTask(b.dataset.apply, $("detail").querySelector(`select[data-task="${CSS.escape(b.dataset.apply)}"]`).value));
+}
+
+// select の初期値: backlog の値。backlog に無いタスクは Registry の値から逆に対応づける（押し間違いで戻さないため）
+const REG_TO_CHOICE = { "完了": "completed", "completed": "completed", "進行中": "in_progress", "active": "in_progress" };
+function currentTaskChoice(t) {
+  if (t.in_layer) return String(t.layer_status ?? "").toLowerCase();
+  return REG_TO_CHOICE[t.registry_status] || "pending";
+}
+
+function confirmDialog(title, lines) {
+  $("cfTitle").textContent = title;
+  $("cfBody").innerHTML = `<ul>${lines.map((l) => `<li>${l}</li>`).join("")}</ul>`;
+  const dlg = $("confirm");
+  return new Promise((res) => { dlg.onclose = () => res(dlg.returnValue === "ok"); dlg.returnValue = ""; dlg.showModal(); });
+}
+
+async function changeProject(to) {
+  const d = st.detail;
+  if (!PROJECT_CHOICES.includes(to)) { toast("変更後の status を選んでください"); return; }
+  if (to === d.status && (INTENT_WRITE[to] === String(d.intent_status))) { toast("すでにその値です"); return; }
+  const m = st.share && d.confidential, lp = m ? "（機密のため非表示）" : esc(d.layer_path), who = m ? d.hash_id : d.scope_id;
+  const lines = [`<code>${lp}/intent.yaml</code> の status: ${esc(d.intent_status)} → ${esc(INTENT_WRITE[to])}`];
+  if (d.summary_status != null) lines.push(`<code>backlog.yaml</code> の summary.status: ${esc(d.summary_status)} → ${esc(INTENT_WRITE[to])}`);
+  lines.push(`Registry projects.status: ${esc(d.status)} → ${esc(to)}`);
+  if (!(await confirmDialog(`${who} を ${to} にします`, lines))) return;
+  try {
+    const r = await post(`/api/projects/${encodeURIComponent(d.scope_id)}/status`, { to, expected: { intent: d.intent_status, registry: d.status } });
+    toast(m ? "変更しました" : `変更しました（${r.wrote.join("・") || "変更なし"}）`);
+  } catch (e) { toast(m ? `変更できませんでした（HTTP ${e.status || "?"}）` : e.message, true); }
+  await load(true);
+}
+
+async function changeTask(tid, to) {
+  const d = st.detail, t = d.tasks.find((x) => x.task_id === tid);
+  const m = st.share && d.confidential, lp = m ? "（機密のため非表示）" : esc(d.layer_path), who = m ? d.hash_id : d.scope_id;
+  const lines = [];
+  if (t.in_layer) lines.push(`<code>${lp}/backlog.yaml</code> の ${esc(tid)}.status: ${esc(t.layer_status)} → ${esc(to)}`);
+  if (t.in_registry) lines.push(`Registry tasks.status: ${esc(t.registry_status)} → （${esc(to)} に対応する値）`);
+  if (!(await confirmDialog(`${who} / ${tid} を ${to} にします`, lines))) return;
+  try {
+    const r = await post(`/api/projects/${encodeURIComponent(d.scope_id)}/tasks/${encodeURIComponent(tid)}/status`,
+      { to, expected: { backlog: t.in_layer ? t.layer_status : null, registry: t.in_registry ? t.registry_status : null } });
+    toast(m ? "変更しました" : `変更しました（${r.wrote.join("・") || "変更なし"}）`);
+  } catch (e) { toast(m ? `変更できませんでした（HTTP ${e.status || "?"}）` : e.message, true); }
+  await load(true);
+}
+
+$("reload").onclick = () => load(true);
+$("q").oninput = (e) => { st.q = e.target.value.trim(); renderList(); };
+$("issuesOnly").onclick = () => { st.issuesOnly = !st.issuesOnly; renderHeader(); renderList(); };
+$("share").onchange = (e) => { st.share = e.target.checked; savePrefs(); renderList(); if (st.detail) renderDetail(); };
+load(false);
+</script>
+</body>
+</html>
