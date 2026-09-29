@@ -26,7 +26,7 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 ### installer（`lib/ai_plc_multi_env.py`）
 
 - 実験版の uninstall の後処理（`.bak` と空ディレクトリの掃除）の最中にプロセスが落ち、次が codex 経路（`install.sh codex` / `install-codex.sh`）だった場合に、実験版の `.bak` とディレクトリが残っていました。cc を含む uninstall（`cc` / `both` / `all`）のときに、中身が既知の版か今の配布物と一致する `.bak` と、それで空になった実験版のディレクトリを掃除します。一致しないものは残して `[WARN]` に件数を出します。台帳が無くて uninstall がエラーで止まる環境でも、残り物だけ掃除してから同じエラーで止まります
-- 後処理の再開中にもう一度落ちると、再開の情報が失われていました。再開の情報を先に保存してから後処理するようにしました（次の `install.sh` / `uninstall.sh` で再開します。`install-codex.sh` を挟んだなどで再開の情報が失われた場合も、cc を含む uninstall で掃除します）
+- 後処理の再開中にもう一度落ちると、再開の情報が失われていました。再開の情報を先に保存してから後処理するようにしました（次の `install.sh`（codex 以外）/ `uninstall.sh` で再開します。`install-codex.sh` を挟んだなどで再開の情報が失われた場合も、cc を含む uninstall で掃除します）
 - **実験版の残り物が無い環境では、動きは今までと同じです**（`--with-jev` を付けない install・uninstall の出力・終了コードも同じ）。残り物がある環境で cc を含む uninstall のときに掃除することは、意図した変更です。install・`--dry-run`・`--plan-only`・cursor / codex だけの uninstall では掃除しません
 - `tests/installers/README.md`: `test_with_jev.py` は git の履歴を読むため、完全な clone が必要なことを書きました
 

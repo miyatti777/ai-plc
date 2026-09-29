@@ -802,7 +802,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 - **`/02-inception-jev`:** カバー判定の採否の記録を、タスクの実行より先に行うことを明記しました（`/04-operation-jev` と同じ）
 - **ステータス点検:** Registry のタスク ID が `<scope_id>-T001` の形で、backlog が `T001` の形でも、同じタスクとして突き合わせます（前の版では「タスク行なし」と誤って出ていました）。`--apply` で書き換えるのは Registry にある元の ID の行です
 
-**installer の変更について:** この版では installer の処理も変えています。実験版の残り物（実験版の置き場所に残った `<path>.bak.<UTC>.<n>` や、中断した後処理の再開情報）が無い環境では、動きはタグ `v1.8.1` の installer と同じです（`--with-jev` を付けない install・uninstall の出力・終了コードも同じ）。残り物がある環境で、cc を含む uninstall のときにそれを掃除すること、後処理の再開中にもう一度落ちても次の `install.sh` / `uninstall.sh` で再開すること（`install-codex.sh` を挟んだなどで再開の情報が失われた場合も、cc を含む uninstall で掃除します）は、意図した差です（install・`--dry-run`・`--plan-only`・cursor / codex だけの uninstall では掃除しません）。
+**installer の変更について:** この版では installer の処理も変えています。実験版の残り物（実験版の置き場所に残った `<path>.bak.<UTC>.<n>` や、中断した後処理の再開情報）が無い環境では、動きはタグ `v1.8.1` の installer と同じです（`--with-jev` を付けない install・uninstall の出力・終了コードも同じ）。残り物がある環境で、cc を含む uninstall のときにそれを掃除すること、後処理の再開中にもう一度落ちても次の `install.sh`（codex 以外）/ `uninstall.sh` で再開すること（`install-codex.sh` を挟んだなどで再開の情報が失われた場合も、cc を含む uninstall で掃除します）は、意図した差です（install・`--dry-run`・`--plan-only`・cursor / codex だけの uninstall では掃除しません）。
 
 ### キー登録
 
