@@ -750,7 +750,7 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 >
 > ⚠️ **外部送信あり（opt-in）。** APIキーを登録し、Layer の `intent.yaml` に `jev_monitor: true` を書いたときだけ、Layer の文や発話を字数で切ったもの（下の表。要約ではなく原文の抜粋です）を外部の判断専用モデル **Jev**（TypeSafe）に送ります。キーが無ければ何も送らず、すべてスキップされます。
 >
-> **版:** 実験版パッケージ（`experimental/jev/`）の版は **`1.8.1-exp.1`** で、前の実験版 `1.8.0-exp.1` の次の版です。core の版（**1.8.1**）とは別に数えます。頭の `1.8.1` はこの実験版を作った時点の core の版、末尾の `exp.1` はその上での通し番号です。スキルは core 1.8.1 のスキルを元にしており、違いは Jev 部分だけです（[CHANGELOG.md](CHANGELOG.md)）。
+> **版:** 実験版パッケージ（`experimental/jev/`）の版は **`1.8.1-exp.1`** で、前の実験版 `1.8.0-exp.1` の次の版です。実験版の番号は core の版（**1.8.1**）とは別に数えます。`1.8.1-exp.1` は core 1.8.1 に合わせて出した版で、末尾の `exp.1` はその版での通し番号です（前の実験版 `1.8.0-exp.1` は core 1.7.1 の上に作ったもので、頭の数字が core の版と一致するとは限りません）。スキルは core 1.8.1 のスキルを元にしており、違いは Jev 部分だけです（[CHANGELOG.md](CHANGELOG.md)）。
 
 AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか」などを1問だけ聞き、**1行のヒント**を出します。ヒントに作業を止める権限はなく、判断はメインのモデルとあなたが行います。**Claude Code 専用**で、Jev への問い合わせ（外部送信）は `/01-collection-jev` → `/02-inception-jev` → `/03-construction-jev` → `/04-operation-jev` を使ったときだけ動きます（core の `/01-collection`〜`/04-operation` は Jev を呼びません）。例外として、下の表の「ステータス点検」（Jev には送らず、ローカルのファイルと DB を読むだけの点検）は、core 1.8.0 からは core の `/04-operation` の Phase 7 でも、実験版を入れてあれば動きます（実験版が無ければ「点検ツールなし — スキップ」と出して進みます）。
 
@@ -765,7 +765,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 
 - 送信先: 公式経路なら TypeSafe の1社、OpenRouter 経由なら OpenRouter と TypeSafe の2社
 - 送る前に、送信禁止の語の検査（コードの汎用語＋自分で書くローカルの `.claude/db/jev_redact_extra.txt`）と命令文の除去が働きます。**キーワードでの判定なので、言い換えた機密は通ります。** 機密PJ・経費・人事・顧客名や人名・私生活に関わる Layer では有効にしないでください
-- 送るのは上の表の項目だけです。**要約ではなく、`intent.yaml` / `backlog.yaml` に書かれた文や発話の原文を字数で切ったもの**なので、そこに書いた内容は字数の範囲で送られます。それ以外のファイル（成果物・Context・コードなど）や、これまでの会話のやり取りは送りません（会話監視 hook が送るのは直前の発話1件だけです）。判断ログ（`.claude/db/jev_decisions.jsonl`）に本文は残りません（残るのは入力と質問のハッシュ・確率・所要時間・費用と、Layer / タスクの ID・日時・経路）
+- 送るのは上の表の項目だけです。**要約ではなく、`intent.yaml` / `backlog.yaml` に書かれた文や発話の原文を字数で切ったもの**なので、そこに書いた内容は字数の範囲で送られます。それ以外のファイル（成果物・Context・コードなど）や、これまでの会話のやり取りは送りません（会話監視 hook が送るのは直前の発話1件だけです）。接続確認の `jev_client.py --check` は、固定の接続確認文を1回送るだけです（Layer の内容は含みません）。判断ログ（`.claude/db/jev_decisions.jsonl`）に本文は残りません（残るのは入力と質問のハッシュ・確率・所要時間・費用と、Layer / タスクの ID・日時・経路）
 
 ### 入れ方
 
@@ -880,9 +880,15 @@ rm -rf .claude/db/status_hygiene
 
 ### 既知の制約
 
-- **中断した uninstall の後片付け（この版で対応）:** uninstall の後処理（`.bak` と空ディレクトリの掃除）の最中にプロセスが落ち、次に実行したのが codex 経路（`install-codex.sh` / `install.sh codex`）だった場合や、後処理の再開中にもう一度落ちた場合に、実験版のファイルの `.bak` と `.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/` が残ることがありました。この版では、cc を含む uninstall（`uninstall.sh cc` / `both` / `all`）を実行すると残り物を掃除し、`[OK] experimental_jev: removed N leftover backup file(s) of an interrupted cleanup` と出ます。台帳が無くて uninstall がエラーで止まる環境でも、残り物だけを掃除してから同じエラーで止まります。消すのは、中身が既知の実験版（`experimental/jev/KNOWN_RELEASES.sha256`）か今の配布物と一致する `.bak` と、それで空になった2つのディレクトリだけです。一致しない `.bak`（自分で編集したものなど）は消さずに残し、`[WARN] experimental_jev: N backup file(s) with unknown content kept` で始まる行が出ます。その場合は中身を確かめてから手で消してください:
+- **中断した uninstall の後片付け（この版で対応）:** uninstall の後処理（`.bak` と空ディレクトリの掃除）の最中にプロセスが落ち、次に実行したのが codex 経路（`install-codex.sh` / `install.sh codex`）だった場合や、後処理の再開中にもう一度落ちた場合に、実験版のファイルの `.bak` と `.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/` が残ることがありました。この版では、cc を含む uninstall（`uninstall.sh cc` / `both` / `all`）を実行すると残り物を掃除し、`[OK] experimental_jev: removed N leftover backup file(s) of an interrupted cleanup` と出ます。台帳が無くて uninstall がエラーで止まる環境でも、残り物だけを掃除してから同じエラーで止まります。消すのは、中身が既知の実験版（`experimental/jev/KNOWN_RELEASES.sha256`）か今の配布物と一致する `.bak` と、それで空になった2つのディレクトリだけです。一致しない `.bak`（自分で編集したものなど）は消さずに残し、`[WARN] experimental_jev: N backup file(s) with unknown content kept` で始まる行が出ます。残っているのは自分で編集した中身なので、**消す前に一覧で確かめ、残したいものはプロジェクトの外へ退避してください。** 対象プロジェクトのルートで、次を上から順に実行します（一覧が空なら 2・3 は不要です）:
 
   ```bash
+  # 1. 残ったファイルを一覧にして確かめる（一覧はプロジェクトの外に書く）
+  { find .claude/ai-plc-jev .claude/skills/ai-plc-jev -type f; find .claude/commands -maxdepth 1 -type f -name '0[1-4]-*-jev.md.bak.*'; } 2>/dev/null > ../ai-plc-jev-left.txt
+  cat ../ai-plc-jev-left.txt
+  # 2. 一覧のファイルをプロジェクトの外にまとめて退避する（中身は tar -tzf で確かめられる）
+  tar -czf ../ai-plc-jev-kept.tar.gz -T ../ai-plc-jev-left.txt
+  # 3. 退避を確かめてから消す
   rm -rf .claude/ai-plc-jev .claude/skills/ai-plc-jev
   find .claude/commands -maxdepth 1 -type f -name '0[1-4]-*-jev.md.bak.*' -delete
   ```
