@@ -434,6 +434,9 @@ class IdentityV2Tests(Base):
             self.skipTest("この plc_query.py は Identity v2 に対応していません")
         conn = sqlite3.connect(self.db)
         for table, cols in self.reg.plc.IDENTITY_COLUMNS.items():
+            have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+            if set(cols) <= have:
+                continue  # 写したスキーマが既に本物の v2（本番が移行済み）: 一意制約などがあるので列も値も触らない
             for c in cols:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {c} TEXT")
             conn.execute(f"UPDATE {table} SET " + ", ".join(f"{c}='x'" for c in cols))
@@ -445,8 +448,8 @@ class IdentityV2Tests(Base):
 
     def test_task_update_passes_guard(self):
         self.reg.set_task_status("L-9001", "T002", "completed", {"backlog": "pending", "registry": self.V["todo"]})
-        self.assertEqual(self.reg_status("SELECT status, workspace_id FROM tasks WHERE scope_id=? AND task_id=?",
-                                         ("L-9001", "T002")), (self.V["done"], "x"))
+        self.assertEqual(self.reg_status("SELECT status FROM tasks WHERE scope_id=? AND task_id=?",
+                                         ("L-9001", "T002"))[0], self.V["done"])
 
     def test_project_update_passes_guard(self):
         self.reg.set_project_status("L-9003", "completed", {"intent": "active", "registry": "active"})
@@ -710,6 +713,75 @@ class ReadonlyModeTests(DataBase):
         data = r.list_projects()
         self.assertFalse(data["audit_available"])
         self.assertIn("版が違う", data["viewer_mode_reason"])
+
+
+# ---------------------------------------------------------------- 分類（所属・種類・実行環境）の表示
+CLASSIFY_PY = _first("AIPLC_CLASSIFY", [server.REPO / ".claude" / "db" / "classify.py" if server.REPO else None,
+                                       server.HERE / "classify.py"])
+
+
+class ClassificationViewTests(Base):
+    VOCAB = """affiliation:
+  private: {label: "個人"}
+  c1: {label: "秘密の顧客", confidential: true}
+kind:
+  dev: {label: "開発"}
+"""
+
+    def setUp(self):
+        super().setUp()
+        if CLASSIFY_PY is None:
+            self.skipTest("classify.py が見つかりません")
+        self._env = {k: os.environ.get(k) for k in ("AIPLC_CLASSIFY", "AIPLC_CLASSIFICATION_VOCAB")}
+        (self.root / "vocab.yaml").write_text(self.VOCAB, encoding="utf-8")
+        os.environ["AIPLC_CLASSIFY"] = str(CLASSIFY_PY)
+        os.environ["AIPLC_CLASSIFICATION_VOCAB"] = str(self.root / "vocab.yaml")
+        cls = server._load("_t_classify", CLASSIFY_PY)
+        conn = sqlite3.connect(self.db)
+        with contextlib.redirect_stdout(io.StringIO()):
+            cls.create_tables(conn)
+        conn.execute("INSERT INTO project_classification (scope_id, affiliation, kind, executor) VALUES ('L-9001','private','dev','claude-code')")
+        conn.execute("INSERT INTO project_classification (scope_id, affiliation) VALUES ('L-9003','c1')")
+        conn.execute("INSERT INTO task_execution (scope_id, task_id, executed_by) VALUES ('L-9001','T002','codex')")
+        conn.commit()
+        conn.close()
+        self.reg = server.Registry(self.db, self.root, **FULL)
+
+    def tearDown(self):
+        for k, v in self._env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        super().tearDown()
+
+    def test_list_has_classification(self):
+        data = self.reg.list_projects()
+        self.assertTrue(data["classification_available"])
+        self.assertEqual([e["key"] for e in data["vocab"]["affiliation"]], ["private", "c1"])
+        by = {p["scope_id"]: p for p in data["projects"]}
+        c = by["L-9001"]["classification"]
+        self.assertEqual((c["affiliation"]["label"], c["kind"]["label"], c["executors"]), ("個人", "開発", ["claude-code", "codex"]))
+        self.assertIsNone(by["L-9001-SG1"]["classification"]["affiliation"]["key"])
+
+    def test_confidential_affiliation_marks_row(self):
+        by = {p["scope_id"]: p for p in self.reg.list_projects()["projects"]}
+        self.assertTrue(by["L-9003"]["confidential"])
+        self.assertTrue(by["L-9003"]["classification"]["affiliation"]["confidential"])
+
+    def test_detail_task_executor(self):
+        d = self.reg.project_detail("L-9001")
+        self.assertTrue(d["classification_available"])
+        self.assertEqual({t["task_id"]: t["executed_by"] for t in d["tasks"]}["T002"], "codex")
+
+    def test_without_tables_hidden(self):
+        conn = sqlite3.connect(self.db)
+        conn.execute("DROP TABLE project_classification")
+        conn.commit()
+        conn.close()
+        data = self.reg.list_projects()
+        self.assertFalse(data["classification_available"])
+        self.assertIsNone(data["projects"][0]["classification"])
 
 
 if __name__ == "__main__":

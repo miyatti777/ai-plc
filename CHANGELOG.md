@@ -11,6 +11,14 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 
 この版より前の変更は、GitHub のリリースとタグを見てください。
 
+## [Unreleased]
+
+core の版と実験版パッケージの版は変わりません。
+
+### 同梱: Registry ビューア 0.2.0-alpha（installer 対象外）
+
+- `experimental/registry-viewer/` に **分類（所属・種類・実行環境）** を追加。intent.yaml の `classification` とタスクの `executed_by` を正本に、Registry の別表（`project_classification` / `task_execution`。projects / tasks の列は変えない）へ写し、ビューアの一覧のバッジと絞り込みで見分けられるようにした。`classify.py`（語彙の検査・表の作成・写し・既存 Project の候補提案と承認反映）と語彙のサンプルを同梱。core のスキルは変えていないので、分類は手で書くか `classify.py suggest` → `apply` で付ける
+
 ## [1.11.0] - 2026-09-29
 
 実験版パッケージは **1.8.1-exp.1 のまま**です。
