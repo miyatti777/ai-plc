@@ -1,4 +1,4 @@
-# experimental/registry-viewer — Project Registry ビューア（アルファ版 0.1.1-alpha）
+# experimental/registry-viewer — Project Registry ビューア（アルファ版 0.2.0-alpha）
 
 AI-PLC の Project Registry（`.claude/db/ai_plc.db` の projects / tasks）を、ブラウザで見て、Project と Task の status を変えられるローカル専用のツールです。
 
@@ -6,7 +6,7 @@ AI-PLC の Project Registry（`.claude/db/ai_plc.db` の projects / tasks）を�
 
 - **installer の対象外です。** `install.sh` では入りません。下の手順で、プロジェクトに手でコピーして使います。core の版は変わりません
 - **外部送信はありません。** 127.0.0.1 でだけ待ち受け、CDN なども読み込みません
-- 見られるもの: Project の一覧（親子のツリー・status・進捗率・期限）と、各 Project の詳細（goal・Layer フォルダ・タスク表・起動プロンプト）。Jev 実験版を入れていれば、ステータス点検の指摘（食い違い）と機密判定も出ます
+- 見られるもの: Project の一覧（親子のツリー・status・進捗率・期限）と、各 Project の詳細（goal・Layer フォルダ・タスク表・起動プロンプト）。Jev 実験版を入れていれば、ステータス点検の指摘（食い違い）と機密判定も出ます。分類（所属・種類・実行環境）を付けていれば、バッジと絞り込みも出ます（下の「分類」）
 - できること: Project と Task の status 変更、Layer のパスと起動プロンプトのコピー
 - できないこと: 行の追加・削除、名前や goal の編集、AI-PLC コマンドの実行、Notion への同期
 
@@ -32,7 +32,10 @@ cp -R experimental/registry-viewer <プロジェクト>/.claude/db/registry_view
 
 ```gitignore
 .claude/db/status_hygiene/
+.claude/db/registry_viewer/classification_vocab.yaml
 ```
+
+（2行目は、下の「分類」でローカルの語彙ファイルを作る場合だけ必要です）
 
 ## 起動と停止
 
@@ -148,6 +151,95 @@ python3 -c "import sqlite3; s=sqlite3.connect('.claude/db/ai_plc.db'); d=sqlite3
 - 書き込みの要求には、起動ごとに作るトークン（画面に埋め込み）と `Content-Type: application/json` が必要です。`Origin` が付いていれば、同じ origin かも確かめます（CSRF 対策）
 - scope_id と task_id は英数字と `._-` だけを受け付けます。書き込み先のファイルは、ステータス点検が解決した Layer フォルダの中に限ります
 
+## 分類（所属・種類・実行環境）
+
+各 Project に「所属」（個人・会社・顧客など）、「種類」（開発・調査・コンテンツなど）、「実行環境」（claude-code・codex・cursor）を持たせ、一覧のバッジと絞り込みで見分けられるようにする仕組みです。`classify.py` がこのフォルダに入っています。使わなければ、今までどおりの表示です。
+
+**どこに書かれるか**
+
+- 正本は Layer のファイルです。Registry はその写しです
+
+```yaml
+# intent.yaml（トップレベル）
+classification:
+  affiliation: private      # 所属（語彙のキー）
+  kind: dev                 # 種類（語彙のキー）
+  executor: claude-code     # この Layer を作った環境: claude-code / codex / cursor
+```
+
+```yaml
+# backlog.yaml の各タスク
+  - id: T003
+    status: completed
+    executed_by: codex      # そのタスクを実行した環境
+```
+
+- Registry（`ai_plc.db`）では、`project_classification`（Project ごと）と `task_execution`（タスクごと）という**別の表**に写します。projects / tasks の表の列は変えません
+- この公開版では、core のスキル（`/01-collection`・`/04-operation`）は分類を自動では書きません。intent.yaml に手で書くか、下の `classify.py suggest` → `apply` で付けます
+
+**語彙ファイル**
+
+所属と種類の選択肢は、語彙ファイルで決めます。まずサンプルをコピーして書き換えます（コピーしないとサンプルがそのまま使われます）。
+
+```bash
+cp .claude/db/registry_viewer/classification_vocab.example.yaml .claude/db/registry_viewer/classification_vocab.yaml
+```
+
+- キーは英小文字・数字・ハイフンで、40字までです（先頭にハイフンは使えません）。intent.yaml と Registry に入るのはキーだけです
+- **顧客・取引先のように名前そのものが機密のものは、`c1` のような意味の無いキーにし**、名前は `label` に書いて `confidential: true` を付けます。表示名はこのローカルのファイルにしか入りません。ビューアの画面共有モードでは、その Project を行ごと伏せます（伏せるのは画面の表示だけです）
+- `keywords` は、既存の Project に後から付けるときの推定にだけ使います
+- 別の場所のファイルを使うときは、環境変数 `AIPLC_CLASSIFICATION_VOCAB` で指定します。形式の確認は `python3 .claude/db/registry_viewer/classify.py vocab --check` です
+
+**使い方**（プロジェクトのフォルダで実行します。`aiplc_status_audit.py`（Jev 実験版）が必要です）
+
+分類の表を作ります（先に `.claude/db/status_hygiene/` にバックアップを取ります）。
+
+```bash
+python3 .claude/db/registry_viewer/classify.py migrate --yes
+```
+
+既存の Project に候補を出します。`.claude/db/status_hygiene/approvals/classify_<日付>.json` に、全行 `undecided` の承認ファイルができます。
+
+```bash
+python3 .claude/db/registry_viewer/classify.py suggest
+```
+
+承認ファイルを開き、正しい行の `decision` を `approve` にします（値は直してかまいません）。**推定はキーワードの一致だけなので、必ず確かめてください。** 予定を確かめてから反映します。
+
+```bash
+python3 .claude/db/registry_viewer/classify.py apply <承認ファイル>
+```
+
+```bash
+python3 .claude/db/registry_viewer/classify.py apply <承認ファイル> --yes
+```
+
+intent.yaml を手で直したときは、Registry に写し直します（`--all` で全部の Layer）。
+
+```bash
+python3 .claude/db/registry_viewer/classify.py sync --layer <Layer のパス> --yes
+```
+
+一覧で確認するときは、次のコマンドを使います（`--reveal` を付けたときだけ機密の表示名が出ます）。
+
+```bash
+python3 .claude/db/registry_viewer/classify.py show
+```
+
+**安全の決まり**
+
+- `migrate` / `sync` / `apply` は、`--yes` を付けたときだけ書き込みます
+- `apply` は、提案の後に intent.yaml の分類が変わっていた行を書きません（`conflict`）。変わった Layer は、`suggest --scope <ID>` で出し直します
+- intent.yaml は `classification` のブロックだけを書き換え、ほかが変わらないことを確かめてから置き換えます
+- 同じ scope_id のフォルダが複数ある Layer、壊れた YAML の Layer は扱いません（報告に出ます）
+- 記録は `.claude/db/status_hygiene/classify_log.jsonl` に残ります
+
+**ビューアでの見え方**
+
+- 一覧の3行目に、所属・種類・実行環境のバッジが出ます。上の欄で絞り込めます。実行環境は、Layer の executor とタスクの executed_by のどれかに一致すれば表示されます。「未設定」も選べます
+- 詳細に「分類」の行と、タスク表の「実行環境」の列が出ます
+- 分類の表か classify.py が無ければ、分類は表示しません
+
 ## メニューバーアプリ（macOS・任意）
 
 メニューバーのアイコン（表のマーク）から、専用ウィンドウでビューアを開けます。サーバの起動・停止もアプリが行います。**バイナリは配っていません。** 自分の Mac でビルドします。
@@ -166,12 +258,12 @@ python3 -c "import sqlite3; s=sqlite3.connect('.claude/db/ai_plc.db'); d=sqlite3
 
 ## テスト
 
-checkout のルートで実行します（インストールはされません）。一時ディレクトリの SQLite と Layer だけを使い、公開版 `core/db/init_db.py` のスキーマ（英語語彙）と、日本語語彙のスキーマの両方で書き込みを確かめます。status_audit は `experimental/jev/scripts/` のものを自動で使います。
+checkout のルートで実行します（インストールはされません）。一時ディレクトリの SQLite と Layer だけを使い、公開版 `core/db/init_db.py` のスキーマ（英語語彙）と、日本語語彙のスキーマの両方で書き込みを確かめます。status_audit は `experimental/jev/scripts/` のものを自動で使います。分類（`classify.py`）のテストも同じコマンドで流れます。
 
 ```bash
 python3 -m unittest discover -s experimental/registry-viewer/tests
 ```
 
-- plc_query の拡張スキーマ（公開版の `plc_query.py` は未対応）のテスト2件は skip になります
+- plc_query の拡張スキーマ（公開版の `plc_query.py` は未対応）のテスト2件と、分類の表の定義を `init_db.py` と照らし合わせるテスト1件（公開版の `init_db.py` には定義が無い）は skip になります
 - 別の場所の status_audit・plc_query・init_db.py で試すときは、`AIPLC_STATUS_AUDIT`・`AIPLC_PLC_QUERY`・`AIPLC_INIT_DB` で指定します
 - checkout の上のフォルダに AI-PLC のプロジェクト（`.claude/db/ai_plc.db`）があると、そのプロジェクトの依存とスキーマ（読み取り専用で写す）を先に使います

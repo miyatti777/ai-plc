@@ -1,0 +1,34 @@
+# AI-PLC Registry の分類の語彙（サンプル）
+# 使うときは、このファイルを classification_vocab.yaml（git 管理外）にコピーして書き換える。
+# - キー: 英小文字・数字・ハイフン（40字まで）。intent.yaml（git 管理下）にはキーだけが入る
+# - 会社名・顧客名のように名前そのものが機密のものは、キーを c1 のような意味の無い値にし、
+#   表示名（label）はこのローカルのファイルにだけ書く。confidential: true で画面共有モードでも伏せる
+# - keywords は既存 PJ への後付け（classify.py suggest）の推定にだけ使う（name・goal・フォルダ名に部分一致）
+version: 1
+affiliation:
+  private:
+    label: "個人"
+    keywords: ["趣味", "個人", "読書", "ゲーム"]
+  company:
+    label: "所属会社"
+    keywords: ["社内", "会議", "経営"]
+  c1:
+    label: "顧客A"
+    confidential: true
+    keywords: []
+kind:
+  dev:
+    label: "開発"
+    keywords: ["実装", "アプリ", "スクリプト", "ツール", "ビューア"]
+  research:
+    label: "調査・検討"
+    keywords: ["調査", "比較", "検討", "戦略", "分析"]
+  content:
+    label: "コンテンツ"
+    keywords: ["記事", "動画", "登壇", "スライド"]
+  ops:
+    label: "運用・事務"
+    keywords: ["経費", "申請", "棚卸し", "勤怠"]
+  aiplc:
+    label: "AI-PLC 自体の改善"
+    keywords: ["AI-PLC", "AIPLC", "Registry", "Jev"]

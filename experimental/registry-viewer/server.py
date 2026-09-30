@@ -198,6 +198,21 @@ class _ReadonlyAudit:
         return None
 
 
+class _ClassifiedConfidential:
+    """status_audit の機密判定に、分類の『機密の所属（confidential: true）』を足す（画面共有モードで行ごと伏せるため）"""
+
+    def __init__(self, inner, cls):
+        self.inner, self.cls = inner, cls
+
+    def check(self, sid):
+        c = self.cls["projects"].get(sid) if self.cls.get("available") else None
+        if c and c.get("affiliation"):
+            e = self.cls["vocab"].get("affiliation", {}).get(c["affiliation"])
+            if e and e.get("confidential"):
+                return "confidential_affiliation"
+        return self.inner.check(sid)
+
+
 class WriteError(Exception):
     def __init__(self, code: int, message: str, **extra):
         super().__init__(message)
@@ -371,6 +386,17 @@ class Registry:
                 self.audit_rel = (os.path.relpath(audit_path, self.root)
                                   if Path(audit_path).resolve().is_relative_to(self.root.resolve()) else str(audit_path))
         self.plc = _load("_rv_plc", plc_path) if plc_path is not None else None
+        # 分類（所属・種類・実行環境）: classify.py（環境変数 → DB と同じフォルダ → server.py の隣）と分類の表が
+        # あるときだけ表示する（無ければ今までどおり）
+        self.classify = None
+        env_cls = os.environ.get("AIPLC_CLASSIFY")
+        cls_path = Path(env_cls) if env_cls else next(
+            (p for p in (self.db.parent / "classify.py", HERE / "classify.py") if p.is_file()), HERE / "classify.py")
+        if cls_path.is_file():
+            try:
+                self.classify = _load("_rv_classify", cls_path)
+            except Exception:  # noqa: BLE001
+                self.classify = None
         if self.plc is None and not reasons:
             reasons.append("plc_query.py が見つからないため閲覧のみ")
         # audit が有れば、plc_query が無くても表示（食い違い・機密判定）はフル。書き込みは両方そろったときだけ
@@ -401,17 +427,60 @@ class Registry:
             reg_tasks = {}
             for r in conn.execute("SELECT * FROM tasks ORDER BY scope_id, task_id"):
                 reg_tasks.setdefault(r["scope_id"], []).append(r)
+            cls = self._read_classification(conn)
         finally:
             conn.close()
         layers = {sid: self._layer(rel) for sid, rel in layers_rel.items() if sid in projects}
-        conf = self.audit.Confidential(projects, layers)
+        conf = _ClassifiedConfidential(self.audit.Confidential(projects, layers), cls)
         cands = {}
         for c in report["candidates"]:
             cands.setdefault(c["scope_id"], []).append(c)
         wal = Path(str(self.db) + "-wal")
         ts = max([self.db.stat().st_mtime] + ([wal.stat().st_mtime] if wal.exists() else []))
         mtime = datetime.fromtimestamp(ts).isoformat(timespec="seconds")
-        return report, projects, reg_tasks, layers, conf, cands, mtime
+        return report, projects, reg_tasks, layers, conf, cands, mtime, cls
+
+    def _read_classification(self, conn):
+        """{'available': bool, 'projects': {sid: {...}}, 'tasks': {sid: {tid: executed_by}}, 'vocab': {...}}"""
+        out = {"available": False, "projects": {}, "tasks": {}, "vocab": {"affiliation": {}, "kind": {}}}
+        if self.classify is None:
+            return out
+        names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if not {"project_classification", "task_execution"} <= names:
+            return out
+        try:
+            vocab = self.classify.load_vocab()
+        except Exception:  # noqa: BLE001  (語彙の形式が崩れていても一覧は出す)
+            vocab = {"affiliation": {}, "kind": {}}
+        out["available"] = True
+        out["vocab"] = {a: vocab.get(a, {}) for a in ("affiliation", "kind")}
+        for r in conn.execute("SELECT scope_id, affiliation, kind, executor FROM project_classification"):
+            out["projects"][r["scope_id"]] = dict(r)
+        for r in conn.execute("SELECT scope_id, task_id, executed_by FROM task_execution"):
+            out["tasks"].setdefault(r["scope_id"], {})[r["task_id"]] = r["executed_by"]
+        return out
+
+    @staticmethod
+    def classification_of(cls, sid):
+        """一覧・詳細に出す分類。表示名は語彙から（機密の所属は confidential を立てる。伏せるのは画面側）"""
+        if not cls["available"]:
+            return None
+        c = cls["projects"].get(sid) or {}
+        voc = cls["vocab"]
+        def lab(axis):
+            k = c.get(axis)
+            e = voc.get(axis, {}).get(k) if k else None
+            return {"key": k, "label": (e or {}).get("label") if k else None,
+                    "confidential": bool((e or {}).get("confidential")), "known": e is not None}
+        execs = sorted({v for v in [c.get("executor"), *cls["tasks"].get(sid, {}).values()] if v})
+        return {"affiliation": lab("affiliation"), "kind": lab("kind"), "executor": c.get("executor"), "executors": execs}
+
+    @staticmethod
+    def vocab_options(cls):
+        if not cls["available"]:
+            return None
+        return {axis: [{"key": k, "label": e.get("label") or k, "confidential": bool(e.get("confidential"))}
+                       for k, e in cls["vocab"].get(axis, {}).items()] for axis in ("affiliation", "kind")}
 
     @staticmethod
     def progress(layer, reg_rows):
@@ -441,7 +510,7 @@ class Registry:
         return f"/04-operation{jev} を実行してください / Layer: {layer.rel}"
 
     def list_projects(self):
-        report, projects, reg_tasks, layers, conf, cands, mtime = self.snapshot()
+        report, projects, reg_tasks, layers, conf, cands, mtime, cls = self.snapshot()
         items = []
         for sid, r in projects.items():
             layer = layers.get(sid)
@@ -456,11 +525,13 @@ class Registry:
                 "issues": len(cands.get(sid, [])),
                 "confidential": conf.check(sid) is not None,
                 "hash_id": self.audit.hash_id(sid),
+                "classification": self.classification_of(cls, sid),
             })
         cnt = report["counts"]
         return {"generated_at": datetime.now().isoformat(timespec="seconds"), "db_mtime": mtime,
                 "version": VERSION, "viewer_mode": self.mode, "viewer_mode_reason": self.mode_reason,
                 "audit_available": self.audit is not _ReadonlyAudit,
+                "classification_available": cls["available"], "vocab": self.vocab_options(cls),
                 "projects": items,
                 "counts": {"total": len(items),
                            "by_status": {s: sum(1 for i in items if i["status"] == s)
@@ -469,7 +540,7 @@ class Registry:
                            "registry_missing": cnt["by_kind"].get("registry_missing", 0)}}
 
     def project_detail(self, sid):
-        report, projects, reg_tasks, layers, conf, cands, mtime = self.snapshot()
+        report, projects, reg_tasks, layers, conf, cands, mtime, cls = self.snapshot()
         row = projects.get(sid)
         if row is None:
             raise WriteError(404, f"{sid} は Registry にありません")
@@ -492,6 +563,8 @@ class Registry:
                                "layer_status": None, "in_layer": False, "output": None}
             merged[tid].update({"registry_status": r["status"], "in_registry": True})
             merged[tid]["name"] = merged[tid]["name"] or r["name"]
+        for tid, t in merged.items():
+            t["executed_by"] = cls["tasks"].get(sid, {}).get(tid) if cls["available"] else None
         vocab = self.audit.task_vocab(self._vocab(), layer)
         btext = None
         if layer is not None and (layer.folder / "backlog.yaml").is_file():
@@ -526,6 +599,7 @@ class Registry:
             "viewer_mode": self.mode, "audit_available": self.audit is not _ReadonlyAudit, "audit_path": self.audit_rel,
             "duplicate_folder": sid in self._dup_scopes(report),
             "confidential": conf.check(sid) is not None, "hash_id": self.audit.hash_id(sid),
+            "classification": self.classification_of(cls, sid), "classification_available": cls["available"],
             "progress": self.progress(layer, reg_tasks.get(sid)),
             "tasks": [merged[t] for t in order],
             "issues": [{"kind": c["kind"], "reason": c["reason"], "recommended_action": c["recommended_action"]}

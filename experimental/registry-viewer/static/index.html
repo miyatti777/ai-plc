@@ -62,6 +62,8 @@ main { display: grid; grid-template-columns: minmax(340px, 44%) 1fr; gap: 0; min
 .s-paused { color: var(--paused); background: var(--paused-soft); }
 .s-planned { color: var(--planned); background: var(--planned-soft); }
 .warn { color: var(--warn); background: var(--warn-soft); }
+.cls { color: var(--accent); background: var(--accent-soft); }
+.clsrow { grid-column: 1 / -1; display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
 .lock { color: var(--muted); border-color: var(--line); }
 .caret { width: 14px; color: var(--muted); display: inline-block; text-align: center; }
 h2 { font-size: 18px; margin: 4px 0 2px; }
@@ -114,6 +116,11 @@ dialog ul { padding-left: 18px; }
       <input type="search" id="q" placeholder="scope_id・名前で絞り込み" data-testid="filter-search-input">
       <span id="statusChips"></span>
       <button class="chip" id="issuesOnly" aria-pressed="false" data-testid="filter-issues-chip">食い違いあり</button>
+      <span id="clsFilters" hidden>
+        <select id="fAff" data-testid="filter-affiliation" title="所属"></select>
+        <select id="fKind" data-testid="filter-kind" title="種類"></select>
+        <select id="fExec" data-testid="filter-executor" title="実行環境"></select>
+      </span>
     </div>
     <div id="rows" data-testid="project-list"></div>
   </div>
@@ -138,12 +145,53 @@ const PROJECT_CHOICES = ["active", "paused", "completed"];
 const TASK_CHOICES = ["pending", "in_progress", "completed", "blocked", "deferred", "cancelled"];
 const INTENT_WRITE = { active: "active", completed: "completed", paused: "deferred" };
 const st = { data: null, sel: null, filter: new Set(["active"]), issuesOnly: false, q: "", collapsed: new Set(),
+  cls: { affiliation: "", kind: "", executor: "" },
   share: false, detail: null };
 try { const saved = JSON.parse(localStorage.getItem("rv-prefs") || "{}");
-  if (Array.isArray(saved.filter)) st.filter = new Set(saved.filter); st.share = !!saved.share; } catch (e) {}
+  if (Array.isArray(saved.filter)) st.filter = new Set(saved.filter); st.share = !!saved.share;
+  if (saved.cls && typeof saved.cls === "object") st.cls = Object.assign(st.cls, saved.cls); } catch (e) {}
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-function savePrefs() { try { localStorage.setItem("rv-prefs", JSON.stringify({ filter: [...st.filter], share: st.share })); } catch (e) {} }
+function savePrefs() { try { localStorage.setItem("rv-prefs", JSON.stringify({ filter: [...st.filter], share: st.share, cls: st.cls })); } catch (e) {} }
+const EXECUTORS = ["claude-code", "codex", "cursor"];
+const NONE = "__none__";
+// 分類の表示名。機密の所属は画面共有モードでは「機密」にする
+function clsLabel(c) {
+  if (!c || !c.key) return null;
+  if (c.confidential && st.share) return "機密";
+  return c.label || c.key;
+}
+function clsBadges(p) {
+  const c = p.classification;
+  if (!c || masked(p)) return "";  // 画面共有モードで行ごと伏せる Project は分類も出さない
+  const parts = [];
+  const a = clsLabel(c.affiliation), k = clsLabel(c.kind);
+  if (a) parts.push(`<span class="badge cls" title="所属">${esc(a)}</span>`);
+  if (k) parts.push(`<span class="badge cls" title="種類">${esc(k)}</span>`);
+  if (c.executors.length) parts.push(`<span class="badge cls" title="実行環境">${esc(c.executors.join("・"))}</span>`);
+  return parts.join("");
+}
+function renderClsFilters() {
+  const on = !!st.data.classification_available;
+  $("clsFilters").hidden = !on;
+  if (!on) return;
+  // ブラウザに保存したキーが語彙から消えていたら「すべて」に戻す（見えない絞り込みを残さない）
+  for (const axis of ["affiliation", "kind"]) {
+    const k = st.cls[axis];
+    if (k && k !== NONE && !st.data.vocab[axis].some((e) => e.key === k)) st.cls[axis] = "";
+  }
+  if (st.cls.executor && st.cls.executor !== NONE && !EXECUTORS.includes(st.cls.executor)) st.cls.executor = "";
+  const opt = (v, text, cur) => `<option value="${esc(v)}" ${v === cur ? "selected" : ""}>${esc(text)}</option>`;
+  const vocabOpts = (axis, title) => [opt("", `${title}: すべて`, st.cls[axis]), opt(NONE, `${title}: 未設定`, st.cls[axis]),
+    ...st.data.vocab[axis].map((e) => opt(e.key, `${title}: ${e.confidential && st.share ? `機密（${e.key}）` : e.label}`, st.cls[axis]))].join("");
+  $("fAff").innerHTML = vocabOpts("affiliation", "所属");
+  $("fKind").innerHTML = vocabOpts("kind", "種類");
+  $("fExec").innerHTML = [opt("", "実行環境: すべて", st.cls.executor), opt(NONE, "実行環境: 未設定", st.cls.executor),
+    ...EXECUTORS.map((e) => opt(e, `実行環境: ${e}`, st.cls.executor))].join("");
+  for (const [id, axis] of [["fAff", "affiliation"], ["fKind", "kind"], ["fExec", "executor"]]) {
+    $(id).onchange = (ev) => { st.cls[axis] = ev.target.value; savePrefs(); renderList(); };
+  }
+}
 function toast(msg, err) { const t = $("toast"); t.textContent = msg; t.className = "on" + (err ? " err" : "");
   clearTimeout(toast._t); toast._t = setTimeout(() => (t.className = ""), err ? 6000 : 2500); }
 const masked = (p) => st.share && p.confidential;
@@ -177,8 +225,10 @@ function renderHeader() {
   $("modeBadge").hidden = !ro;
   $("modeBadge").textContent = ro ? "閲覧のみ" : "";
   $("modeBadge").title = st.data.viewer_mode_reason || "";
-  $("shareLabel").hidden = noAudit;  // status_audit が無いと機密判定ができないので画面共有モードも出さない
+  // 機密判定（status_audit）か分類（機密の所属）のどちらかがあれば、画面共有モードを出す
+  $("shareLabel").hidden = noAudit && !st.data.classification_available;
   $("issuesOnly").hidden = noAudit;
+  renderClsFilters();
   $("counts").innerHTML = STATUSES.map((s) => `<span class="badge s-${s}">${s} ${c.by_status[s] || 0}</span>`).join("") +
     (c.issues ? `<span class="badge warn" title="aiplc_status_audit の候補数">食い違い ${c.issues}</span>` : "");
   $("asof").textContent = `DB更新 ${st.data.db_mtime.replace("T", " ")} ／ 読込 ${st.data.generated_at.slice(11)}`;
@@ -208,6 +258,17 @@ function tree() {
 function matches(p) {
   if (!st.filter.has(p.status)) return false;
   if (st.issuesOnly && !p.issues && !p.status_mismatch) return false;
+  const c = p.classification;
+  if (c) {
+    for (const axis of ["affiliation", "kind"]) {
+      const want = st.cls[axis];
+      if (want === NONE && c[axis].key) return false;
+      if (want && want !== NONE && c[axis].key !== want) return false;
+    }
+    // 実行環境: Layer の executor とタスクの executed_by を合わせた集合のどれかに一致
+    if (st.cls.executor === NONE && c.executors.length) return false;
+    if (st.cls.executor && st.cls.executor !== NONE && !c.executors.includes(st.cls.executor)) return false;
+  }
   if (st.q) { const q = st.q.toLowerCase();
     const hay = (label(p) + " " + (masked(p) ? "" : p.name + " " + p.scope_id)).toLowerCase();
     if (!hay.includes(q)) return false; }
@@ -231,14 +292,15 @@ function renderList() {
     out.push(`<div class="row${st.sel === p.scope_id ? " sel" : ""}${self ? "" : " ghost"}" style="--depth:${depth}" data-sid="${esc(p.scope_id)}" data-testid="project-row">
       <div class="t"><span class="caret" data-toggle="${esc(p.scope_id)}">${ch.length ? (col ? "▸" : "▾") : ""}</span>
         <span class="sid">${esc(label(p))}</span><span class="nm">${esc(pname(p))}</span></div>
-      <div class="r">${p.confidential ? '<span class="badge lock" title="機密判定（status_audit と同じ基準）">🔒</span>' : ""}
+      <div class="r">${p.confidential ? '<span class="badge lock" title="機密判定（status_audit と同じ基準・機密の所属を含む）">🔒</span>' : ""}
         ${p.status_mismatch ? '<span class="badge warn" title="intent と Registry の status が違う">status差</span>' : ""}
         ${p.issues ? `<span class="badge warn" title="aiplc_status_audit の候補">食い違い ${p.issues}</span>` : ""}
         ${badge(p.status)}</div>
       <div class="p"><span class="caret"></span>${pc === null ? "タスクなし" :
         `<span class="bar"><i style="width:${pc}%"></i></span>${pr.done}/${pr.total}（${pc}%）`}
         ${p.layer_path ? "" : '<span title="Layer フォルダが見つからない">Layerなし</span>'}
-        ${p.deadline ? `<span>期限 ${esc(p.deadline)}</span>` : ""}</div></div>`);
+        ${p.deadline ? `<span>期限 ${esc(p.deadline)}</span>` : ""}</div>
+      ${clsBadges(p) ? `<div class="clsrow"><span class="caret"></span>${clsBadges(p)}</div>` : ""}</div>`);
     if (!col) out.push(...sub);
     return true;
   };
@@ -277,6 +339,9 @@ function renderDetail() {
         ${d.duplicate_folder ? '<span class="badge warn">同じ scope_id のフォルダが複数あります（最初の1つを表示）</span>' : ""}</dd>
       <dt>進捗</dt><dd>${pc === null ? "タスクなし" : `<span class="ops"><span class="bar"><i style="width:${pc}%"></i></span>${pr.done}/${pr.total}（${pc}%・${pr.source === "backlog" ? "backlog.yaml" : "Registry"} 基準）</span>`}</dd>
       <dt>depth / mode</dt><dd>${esc(d.depth)} / ${esc(d.mode)}</dd>
+      ${d.classification && m ? '<dt>分類</dt><dd>（機密のため非表示）</dd>' : ""}
+      ${d.classification && !m ? `<dt>分類</dt><dd>所属: ${esc(clsLabel(d.classification.affiliation) || "未設定")} ／ 種類: ${esc(clsLabel(d.classification.kind) || "未設定")} ／ 実行環境: ${esc(d.classification.executors.join("・") || "未設定")}
+        <span class="note">（変えるときは intent.yaml の classification を直して classify.py sync）</span></dd>` : ""}
       <dt>期間</dt><dd>${esc(d.start_date || "—")} 〜 ${esc(d.deadline || "—")}</dd>
       <dt>親</dt><dd>${d.parent_scope ? link(d.parent_scope) : "—"}</dd>
       <dt>子</dt><dd>${d.children.length ? d.children.map(link).join("、") : "—"}</dd>
@@ -295,11 +360,12 @@ function renderDetail() {
     </section>
     <section>
       <h3>タスク（${d.tasks.length}）</h3>
-      ${d.tasks.length ? `<table data-testid="task-table"><thead><tr><th>ID</th><th>名前</th><th>pri</th><th>backlog</th><th>Registry</th><th>変更</th></tr></thead><tbody>
+      ${d.tasks.length ? `<table data-testid="task-table"><thead><tr><th>ID</th><th>名前</th><th>pri</th><th>backlog</th><th>Registry</th>${d.classification_available ? "<th>実行環境</th>" : ""}<th>変更</th></tr></thead><tbody>
       ${d.tasks.map((t) => `<tr class="${t.mismatch ? "mismatch" : ""}" data-testid="task-row">
         <td class="mono">${esc(t.task_id)}</td><td>${m ? "—" : esc(t.name)}</td><td class="mono">${esc(t.priority ?? "")}</td>
         <td class="mono">${t.in_layer ? esc(t.layer_status ?? "—") : '<span class="note">なし</span>'}</td>
         <td class="mono">${t.in_registry ? esc(t.registry_status) : '<span class="note">なし</span>'}</td>
+        ${d.classification_available ? `<td class="mono">${esc(t.executed_by || "—")}</td>` : ""}
         <td>${!ro && !t.editable ? `<span class="note" title="${esc(t.readonly_reason)}">変更不可</span>` : `<span class="ops"><select data-task="${esc(t.task_id)}" ${ro ? "disabled" : ""} data-testid="task-status-select">
           ${TASK_CHOICES.map((s) => `<option ${s === currentTaskChoice(t) ? "selected" : ""}>${s}</option>`).join("")}</select>
           <button data-apply="${esc(t.task_id)}" ${ro ? "disabled" : ""} data-testid="task-status-apply">変更</button></span>`}</td></tr>`).join("")}
@@ -370,7 +436,7 @@ async function changeTask(tid, to) {
 $("reload").onclick = () => load(true);
 $("q").oninput = (e) => { st.q = e.target.value.trim(); renderList(); };
 $("issuesOnly").onclick = () => { st.issuesOnly = !st.issuesOnly; renderHeader(); renderList(); };
-$("share").onchange = (e) => { st.share = e.target.checked; savePrefs(); renderList(); if (st.detail) renderDetail(); };
+$("share").onchange = (e) => { st.share = e.target.checked; savePrefs(); renderClsFilters(); renderList(); if (st.detail) renderDetail(); };
 load(false);
 </script>
 </body>
