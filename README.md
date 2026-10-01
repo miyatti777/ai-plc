@@ -227,7 +227,7 @@ git pull             # 最新の版を取ってくる（失敗したら git stat
 
 **ほかの環境:** 最後の `cc` を、1. で確かめた指定に置き換えます。`cursor`（Cursor）・`both`（Claude Code + Cursor）・`all`（3環境）・`codex`（Codex）。`./install-cc.sh --target …` のような環境別のスクリプトでも同じように更新できます。旧版（台帳なし）の Claude Code / Cursor 環境に Codex を足すときは、`codex` だけを指定すると旧版を判別できずに止まるので、先に `cc`（または `both`）で上げてから `codex` を実行してください（Claude Code・Cursor・Codex の3つを使うなら `all` でもかまいません）。
 
-**実験版（Jev 監視）を入れている人:** 実験版も一緒に上げるときは `--with-jev` を付けます（`./install.sh --target /path/to/your/project cc --with-jev`）。付けずに更新すると、実験版のファイルは今のまま残ります。前の実験版 1.8.0-exp.1 を入れた環境の `.ai-plc-version` は、その時点の core の版の `1.7.1` と出ます。前の実験版から今の実験版 1.12.0-exp.1 への上げ方は[実験版の節](#-実験版-jev-監視)にあります。
+**実験版（Jev 監視）を入れている人:** 実験版も一緒に上げるときは `--with-jev` を付けます（`./install.sh --target /path/to/your/project cc --with-jev`）。付けずに更新すると、実験版のファイルは今のまま残ります。前の実験版 1.8.0-exp.1 を入れた環境の `.ai-plc-version` は、その時点の core の版の `1.7.1` と出ます。前の実験版から今の実験版 1.12.0-exp.2 への上げ方は[実験版の節](#-実験版-jev-監視)にあります。
 
 ### 3. 止まったとき
 
@@ -805,7 +805,9 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 >
 > ⚠️ **外部送信あり（opt-in）。** APIキーを登録し、Layer の `intent.yaml` に `jev_monitor: true` を書いたときだけ、Layer の文や発話を字数で切ったもの（下の表。要約ではなく原文の抜粋です）を外部の判断専用モデル **Jev**（TypeSafe）に送ります。キーが無ければ何も送らず、すべてスキップされます。
 >
-> **版:** 実験版パッケージ（`experimental/jev/`）の版は **`1.12.0-exp.1`** で、前の実験版 `1.8.1-exp.1` の次の版です。実験版の番号は core の版（**1.12.0**）とは別に数えます。`1.12.0-exp.1` は core 1.12.0 に合わせて出した版で、末尾の `exp.1` はその版での通し番号です（頭の数字が core の版と一致するとは限りません。たとえば `1.8.0-exp.1` は core 1.7.1 の上に作ったものです）。スキルは core 1.12.0 のスキルを元にしており、違いは Jev 部分だけです（[CHANGELOG.md](CHANGELOG.md)）。
+> **版:** 実験版パッケージ（`experimental/jev/`）の版は **`1.12.0-exp.2`** で、前の実験版 `1.12.0-exp.1` の次の版です。実験版の番号は core の版（**1.12.0**）とは別に数えます。`1.12.0-exp.2` は core 1.12.0 の上の2つ目の版で、末尾の `exp.2` はその版での通し番号です（頭の数字が core の版と一致するとは限りません。たとえば `1.8.0-exp.1` は core 1.7.1 の上に作ったものです）。スキルは core 1.12.0 のスキルを元にしており、違いは Jev 部分だけです（[CHANGELOG.md](CHANGELOG.md)）。
+>
+> 🧊 **1.12.0-exp.2 から、会話監視 hook と成功条件カバー判定は凍結中です。** 作者の試行で、会話監視は人が判定したヒントの約3分の2が外れ、成功条件カバー判定は役に立ったヒントがありませんでした。どちらも新しく有効にしないでください（カバー判定は `/02-inception-jev` から呼ばなくなりました。会話監視 hook を settings に登録している場合は外してかまいません）。Backtrack の異常ヒントとステータス点検は、これまでどおり使えます。
 
 AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか」などを1問だけ聞き、**1行のヒント**を出します。ヒントに作業を止める権限はなく、判断はメインのモデルとあなたが行います。**Claude Code 専用**で、Jev への問い合わせ（外部送信）は `/01-collection-jev` → `/02-inception-jev` →（要るときだけ `/03-construction-jev`）→ `/04-operation-jev` を使ったときだけ動きます（core の `/01-collection`〜`/04-operation` は Jev を呼びません）。例外として、下の表の「ステータス点検」（Jev には送らず、ローカルのファイルと DB を読むだけの点検）は、core 1.8.0 からは core の `/04-operation` の Phase 7 でも、実験版を入れてあれば動きます（実験版が無ければ「点検ツールなし — スキップ」と出して進みます）。
 
@@ -814,8 +816,8 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 | 機能 | 動く場所 | 外部に送るもの |
 | --- | --- | --- |
 | 異常ヒント（Backtrack の兆し） | `/04-operation-jev` の Phase 5.5b・6b | ゴール1行（200字まで）・進捗（件数）・直近のタスク完了報告（backlog の `result`、無ければタスクの説明。1200字まで） |
-| 成功条件カバー判定 | `/02-inception-jev` の分解承認の前 | ゴール1行（200字まで）・成功条件（全文）・各タスクの ID・名前・説明（説明は1件160字まで） |
-| 会話監視 hook（任意・**手動で有効化**） | 発話ごと（Claude Code の `UserPromptSubmit` hook） | あなたの直前の発話1件の原文（貼り付けた部分は除き、空白を詰めて400字で切る）・ゴール1行・進捗（件数） |
+| 成功条件カバー判定（**凍結中**・呼ばない） | `/02-inception-jev` の分解承認の前 | ゴール1行（200字まで）・成功条件（全文）・各タスクの ID・名前・説明（説明は1件160字まで） |
+| 会話監視 hook（**凍結中**・登録しない） | 発話ごと（Claude Code の `UserPromptSubmit` hook） | あなたの直前の発話1件の原文（貼り付けた部分は除き、空白を詰めて400字で切る）・ゴール1行・進捗（件数） |
 | ステータス点検 | `/04-operation-jev` と、core 1.8.0 以降の `/04-operation` の Phase 7（どちらも実験版を入れたときだけ） | 既定は**送らない**（読み取り専用）。スクリプトに `--jev` を手で付けたときだけ、停滞 Layer のうち `jev_monitor: true` で機密でないものについて、ゴール1行・最後に完了したタスクの名前と結果（400字まで）・進捗・停滞日数。例: `python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --jev --layer <Layer パス>` |
 
 - 送信先: 公式経路なら TypeSafe の1社、OpenRouter 経由なら OpenRouter と TypeSafe の2社
@@ -837,7 +839,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 - 必要なもの: Python 3.9 以上と `pyyaml`
 - インストール後は、新しいチャットで `/01-collection-jev` から始めます。新しい Layer では `/01-collection-jev` の最後に「Jev監視を有効にしますか」と1行で聞かれ、承認すると `intent.yaml` に `jev_monitor: true` が書かれます（機密などに当たる Layer では聞かれず `false` のまま）。既存の Layer で試すなら、`intent.yaml` に `jev_monitor: true` を手で書き、Stage 4 を `/04-operation-jev` で回します
 
-### 前の実験版（1.8.1-exp.1）から上げる
+### 前の実験版（1.12.0-exp.1 など）から上げる
 
 ```bash
 # 先に確認する（conflicts が [] なら更新できる）
@@ -845,17 +847,17 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 ./install.sh --target /path/to/your/project cc --with-jev
 ```
 
-- core も同時に 1.12.0 に上がります。上がったかどうかは、`.ai-plc-version` が `1.12.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.1` になっていることで確かめられます。1.8.0-exp.1 からも同じ手順で上げられます
+- core も同時に 1.12.0 に上がります。上がったかどうかは、`.ai-plc-version` が `1.12.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
 - `--with-jev` を付けずに更新すると、core だけが上がり、実験版は前の版のまま残ります。前の版の実験版スキルは core 1.8.1 の時点のもので、Construction を既定で省く変更と自動完走（/goal）に対応していないので、実験版も一緒に上げてください
-- 1.12.0-exp.1 を入れた後に、前の実験版を配る checkout の installer で `--with-jev` を付けると、`[CONFLICT] component downgrade refused: experimental_jev` などの行を出して止まり、何も書き換えません。前の版に戻したいときは、今の checkout で `uninstall.sh cc` してから、前の版の checkout で入れ直します
+- 1.12.0-exp.2 を入れた後に、前の実験版を配る checkout の installer で `--with-jev` を付けると、`[CONFLICT] component downgrade refused: experimental_jev` などの行を出して止まり、何も書き換えません。前の版に戻したいときは、今の checkout で `uninstall.sh cc` してから、前の版の checkout で入れ直します
 
-**この版で変えたこと**（前の実験版 1.8.1-exp.1 との違い）:
+**この版で変えたこと**（前の実験版 1.12.0-exp.1 との違い）:
 
-- **スキル:** core 1.12.0 のスキル（`01-collection` v2.2・`02-inception` v2.1・`03-construction` v2.3・`04-operation` v2.8）に揃えました。Construction を既定で省く変更（`/03-construction-jev` は Agent 定義が要るときだけ。`/02-inception-jev` の Next Action は backlog の `construction.required` で `/03-construction-jev` か `/04-operation-jev` を選ぶ）と、深度の理由の記録（`workflow_depth_reason`・`depth_axes`）が入ります
-- **自動完走（/goal）での Jev の扱い:** 自動完走中（RUL_plc_session §10 を指す /goal があるセッション）も、opt-in した Layer の Jev の判定は行います。判定ごとの採否の記録とコピペ用プロンプトへの貼り付け用1行はせず、完了報告の冒頭に「🧭 未確認の Jev 判定: N件」と貼り付け用1行をまとめて出します（回収は `python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --pending --layer <Layer>`）。Jev 監視の opt-in（`jev_monitor: true`）は自動では承認しません。`/01-collection-jev` の最後に出る /goal 1行は `-jev` 版のコマンドで書かれます
-- **`KNOWN_RELEASES.sha256`:** 1.8.1-exp.1 の配布物のハッシュを足しました（1.8.1-exp.1 から上げたときや、中断した後処理の残り物を掃除するときの照合に使います）
-- **ステータス点検:** Registry のタスク同期が凍結されているときは、Registry のタスク行を読まず、分類 3・7・8 を出しません（タスクの正は backlog.yaml）
-- installer の処理は変えていません
+- **会話監視 hook と成功条件カバー判定を凍結しました。** `/02-inception-jev` はカバー判定を呼ばず（`jev_monitor: true` でも）、`/02-inception-jev`・`/03-construction-jev`・`/04-operation-jev` の会話監視の案内は「登録しない（登録済みなら外してよい）」に変えました。スクリプトは残しますが更新しません。Backtrack の異常ヒント（`/04-operation-jev` の 5.5b・6b）とステータス点検は変わりません
+- **`KNOWN_RELEASES.sha256`:** 1.12.0-exp.1 の配布物のハッシュを足しました
+- Python のコードと installer の処理は変えていません。core（1.12.0）も変わりません
+
+それより前の変更（1.12.0-exp.1 など）は CHANGELOG にあります。
 
 ### キー登録
 
@@ -870,7 +872,9 @@ python3 .claude/ai-plc-jev/scripts/jev_client.py --check
 
 Linux / Windows / CI では環境変数で渡します。OpenRouter のキーにはクレジット上限（$2〜5 程度）を付けておくのがおすすめです。公式 TypeSafe 経路は公式ドキュメントに沿って実装しただけで、**接続は未確認**です（作者が実測したのは OpenRouter 経由だけ）。両方のキーを持っていて OpenRouter 経由で使いたい場合は `JEV_PROVIDER=openrouter` を設定してください。
 
-### 会話監視 hook は手動で有効化
+### 会話監視 hook（凍結中・記録として残す）
+
+> 🧊 凍結中です。新しく登録しないでください。登録済みなら settings から外してかまいません。
 
 installer は hook を登録しません（settings を読み書きしません）。使う人だけが、プロジェクトの `.claude/settings.local.json`（または `.claude/settings.json`）に次の JSON を足し、セッションを開き直します（`.claude/ai-plc-jev/scripts/README_jev.md` の §5 と同じもの）。ユーザー共通の `~/.claude/settings.json` には入れないでください。
 
@@ -952,9 +956,9 @@ rm -rf .claude/db/status_hygiene
 
   `.claude/commands/` に残した編集済みのコマンド本体（`0x-*-jev.md`。`.bak` でないもの）はこの手順では消えないので、要らなければ手で消してください。
 
-- 会話監視 hook のハーネスメッセージの除外は列挙方式です（上の「会話監視 hook は手動で有効化」）
+- 会話監視 hook のハーネスメッセージの除外は列挙方式です（上の「会話監視 hook（凍結中・記録として残す）」）
 - 送信禁止の語の検査はキーワード判定です。言い換えた機密は通ります
-- 検証は作者の環境での小規模な試行です（異常ヒントの判定 20 件で外れ 0 件。会話監視 hook と成功条件カバー判定は件数が少なく評価中）。保証ではありません
+- 検証は作者の環境での小規模な試行です（異常ヒントの判定 20 件で外れ 0 件。会話監視 hook は外れが多く〔判定したヒント15件中10件〕、成功条件カバー判定は役に立つヒントが無かったため、1.12.0-exp.2 から凍結中）。保証ではありません
 
 **詳細:** 実験版の入口は [`experimental/jev/README.md`](experimental/jev/README.md)。機能ごとの違い・検証結果・試す人向けの確認観点は [`experimental/jev/skills/ai-plc-jev/README.md`](experimental/jev/skills/ai-plc-jev/README.md)、キー・環境変数・`.gitignore` に足す行は [`experimental/jev/scripts/README_jev.md`](experimental/jev/scripts/README_jev.md)。試した結果の報告は Issue で歓迎します。
 

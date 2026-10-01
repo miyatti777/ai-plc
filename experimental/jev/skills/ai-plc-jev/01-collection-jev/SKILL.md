@@ -5,7 +5,7 @@ description: 【実験版・Jev監視つき】ai_plc_collection - AI-PLC Stage 1
 
 # AI-PLC Stage 1: Collection（Jev実験版）
 
-> 🧪 **実験版（ai-plc-jev 1.12.0-exp.1）:** 公開 core の `.claude/skills/ai-plc/01-collection/SKILL.md`（v2.2）の代わりに `/01-collection-jev` で使う試行用のスキル。**本体の SKILL・rules は書き換えない。** 公開 core 2.2 との違いは Jev 監視（opt-in）に関わる箇所だけ（intent.yaml の `jev_monitor` 欄のコメント、Phase 6.5 の opt-in 判定〔自動完走中も自動で承認しない〕、Phase 7 の Next Action と 4. の /goal 1行を `-jev` に）。詳細は `.claude/skills/ai-plc-jev/README.md`。
+> 🧪 **実験版（ai-plc-jev 1.12.0-exp.2）:** 公開 core の `.claude/skills/ai-plc/01-collection/SKILL.md`（v2.2）の代わりに `/01-collection-jev` で使う試行用のスキル。**本体の SKILL・rules は書き換えない。** 公開 core 2.2 との違いは Jev 監視（opt-in）に関わる箇所だけ（intent.yaml の `jev_monitor` 欄のコメント、Phase 6.5 の opt-in 判定〔自動完走中も自動で承認しない〕、Phase 7 の Next Action と 4. の /goal 1行を `-jev` に）。詳細は `.claude/skills/ai-plc-jev/README.md`。
 
 パイプライン（Collection → Inception → Construction → Operation）の初期化ステージ。Goal と Mode を受け取り、Execution Context（Scope）を確立し、Context を収集・構造化する。
 
@@ -140,4 +140,4 @@ BT-B（ゴールドリフト）/ BT-C（全完了GAP分析）から scope_reinit
 intent.yaml / context.yaml / Context/（常に） / backlog.yaml（空で初期生成） / variables.yaml（platform_builder時のみ）→ Stage 2: SKL_plc_02_inception へ。
 
 ---
-**作成日:** 2026-04-06 ｜ **更新日:** 2026-10-01 ｜ **バージョン:** 2.2-jev（公開実験版 1.12.0-exp.1。公開 core 01-collection 2.2 に Jev 監視の opt-in を足したもの。Phase 6.5 の External Sync の既定を projects に〔タスクは同期しない — RUL_plc_system §9〕も core 2.2 と同じ）｜ 2.1-jev（公開実験版 1.8.1-exp.1）
+**作成日:** 2026-04-06 ｜ **更新日:** 2026-10-01 ｜ **バージョン:** 2.2-jev（公開実験版 1.12.0-exp.2。公開 core 01-collection 2.2 に Jev 監視の opt-in を足したもの。Phase 6.5 の External Sync の既定を projects に〔タスクは同期しない — RUL_plc_system §9〕も core 2.2 と同じ）｜ 2.1-jev（公開実験版 1.8.1-exp.1）

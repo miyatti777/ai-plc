@@ -1,8 +1,10 @@
-# ai-plc-jev（実験版 1.12.0-exp.1）
+# ai-plc-jev（実験版 1.12.0-exp.2）
 
 公開 core の AI-PLC（`.claude/skills/ai-plc/`）と並べて使う、**Jev 監視つきの実験版**です。判断専用モデル **Jev**（TypeSafe）に「前の段階に戻るべき兆しがないか」などを1問だけ聞き、**1行のヒント**を出します。ヒントに作業を止める権限はなく、判断はメインのモデルとあなたが行います。
 
-- **実験版です。** 仕様・コマンド名・ファイルの置き場所は予告なく変わることがあります。この実験版パッケージの版は 1.12.0-exp.1 で、公開 core 1.12.0 の上に作っています（前の実験版 1.8.1-exp.1 の次の版）。スキルは公開 core 1.12.0 のスキル（01-collection v2.2・02-inception v2.1・03-construction v2.3・04-operation v2.8）を元にしており、違いは Jev 部分だけです
+> 🧊 **1.12.0-exp.2 から、会話監視 hook と成功条件カバー判定は凍結中です。** 作者の試行で、会話監視は人が判定したヒントの約3分の2が外れ、成功条件カバー判定は役に立ったヒントがありませんでした。どちらも新しく有効にしないでください（カバー判定は `/02-inception-jev` から呼ばなくなりました。会話監視 hook を settings に登録している場合は外してかまいません）。スクリプトは残しますが、更新はしません。Backtrack の異常ヒント（5.5b・6b）とステータス点検は、これまでどおり使えます。
+
+- **実験版です。** 仕様・コマンド名・ファイルの置き場所は予告なく変わることがあります。この実験版パッケージの版は 1.12.0-exp.2 で、公開 core 1.12.0 の上に作っています（前の実験版 1.12.0-exp.1 の次の版）。スキルは公開 core 1.12.0 のスキル（01-collection v2.2・02-inception v2.1・03-construction v2.3・04-operation v2.8）を元にしており、違いは Jev 部分だけです
 - **本体（core）の SKILL・rules は書き換えません。** `/01-collection-jev`〜`/04-operation-jev` を使ったときだけ動きます。公開 core の `/01-collection`〜`/04-operation` の動きは変わりません
 - **APIキーを登録しなければ、何も外部に送らず、すべて自動でスキップされます**
 
@@ -13,8 +15,8 @@
 | Stage | コマンド | 公開 core との違い |
 | --- | --- | --- |
 | 1 | `/01-collection-jev` | intent.yaml に `jev_monitor` 欄を追加。送信禁止の区分に当たらなければ、有効にするかを1行で聞く。`pipeline_variant: jev` を記録する |
-| 2 | `/02-inception-jev` | 公開 core の 02-inception を読む薄いラッパー。**分解承認（Phase 4）の前に Jev 成功条件カバー判定**（`.claude/ai-plc-jev/scripts/jev_coverage_check.py`）を1回行い、どのタスクにも対応しない成功条件をヒントとして示す |
-| 3 | `/03-construction-jev` | 要るときだけ（RUL_plc_adaptive §6）。公開 core の 03-construction を読む薄いラッパー（Jev の判定なし。Next Action の表記と会話監視の有効化だけ） |
+| 2 | `/02-inception-jev` | 公開 core の 02-inception を読む薄いラッパー（-jev 表記だけ）。成功条件カバー判定（`.claude/ai-plc-jev/scripts/jev_coverage_check.py`）は凍結中で呼ばない |
+| 3 | `/03-construction-jev` | 要るときだけ（RUL_plc_adaptive §6）。公開 core の 03-construction を読む薄いラッパー（Jev の判定なし。Next Action の表記だけ。会話監視の有効化は凍結中） |
 | 4 | `/04-operation-jev` | Phase 5.5b・6b で `.claude/ai-plc-jev/scripts/jev_bt_monitor.py` を呼び、異常ありなら1行ヒントを出す。判定ごとに採否を `--override` で記録する。Phase 7 のステータス点検は公開 core 04-operation v2.8 と同じ（点検ツール `aiplc_status_audit.py` はこのパッケージに同梱） |
 
 - 既存の Layer で試す場合は、intent.yaml に `jev_monitor: true` を手で書き、Stage 4 を `/04-operation-jev` で回せばよい
@@ -32,7 +34,7 @@
 | パス | 内容 |
 | --- | --- |
 | `.claude/skills/ai-plc-jev/01-collection-jev/SKILL.md` | 公開 core 01-collection v2.2 ＋ Jev の opt-in |
-| `.claude/skills/ai-plc-jev/02-inception-jev/SKILL.md` | 公開 core 02-inception を読むラッパー（カバー判定） |
+| `.claude/skills/ai-plc-jev/02-inception-jev/SKILL.md` | 公開 core 02-inception を読むラッパー（-jev 表記。カバー判定は凍結中） |
 | `.claude/skills/ai-plc-jev/03-construction-jev/SKILL.md` | 公開 core 03-construction を読むラッパー |
 | `.claude/skills/ai-plc-jev/04-operation-jev/SKILL.md` | 公開 core 04-operation v2.8 の全文＋ Jev 部分（上の①〜⑤）の自己完結の実験版 |
 | `.claude/commands/01-collection-jev.md`〜`04-operation-jev.md` | 起動用のコマンド |
@@ -45,8 +47,8 @@
 | 機能 | 送るもの | 送らないもの |
 | --- | --- | --- |
 | 5.5b / 6b の異常ヒント | ゴール1行（200字まで）・進捗（件数）・直近のタスク完了報告（backlog の `result`、無ければタスクの説明。1200字まで） | 上の項目以外のファイル（成果物・Context・コードなど）の中身、会話のやり取り |
-| 会話監視 hook | 直前の発話1件の原文（空白を詰めて400字で切る）・ゴール1行（200字まで）・進捗（件数） | 貼り付けた長文、スラッシュコマンド、短い承認、「？」で終わる質問、ハーネスが差し込むメッセージ（既知の形式のみ。下の hook の節） |
-| 成功条件カバー判定 | ゴール1行（200字まで）・成功条件（全文）・各タスクの ID・名前・説明（説明は1件160字まで） | 上の項目以外のファイル（成果物・Context・コードなど）の中身、会話のやり取り |
+| 会話監視 hook（凍結中・新しく有効にしなければ送らない） | 直前の発話1件の原文（空白を詰めて400字で切る）・ゴール1行（200字まで）・進捗（件数） | 貼り付けた長文、スラッシュコマンド、短い承認、「？」で終わる質問、ハーネスが差し込むメッセージ（既知の形式のみ。下の hook の節） |
+| 成功条件カバー判定（凍結中・呼ばない） | ゴール1行（200字まで）・成功条件（全文）・各タスクの ID・名前・説明（説明は1件160字まで） | 上の項目以外のファイル（成果物・Context・コードなど）の中身、会話のやり取り |
 | ステータス点検（`--jev` を付けたときだけ） | 停滞 Layer のゴール1行（200字まで）・最後に完了したタスクの名前と結果（結果は400字まで）・進捗・停滞日数 | 機密と判定した Layer、`jev_monitor: true` でない Layer |
 
 - 送信先は、公式経路なら TypeSafe の1社、OpenRouter 経由なら OpenRouter と TypeSafe の2社です
@@ -70,11 +72,13 @@ Linux / Windows / CI では環境変数で渡します（パスワードマネ�
 | --- | --- |
 | すぐに全部止める | 環境変数 `JEV_DISABLE=1`（Claude Code の起動前のシェルか settings の `env` に書き、セッションを開き直す。止まっている間は 5.5b / 6b とカバー判定の行が `skipped(unavailable:disabled)`、ステータス点検は「スキップ（unavailable）」、会話監視 hook は無出力） |
 | 1つの Layer だけ止める | intent.yaml を `jev_monitor: false` に |
-| 会話監視だけ止める | `python3 .claude/ai-plc-jev/scripts/jev_prompt_hook.py --deactivate`。完全にやめるなら settings から hook を消す |
+| 会話監視だけ止める（凍結中。登録済みの hook を外すとき） | `python3 .claude/ai-plc-jev/scripts/jev_prompt_hook.py --deactivate`。完全にやめるなら settings から hook を消す |
 | 送信を完全にやめる | 登録したキーを消す（キーチェーンでも環境変数でも。両方のキーがあれば両方） |
 | 実験版を外す | `uninstall.sh cc`（both / all も可）。実験版だけを外すオプションは無い。hook を settings に足した人は、そこからも消す。`.claude/db/jev_*`・`.claude/db/status_hygiene/`・自分で作った `jev_redact_extra.txt` は uninstall 後も残る（一覧・消し方・既知の制約は[AI-PLC 公開リポジトリの README](https://github.com/miyatti777/ai-plc#readme)の実験版の節） |
 
-## 実験機能: 会話監視 hook（任意）
+## 実験機能: 会話監視 hook（凍結中）
+
+> 🧊 凍結中です。新しく登録しないでください。登録している場合は settings から hook を外してかまいません。下の表は記録として残します。
 
 あなたの発話ごとに Jev へ「進捗の訂正・抜けの指摘・範囲の変更・懸念（遠回しも含む）を含むか」を1問だけ聞き、0.5以上なら Claude に1行のヒントを追加の文脈として渡します。**installer は hook を登録しません。** 使う人だけが手で settings に足します。
 
@@ -96,7 +100,7 @@ Linux / Windows / CI では環境変数で渡します（パスワードマネ�
 - 5.5b / 6b の異常ヒント: **判定 20 件**（機密でない実際の Layer 4 つ）で、人の確認による**外れ 0 件**。ヒントを出した判定のうち1件は、全完了時の GAP 分析のきっかけになった
 - 費用と速さ: 判定1回あたり約 $0.00001〜0.00002、応答 0.3〜0.5 秒（OpenRouter 経由の実測）
 - 公式 TypeSafe 経路は、公式ドキュメントに沿って実装しただけで、接続は未確認です
-- 会話監視 hook と成功条件カバー判定は、件数がまだ少なく評価中です
+- 会話監視 hook は、人が判定したヒント15件のうち10件が外れ（却下率約67%）、継続の基準（30%以下）に届きませんでした。成功条件カバー判定は、出したヒントに役に立ったものがありませんでした。どちらも 1.12.0-exp.2 から凍結中です
 
 ## 試す人向けの確認観点
 
