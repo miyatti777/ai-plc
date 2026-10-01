@@ -10,7 +10,7 @@
 - Input（汎用）: 成果物、タスク複雑度（→検証Level決定）、ロール固有NFRチェックリスト（TPL_role_*から）、有効なExtension（intent.yamlから）
 - Output（コーディング）: ビルド指示書、unit/integration/（opt-inで）performance等の各テスト指示書、テストサマリー
 - Output（汎用）: 検証レポート（L1/L2/L3結果+改善指示）、NFR適合判定（Pass/Warning/Fail）
-- frontmatter（必須）: name（kebab-case）/ description / tools（最小権限・reviewer系はWrite/Edit除外）/ delegable。Phase 5.5 reviewerはAutonomous-onlyなので`delegable: true`、standalone validationタスクでMob CPを含む場合だけ`delegable: false`とする
+- frontmatter（必須）: name（kebab-case）/ description / tools（最小権限・reviewer系はWrite/Edit除外）/ delegable（Phase 5.5 の reviewer は Autonomous-only なので true。standalone validation タスクは backlog の値を写す — 03-construction Phase 3。Phase 5.5 の reviewer 起動は delegable に関係なく行う — 04-operation Phase 5.5）
 
 ## Execution Flow
 
@@ -36,7 +36,7 @@ Phase 5.5の独立レビュー時はAutonomous-onlyでStep 7を省略し、Step 
 - FindingsはP0-P3のフラットリストとし、各項目に対象箇所・根拠・修正案を含める
 - 指摘がなければ`No findings`を返す
 - acceptance criteriaごとにPass / Failを返す
-- maker側の完了ゲートは未解決P0/P1/P2=0とする
+- maker側の完了ゲートは 04-operation Phase 5.5 に従う
 
 ## Guardrails（権限モデル）
 

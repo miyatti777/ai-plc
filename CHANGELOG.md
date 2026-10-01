@@ -13,11 +13,52 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 
 ## [Unreleased]
 
-core の版と実験版パッケージの版は変わりません。
+## [1.12.0] - 2026-10-01
 
-### 同梱: Registry ビューア 0.2.0-alpha（installer 対象外）
+実験版パッケージは **1.12.0-exp.1** に上がります（下の節）。
+
+### 追加: 自動完走モード（/goal で RUL_plc_session §10 を指すとき）
+
+- Claude Code の `/goal` で、Layer を承認待ちで止まらずに最後まで進められるようにしました。ルールは `core/rules/ai-plc-session.md` §10（v2.1）。切り替えは「そのセッションで貼った /goal が §10 を指しているか、『AI-PLC 自動完走（自己完結版）』を含むとき」だけで、口頭の指示や `intent.yaml` の欄では切り替わりません。止めるのは `/goal clear`
+- 自動で進めるもの: Mob Checkpoint は承認ブロックを出したうえで⭐を選ぶ／Next Action は A（⭐）をその場で実行（Layer の全タスク完了後の Next Action は実行しない）／Stage 4 のタスクは P0→P1→P2・依存順／明確化の質問はせずに仮定を置く（データ・権限・受け手に見える挙動は最も保守的な案）
+- 緩めないもの: Phase 5.5 の独立検証（未解決 P0〜P2 ゼロ。修正→再検証は2回まで）、Backtrack の承認（要る判定なら停止）
+- 保留するもの（実行せずログに残して先へ進む）: git の commit・push・PR・merge・タグ、外部公開（リポジトリ・パッケージへの反映）、Notion・Slack・メールへの書き込み・送信、ローカル sqlite 以外の外部 DB への書き込み、承認後の決まりがある反映（ステータス点検の反映など）、決まった書き込み先以外の Layer 外のファイル、削除・移動・既存成果物の上書き、上記以外の操作（お金・外部 API への送信・ツールの導入など）
+- 停止: 行頭に `⛔ 自動完走を停止: <理由>`（complex・platform_builder の Layer、SubLayer、BT-A、Backtrack が要る、2回の修正後も P0〜P2 が残る、など）。自動で選んだ判断は backlog の `refactoring_log` に `[auto-approved]` で1行ずつ残し、完了・停止のときに表で示す
+- `/01-collection`・`/02-inception` の完了報告の最後に、Layer パスと開始列を埋めた /goal 1行（短い版）を出します（止まる挙動は変えない。complex・platform_builder では出さない）。新しい Goal から1本で走らせる「Goal から版」と、§10 の無い環境でも貼るだけで動く「自己完結版」は README の「自動完走（/goal）」の節にあります
+- 01〜04 の SKILL の冒頭に自動完走モードの1行、04 の Phase 2 に自動完走中のタスク選択、`ai-plc-session.md` §7.4・§8・§9 に例外の参照、`ai-plc-adaptive.md` §5 ルール1 に「自動完走中も Backtrack は停止」を追加
+- Codex は開始列のコマンドを `$02-inception` 等に読み替えて使えます（`codex/skills/ai-plc/01-collection` の手順4）。Cursor には /goal が無いため対象外で、`cursor/rules/ai-plc-session.mdc` にその旨を1行足しました
+
+### 変更: Construction（Stage 3）を既定で省く
+
+- Stage 3（Agent 定義の生成）は、次のどれかに当たるときだけ通すようにしました: ①workflow_depth が complex ②mode が platform_builder ③intent.yaml の `construction_mode: always`（慎重モード・opt-in）④`delegable: true` のタスクがある ⑤type が implementation / coding で手順が5つを超えるタスクがある。①〜③は全タスク、④⑤は当たるタスクだけ Agent 定義を作ります（`ai-plc-adaptive.md` §1・§3・§6、v2.5）
+- 要否は backlog を作る者（standard 以上は Inception、simple は Collection）が backlog のトップレベル `construction`（required・reason・tasks）に書き、Stage 2 の後の Next Action はそれで決まります（`ai-plc-session.md` §7.4）。`construction` 欄の無い既存の backlog は「required: false」とみなし、進行中の Layer は止まりません（Agents/ に定義のあるタスクはそれに従います）
+- Construction を通さないとき、Operation は backlog の description・acceptance_criteria・guardrails・decisions と Context から実行します。standard 以上は `acceptance_criteria` が必須になり、Phase 5.5 の L1 で1項目ずつ ○/× を確かめます。`delegable: true` は途中で人の確認が要らないタスクにだけ付け、Agent 定義の frontmatter には backlog の値を写します
+- 独立レビューの契約は 04-operation Phase 5.5 に一本化し、Agent 定義の Guardrails には参照の1行だけを書きます（テンプレート `templates/agents/TPL_*`・ロール `TPL_role_*` も合わせて更新）
+- `plc-consult`: Re-Inception で `/03-construction` を添えるのは、足したタスクが §6 の条件に当たるときだけにしました
+- 02〜04 の SKILL・`claude/commands/03-construction.md` の説明・Codex アダプターの説明・Cursor の `ai-plc-adaptive.mdc`・`CLAUDE.md` / `AGENTS.md` のテンプレートを合わせて更新
+
+### 追加: 使い分け（記録は広く、手順は絞る）と深度の理由の記録
+
+- `ai-plc-adaptive.md` に §0 を新設しました。仕事ごとに、記録（Layer）が要るかと、どの守り（完了条件の ○/×・Collection での資料集め・独立レビュー・取り返しにくい操作の前の承認）が要るかを分けて決める表です。①（その場限り・汎用・自分用）は Layer を作りません
+- `/01-collection` の Phase 1 で、深度の判定理由を `workflow_depth_reason`（1行。§0 の表の目安と食い違えばその理由も）に、参考として4軸 `depth_axes`（R 受け手・U やり直し・V 確かめ方・C 固有の文脈。判定の条件にはまだ使わない）を intent.yaml に書きます。§0 の①に当たれば、その旨を報告して続けるかを聞きます
+
+### 版
+
+- rules: `ai-plc-session.md` 2.1・`ai-plc-adaptive.md` 2.5（`ai-plc-system.md` は変えていません）
+- スキル: `01-collection` 2.2・`02-inception` 2.1・`03-construction` 2.3・`04-operation` 2.8
+
+### 同梱: Registry ビューア 0.2.0-alpha（installer 対象外・1.11.0 の後に main に入っていたもの）
 
 - `experimental/registry-viewer/` に **分類（所属・種類・実行環境）** を追加。intent.yaml の `classification` とタスクの `executed_by` を正本に、Registry の別表（`project_classification` / `task_execution`。projects / tasks の列は変えない）へ写し、ビューアの一覧のバッジと絞り込みで見分けられるようにした。`classify.py`（語彙の検査・表の作成・写し・既存 Project の候補提案と承認反映）と語彙のサンプルを同梱。core のスキルは変えていないので、分類は手で書くか `classify.py suggest` → `apply` で付ける
+
+## [実験版 1.12.0-exp.1] - 2026-10-01
+
+実験版パッケージ（`experimental/jev/`、`--with-jev` のときだけ入る）の新しい版です。前の実験版 1.8.1-exp.1 の次の版で、core 1.12.0 に合わせて出しました。
+
+- スキル（`/01-collection-jev`〜`/04-operation-jev`）を core 1.12.0 のスキル（`01-collection` 2.2・`04-operation` 2.8）に揃えました。Construction を既定で省く変更（`/03-construction-jev` は要るときだけ、`/02-inception-jev` の Next Action は `construction.required` で選ぶ）、深度の理由の記録、自動完走モードの1行が入ります。core のスキルとの違いは Jev 部分だけです
+- 自動完走中（RUL_plc_session §10 を指す /goal があるセッション）の Jev の扱いを、`04-operation-jev` の「Jev監視ルール」の例外として書きました: opt-in した Layer の Jev の判定は行い、判定ごとの採否の記録とコピペ用プロンプトへの貼り付けはせず、完了報告の冒頭に「🧭 未確認の Jev 判定: N件」と貼り付け用1行をまとめて出します（回収は `jev_bt_monitor.py --pending --layer <Layer>`）。Jev 監視の opt-in は自動では承認しません（`01-collection-jev` Phase 6.5）。`01-collection-jev` の最後に出す /goal 1行は `-jev` 版のコマンドで書きます
+- `KNOWN_RELEASES.sha256` に 1.8.1-exp.1 の配布物のハッシュを追加しました
+- スクリプトと installer の処理は変えていません
 
 ## [1.11.0] - 2026-09-29
 

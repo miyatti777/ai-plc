@@ -2,7 +2,7 @@
 
 AI-PLC の作業中に、判断専用モデル **Jev**（TypeSafe）で「Backtrack（前の段階に戻るべき兆し）がないか」を安く速く見張り、**1行のヒント**を出す仕組みです。ヒントには作業を止める権限はなく、最終判断はメインのモデルとあなたが行います。**APIキーを設定しなければ、すべて自動でスキップされ、AI-PLC は従来どおり動きます。**
 
-> 🧪 これは AI-PLC の**実験版パッケージ（experimental/jev、版 1.8.1-exp.1。公開 core 1.8.1 の上に作った実験版で、core のスキルとの違いは Jev 部分だけ）**の一部です。`install-cc.sh --with-jev`（または `install.sh cc --with-jev`）で入れたときだけ、スクリプトは `.claude/ai-plc-jev/scripts/`、スキルは `.claude/skills/ai-plc-jev/`、コマンドは `/01-collection-jev`〜`/04-operation-jev` に入ります。Jev 監視はすべて実験版のスキル・コマンドから呼ばれ、**公開 core の `/01-collection`〜`/04-operation` からは呼ばれません。**
+> 🧪 これは AI-PLC の**実験版パッケージ（experimental/jev、版 1.12.0-exp.1。公開 core 1.12.0 の上に作った実験版で、core のスキルとの違いは Jev 部分だけ）**の一部です。`install-cc.sh --with-jev`（または `install.sh cc --with-jev`）で入れたときだけ、スクリプトは `.claude/ai-plc-jev/scripts/`、スキルは `.claude/skills/ai-plc-jev/`、コマンドは `/01-collection-jev`〜`/04-operation-jev` に入ります。Jev 監視はすべて実験版のスキル・コマンドから呼ばれ、**公開 core の `/01-collection`〜`/04-operation` からは呼ばれません。**
 
 ## 何が入っているか
 

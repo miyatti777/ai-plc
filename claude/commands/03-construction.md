@@ -1,5 +1,5 @@
 ---
-description: "AI-PLC Stage 3: Construction — Agent定義生成・実行計画策定"
+description: "AI-PLC Stage 3: Construction — Agent定義生成・実行計画策定（Agent 定義が要るときだけ — RUL_plc_adaptive §6）"
 argument-hint: Layer名 or Layer path
 allowed-tools: Read, Write, Bash, Glob, Grep
 ---

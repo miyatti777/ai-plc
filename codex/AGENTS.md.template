@@ -5,7 +5,7 @@ This repository uses the AI-PLC four-stage workflow. For Codex, invoke project s
 
 1. `$01-collection` — establish the execution context and Scope.
 2. `$02-inception` — decompose the Goal into an executable backlog.
-3. `$03-construction` — generate task Agent definitions and execution plans.
+3. `$03-construction` — generate task Agent definitions and execution plans (only when needed — RUL_plc_adaptive §6).
 4. `$04-operation` — execute one backlog task, verify it, update status, and propagate results.
 
 Codex skill entrypoints are under `.agents/skills/ai-plc/`. They are thin adapters. The canonical AI-PLC runtime, Rules, DB, Wiki, and templates are installed under `.claude/`; `.claude` is a compatibility runtime here, not Codex configuration.

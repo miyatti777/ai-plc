@@ -36,3 +36,5 @@ Every stage/task completion must include:
 1. **Next Action Protocol** — Choice table (A/B/C) + recommendation + copy-paste prompt
 2. **Position Header + Summary** — Scope / completed item / artifacts / status
 3. **Progress Dashboard** — Completed + next executable tasks only
+
+Auto-run mode (a /goal that points to RUL_plc_session §10) is Claude Code / Codex only; in Cursor, stop at every Mob Checkpoint as usual.

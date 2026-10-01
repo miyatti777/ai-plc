@@ -1,6 +1,6 @@
 ---
 name: 03-construction
-description: AI-PLC Stage 3 Construction。Backlogの各タスクに対して実行可能なAgent定義と実行計画を生成する。
+description: AI-PLC Stage 3 Construction。Agent 定義が要るタスク（RUL_plc_adaptive §6: complex・platform_builder・慎重モード・委譲・長い実装）に対して実行可能なAgent定義と実行計画を生成する。
 ---
 
 # Codex adapter: AI-PLC Stage 3

@@ -7,7 +7,7 @@
 |-------|-------|---------|
 | Collection | `.claude/skills/ai-plc/01-collection/SKILL.md` | Goal設定・Context収集・Execution Context確立 |
 | Inception | `.claude/skills/ai-plc/02-inception/SKILL.md` | Goal分解・Backlog生成 |
-| Construction | `.claude/skills/ai-plc/03-construction/SKILL.md` | Agent定義生成・実行計画策定 |
+| Construction | `.claude/skills/ai-plc/03-construction/SKILL.md` | Agent定義生成・実行計画策定（要るときだけ — RUL_plc_adaptive §6） |
 | Operation | `.claude/skills/ai-plc/04-operation/SKILL.md` | タスク実行・成果物生成 |
 
 ### Agents

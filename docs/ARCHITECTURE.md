@@ -56,14 +56,16 @@ manifestをdetached状態にして、追跡情報を失わない。
 └─────────────┘    └─────────────┘    └──────────────┘    └─────────────┘
 ```
 
+Construction（Stage 3）は既定では通しません。complex・platform_builder・`construction_mode: always`・`delegable: true` のタスク・手順が5つを超える実装タスクのときだけ通し（RUL_plc_adaptive §6）、要否は backlog の `construction` に書きます。通さないときは Inception の後すぐ Operation が backlog から実行します。
+
 ## Adaptive Workflow
 
 Goalの複雑度に応じて自動的にパイプライン深度を調整:
 
 | 深度 | 判定基準 | パイプライン |
 |------|----------|-------------|
-| **Simple** | 1-2タスク・既知パターン | Stage 1 → Stage 4 直行 |
-| **Standard** | 複数タスク・タスク分解必要 | 全4ステージ順次実行 |
+| **Simple** | 1-2タスク・既知パターン | Stage 1 → Stage 4 直行（Stage 3 は RUL_plc_adaptive §6 の条件に当たるときだけ） |
+| **Standard** | 複数タスク・タスク分解必要 | Stage 1→2→4（Stage 3 は RUL_plc_adaptive §6 の条件に当たるときだけ） |
 | **Complex** | 再帰分解・SubLayer必要 | 全4ステージ + SubLayer再帰 |
 
 ## Context Cascade

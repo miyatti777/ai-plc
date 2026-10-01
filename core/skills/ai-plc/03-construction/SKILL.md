@@ -1,6 +1,6 @@
 ---
 name: 03-construction
-description: ai_plc_construction - AI-PLC Stage 3。Backlogの各タスクに対して実行可能なスキル定義と実行計画を生成する。
+description: ai_plc_construction - AI-PLC Stage 3。Agent 定義が要るタスク（RUL_plc_adaptive §6）に対して実行可能なスキル定義と実行計画を生成する。
 ---
 
 # AI-PLC Stage 3: Construction
@@ -8,6 +8,10 @@ description: ai_plc_construction - AI-PLC Stage 3。Backlogの各タスクに対
 Backlogの各タスクに対して実行可能なAgent定義を生成するステージ。既存テンプレート（templates/agents/TPL_*）とタスク固有コンテキストを組み合わせる。
 
 **共通規約:** 命名は RUL_plc_system §6 / 完了報告は RUL_plc_session §7 / Phase遷移通知は §8 / Mob CP出力は §9 に従う。
+
+**呼ぶ条件:** RUL_plc_adaptive §6 の条件に当たるときだけ通す。生成するのは backlog の `construction.tasks` のタスクだけ（Layer 単位の条件＝complex・platform_builder・`construction_mode: always` のときは、Inception が command のある全タスクをそこに書いている）。
+
+**自動完走モード:** セッション中に RUL_plc_session §10 を指す /goal があるときは §10 に従い、Mob Checkpoint・Next Action・タスク選択で待たずに進める（無ければ本 SKILL のとおり止まる）。
 
 ## 入力
 
@@ -38,10 +42,10 @@ commandフィールドがないタスクはスキップする。
 ### Phase 3: 生成計画 + Agent一括生成
 
 1. 各タスクに最適なテンプレートを特定し、ティアに応じたAgent定義を生成して `Agents/` に配置する
-2. Task未指定時は全commandありタスクを一括生成（Mob CPは1回のみ）。Task指定時は単体生成
-3. Agent定義はHITL統合型（Autonomous Phase + Mob Checkpoint交互）を標準構造とし、実行可能な詳細度で書く
-4. **Subagent互換frontmatterを全AGTに付与する**: `name`（kebab-case）/ `description` / `tools`（最小権限。reviewer系はWrite/Edit除外）/ `delegable`（FlowにMob CPを含むなら`false`）。Guardrailsに「変更禁止ファイル」欄（backlog.yaml / context.yaml / intent.yaml / sqlite / rules / SKILL等）を、Agent Instructionsに返り値規約（最終メッセージで成果物パス+実測値を返す）を必ず含める — AGT本文はそのままAgent toolのpromptに渡せる自己完結指示書にする
-5. **独立レビュー契約を全AGTへ埋め込む**: research / content / design / planning / implementation / codingは、Guardrailsに「Operation Phase 5.5でmakerと別のsub-agent reviewerを自動起動」「`delegable: false`はreviewerを禁止しない」「reviewerへ渡すのは成果物snapshot + Goal / Output / acceptance criteria / 検証Level / typeレンズのみ」「reviewerはread-onlyかつAutonomous-only」「出力はP0-P3またはNo findings」「未解決P0/P1/P2=0を完了ゲート」と明記する。complexは実際の成果物typeへ、operationは各量産成果物のtypeへ解決して同じ契約を適用する。management / coordinationは独立レビュー対象外と明記する。validation / reviewタスクは自分自身がcheckerであるため再帰reviewerを起動しない
+2. Task未指定時は `construction.tasks` のタスクを一括生成（Mob CPは1回のみ）。Task指定時は単体生成
+3. Agent定義はHITL統合型（Autonomous Phase + Mob Checkpoint交互）を標準構造とし（delegable: true のタスクは4項のとおり Autonomous-only）、実行可能な詳細度で書く
+4. **Subagent互換frontmatterを全AGTに付与する**: `name`（kebab-case）/ `description` / `tools`（最小権限。reviewer系はWrite/Edit除外）/ `delegable`（backlog の `delegable` の値を写す。backlog が正。true のタスクは Mob Checkpoint を挟まない Autonomous-only で生成する）。Guardrailsに「変更禁止ファイル」欄（backlog.yaml / context.yaml / intent.yaml / sqlite / rules / SKILL等）を必ず含める。返り値規約は 04-operation Phase 4 に従う — AGT本文はそのままAgent toolのpromptに渡せる自己完結指示書にする
+5. **独立レビュー契約:** 04-operation Phase 5.5 に従う（Guardrails には『独立レビュー: 04-operation Phase 5.5 に従う』の1行だけ書く）。生成した AGT のパスは backlog の該当タスクの `command_template_ref` に書く
 6. 生成中にスコープ外タスク（別チーム作業の前提・別システムでの実装要求・スコープ外の改善点）を発見したら、Self-Describing Task構造（RUL_plc_system §9）でチケット化し「外部DBに書き出しますか？」と確認→承認後push
 7. 結果をユーザーに提示する:
 
@@ -75,7 +79,7 @@ RUL_plc_session §7 の4パートを出力して停止する。Next Action: A=/0
 
 ## 出力
 
-Agents/ 配下のAgent定義群 → Stage 4: SKL_plc_04_operation へ。Exit条件: commandありの全タスクにAgent定義が存在すること。
+Agents/ 配下のAgent定義群 → Stage 4: SKL_plc_04_operation へ。Exit条件: `construction.tasks` の全タスクに Agent 定義が存在すること。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-07-10 ｜ **バージョン:** 2.2（全AGTへ独立レビュー契約を埋め込み、`delegable`とreviewer起動を分離。2.1: AGT-Subagent互換化: frontmatter必須化・変更禁止欄・返り値規約）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-10-01 ｜ **バージョン:** 2.3（冒頭に自動完走モードの1行〔RUL_plc_session §10〕／Construction は要るときだけ通し、生成対象は backlog の construction.tasks・delegable は backlog の値を写す・独立レビュー契約は 04-operation Phase 5.5 に一本化〔RUL_plc_adaptive §6〕）｜ 2.2（全AGTへ独立レビュー契約を埋め込み、`delegable`とreviewer起動を分離。2.1: AGT-Subagent互換化: frontmatter必須化・変更禁止欄・返り値規約）

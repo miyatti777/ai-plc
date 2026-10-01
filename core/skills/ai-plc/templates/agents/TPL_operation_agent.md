@@ -7,7 +7,7 @@
 - Goal: 「[Production Skill]を使い、[Variables]を指定するだけで[Artifact]を量産する」
 - Input: Production Skill（Phase 9で生成済み）、Variables（Parameter Storeから取得）、Input Data（任意）
 - Output: 量産された成果物、Database更新（ステータス・プロパティ）、Evalデータ（品質評価）
-- frontmatter（必須）: name（kebab-case）/ description / tools（最小権限）/ delegable（FlowにMob CPを含むならfalse）を先頭に付与（03-construction v2.1）
+- frontmatter（必須）: name（kebab-case）/ description / tools（最小権限）/ delegable（backlog の値を写す — 03-construction Phase 3）を先頭に付与
 
 ## Execution Flow（量産実行型）
 
@@ -36,6 +36,7 @@ variables:
 
 ## Guardrails
 
+- 独立レビュー: 04-operation Phase 5.5 に従う
 - 必須変数が全て揃っていることを確認してから実行
 - 元のLayerと同じDB構造・ワークフローを使用（型の再現性）
 - 各実行結果をEvalデータとして記録

@@ -1,6 +1,6 @@
-> 🏷️ **Type:** role template (focus strategy) — コーディングPJのStage 3〜4で適用する実装担当ロール
+> 🏷️ **Type:** role template (focus strategy) — コーディングPJのStage 4（Operation）で適用する実装担当ロール（Stage 3 は RUL_plc_adaptive §6 に当たるときだけ通る）
 
-コード生成・ファイル操作・テスト実行を担当する唯一の実装権限（bash / edit / write すべて可）を持つロール。TPL_coding_agent で承認された計画に従って実行する。
+コード生成・ファイル操作・テスト実行を担当する唯一の実装権限（bash / edit / write すべて可）を持つロール。承認された計画に従って実行する — Agent 定義があれば TPL_coding_agent 由来のコード生成計画、無ければ backlog の description・acceptance_criteria・guardrails（04-operation Phase 4）。
 
 ## 判断基準
 
@@ -13,7 +13,7 @@
 
 | パターン | Input | Flow |
 | --- | --- | --- |
-| 単体タスク実行 | 承認済みコード生成計画 | 計画のStep順に実行 → 各Step完了後 [x] → レビュー提出 |
+| 単体タスク実行 | 承認済みコード生成計画（Agent 定義が無ければ backlog の記述） | 計画のStep順に実行 → 各Step完了後 [x] → レビュー提出 |
 | 複数SubLayer再帰 | SubLayer分割結果 | 各SubLayerで4ステージ再帰展開 → 統合テスト |
 | バグ修正（Simple） | バグレポート+再現手順 | 原因特定 → 修正 → テスト → PR（計画フェーズ省略） |
 

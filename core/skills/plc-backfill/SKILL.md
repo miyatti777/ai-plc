@@ -66,6 +66,7 @@ description: AI-PLCのスキル（/04-operation 等）を通さずに済ませ�
 | --- | --- |
 | id | その backlog の ID の形式（接頭辞・区切り・桁数。例 T001 / T-01）に合わせ、同じ形式の最大番号 +1。形式が混在していれば承認ブロックで確認する |
 | name / description | 手順 1 の名前と「何をしたか」 |
+| acceptance_criteria | 任意。書き起こしや会話から完了の条件が分かるときだけ、検証できる形のリストで書く（standard 以上の Layer では手順 6 の Phase 5.5 の L1 で1項目ずつ ○/× を確かめる） |
 | type / priority | type は作業の中身から（implementation / content / design / research …）。priority は対象 Layer の同じ type のタスクに合わせ、無ければ P2 |
 | status | in_progress（手順 6 の Phase 6 で completed にする。検証の前に completed と書かない） |
 | owner | AI（ユーザー自身がやった作業なら user） |

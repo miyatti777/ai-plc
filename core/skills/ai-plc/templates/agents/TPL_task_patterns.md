@@ -1,4 +1,4 @@
-> 🏷️ **Type:** template (meta) — Stage 3 Constructionがタスク種類を判定し、適切なPhase構造とAgentテンプレートを選択するためのメタパターン
+> 🏷️ **Type:** template (meta) — Stage 3 Construction（通すときだけ — RUL_plc_adaptive §6）がタスク種類を判定し、適切なPhase構造とAgentテンプレートを選択するためのメタパターン
 
 ## タスク種類判定
 
@@ -17,7 +17,7 @@
 2. 出力の検証 — Agent完了前に、指定インプットを実際に使用したか、出力がインプットの規模・範囲と整合しているかを確認する
 3. 出力エンティティの明確化 — 「Kanbanビュー/進捗管理」はDatabase+適切なビュー・プロパティ、「テンプレート/ガイド」はPageとして作る（ページ内の説明文・テーブルで代用しない）
 4. 「動くシステム」ルール — implementationタスクは実際に動くDatabase/システムを生み出さなければ完了としない（設計書だけでは不可）
-5. maker≠checker — research / content / design / planning / implementation / codingの生成AGTは、Operation Phase 5.5で作成者とは別のsub-agent reviewerによる独立レビューを必須とする。complexは実際の成果物typeへ、operationは各量産成果物のtypeへ解決して同じ契約を適用する。`delegable: false`は成果物作成の委譲だけを制御し、reviewer起動を禁止しない
+5. maker≠checker — 独立レビューは 04-operation Phase 5.5 に従う（Agent 定義の有無によらない）。frontmatter の `delegable` は backlog の値を写す（03-construction Phase 3）
 
 ## 汎用検証ステップ（全Agent共通 — system §18連動）
 
@@ -33,12 +33,7 @@
 
 ### 独立レビュー契約（生成AGTのGuardrailsへ転記）
 
-- reviewerはmakerと異なるsub-agentとし、作成会話を渡さない
-- 入力は成果物snapshot、Goal、Output、acceptance criteria、検証Level、type別レンズに限定する
-- reviewerはread-onlyかつAutonomous-onlyとし、成果物を直接修正せず、Mob承認待ちを発生させない
-- 出力はP0-P3のフラットリスト、または`No findings`
-- 未解決P0/P1/P2が0件になるまでPhase 6へ進まない
-- management / coordinationは対象外。validation / reviewは自身がcheckerのため再帰reviewerを起動しない
+- 独立レビュー: 04-operation Phase 5.5 に従う（生成AGTのGuardrailsにはこの1行だけを転記し、契約文を複製しない。reviewer 側の定義は TPL_review_agent）
 
 ## Phase構造の標準パターン
 

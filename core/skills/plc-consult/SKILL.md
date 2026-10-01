@@ -39,8 +39,8 @@ AI から気づいて出す1行ヒント（RUL_plc_adaptive §5 会話中監視�
 
 ### 2. 読む（件数を絞る — RUL_plc_system §17）
 
-- `intent.yaml`: goal.description・goal.success_criteria・status・workflow_depth（Re-Inception で `/03-construction` の注記が要るか）
-- `backlog.yaml`: 各タスクの id・name・status・dependencies・output（description は関係するタスクだけ）
+- `intent.yaml`: goal.description・goal.success_criteria・status・workflow_depth・mode・construction_mode（Re-Inception で足すタスクが RUL_plc_adaptive §6 の条件に当たり、`/03-construction` の注記が要るか）
+- `backlog.yaml`: 各タスクの id・name・status・dependencies・output（description は関係するタスクだけ）とトップレベルの `construction`
 - アイデアが特定の成果物に触れているときだけ、その成果物を読む
 
 ### 3. 判定する（3ステップ）
@@ -75,7 +75,7 @@ AI から気づいて出す1行ヒント（RUL_plc_adaptive §5 会話中監視�
 | 却下 | なし（理由だけ） |
 | いつかやる | コマンドは出さない。「メモに残す」（Layer の外の ToDo・メモに1行で書き留める）と書き、書き留める1行の文案を示す |
 | Re-Collection | `/01-collection`（Layer パス＋`Re-Collection: <理由>`） |
-| Re-Inception | `/02-inception`（Layer パス＋`Re-Inception: <差分の要点>`）。standard 以上の Layer では、足したタスクに `/03-construction` を通すことを1行添える（RUL_plc_adaptive §6） |
+| Re-Inception | `/02-inception`（Layer パス＋`Re-Inception: <差分の要点>`）。Re-Inception で backlog の `construction` が required になる（足したタスクが RUL_plc_adaptive §6 の条件に当たる）ときだけ、そのタスクに `/03-construction` を通すことを1行添える |
 | 今のタスク内で修正 | `/04-operation`（Layer パス＋Task ID＋修正内容） |
 
 - **Layer 自体が completed のとき:** 判定の手順は同じ（ステップ1〜3）。タスクは全部 completed なので、ステップ2に来たものは Re-Inception になる。Re-Inception・Re-Collection のときは「Layer と Registry を active に戻す作業が入る」と1行添える
