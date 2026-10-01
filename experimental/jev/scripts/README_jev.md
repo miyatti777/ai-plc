@@ -2,7 +2,7 @@
 
 AI-PLC の作業中に、判断専用モデル **Jev**（TypeSafe）で「Backtrack（前の段階に戻るべき兆し）がないか」を安く速く見張り、**1行のヒント**を出す仕組みです。ヒントには作業を止める権限はなく、最終判断はメインのモデルとあなたが行います。**APIキーを設定しなければ、すべて自動でスキップされ、AI-PLC は従来どおり動きます。**
 
-> 🧪 これは AI-PLC の**実験版パッケージ（experimental/jev、版 1.12.0-exp.1。公開 core 1.12.0 の上に作った実験版で、core のスキルとの違いは Jev 部分だけ）**の一部です。`install-cc.sh --with-jev`（または `install.sh cc --with-jev`）で入れたときだけ、スクリプトは `.claude/ai-plc-jev/scripts/`、スキルは `.claude/skills/ai-plc-jev/`、コマンドは `/01-collection-jev`〜`/04-operation-jev` に入ります。Jev 監視はすべて実験版のスキル・コマンドから呼ばれ、**公開 core の `/01-collection`〜`/04-operation` からは呼ばれません。**
+> 🧪 これは AI-PLC の**実験版パッケージ（experimental/jev、版 1.12.0-exp.2。公開 core 1.12.0 の上に作った実験版で、core のスキルとの違いは Jev 部分だけ）**の一部です。`install-cc.sh --with-jev`（または `install.sh cc --with-jev`）で入れたときだけ、スクリプトは `.claude/ai-plc-jev/scripts/`、スキルは `.claude/skills/ai-plc-jev/`、コマンドは `/01-collection-jev`〜`/04-operation-jev` に入ります。Jev 監視はすべて実験版のスキル・コマンドから呼ばれ、**公開 core の `/01-collection`〜`/04-operation` からは呼ばれません。**
 
 ## 何が入っているか
 
@@ -11,8 +11,8 @@ AI-PLC の作業中に、判断専用モデル **Jev**（TypeSafe）で「Backtr
 | `jev_client.py` | Jevへの共通クライアント（経路の選択・送信前の検査・本文を残さないログ）。`--check` で接続確認 | 全部 |
 | `jev_bt_monitor.py` | Backtrackの異常ヒント（`/04-operation-jev` Phase 5.5b / 6b）と、判定の記録・集計 | 実験版 |
 | `jev_regression_rank.py` | 規約を変えたとき、過去の成果物を「悪化が疑わしい順」に並べる（合否は出さない） | 手動 |
-| `jev_prompt_hook.py` | 会話ごとの監視（Claude Code の UserPromptSubmit hook。settings への登録が必要） | 実験版 |
-| `jev_coverage_check.py` | Inception の成功条件カバー判定（どのタスクにも対応しない成功条件を探す） | 実験版（`/02-inception-jev`） |
+| `jev_prompt_hook.py` | 会話ごとの監視（Claude Code の UserPromptSubmit hook。settings への登録が必要） | 実験版（**凍結中**・登録しない） |
+| `jev_coverage_check.py` | Inception の成功条件カバー判定（どのタスクにも対応しない成功条件を探す） | 実験版（**凍結中**・`/02-inception-jev` から呼ばない） |
 | `aiplc_status_audit.py` | Layer・Registry の食い違いの点検（`/04-operation`・`/04-operation-jev` の Phase 7。手順は `README_status_audit.md`） | 実験版 |
 
 必要なもの: Python 3.9 以上、`pyyaml`（`pip install pyyaml`）。ほかの依存はありません。
@@ -88,10 +88,12 @@ python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --noise-report
 
 ## 5. 追加の機能を使う（任意）
 
-実験版 AI-PLC（`/01-collection-jev` → `/02-inception-jev` → `/03-construction-jev` → `/04-operation-jev`）では、5.5b・6b の異常ヒントのほかに次の2つが動きます。詳しくは `.claude/skills/ai-plc-jev/README.md`。
+> 🧊 **1.12.0-exp.2 から、会話監視 hook と成功条件カバー判定は凍結中です。** 作者の試行で、会話監視は人が判定したヒントの約3分の2が外れ、成功条件カバー判定は役に立ったヒントがありませんでした。どちらも新しく有効にしないでください（カバー判定は `/02-inception-jev` から呼ばなくなりました。会話監視 hook を settings に登録している場合は外してかまいません）。スクリプトは残しますが、更新はしません。Backtrack の異常ヒント（5.5b・6b）とステータス点検は、これまでどおり使えます。この節の手順は記録として残します。
 
-- **成功条件カバー判定**（`/02-inception-jev`）: 分解を承認する前に、どのタスクにも対応しない成功条件をヒントとして出す
-- **会話監視 hook**: あなたの発話ごとに、訂正・抜けの指摘・範囲の変更・懸念（遠回しなものも含む）を検知する。使うには Claude Code の設定（プロジェクトの `.claude/settings.local.json` など）に次を追記し、セッションを開き直す
+実験版 AI-PLC（`/01-collection-jev` → `/02-inception-jev` → `/03-construction-jev` → `/04-operation-jev`）では、5.5b・6b の異常ヒントのほかに、1.12.0-exp.1 まで次の2つが動いていました（凍結中・記録として残す）。詳しくは `.claude/skills/ai-plc-jev/README.md`。
+
+- **成功条件カバー判定（凍結中）**（`/02-inception-jev`）: 分解を承認する前に、どのタスクにも対応しない成功条件をヒントとして出す
+- **会話監視 hook（凍結中）**: あなたの発話ごとに、訂正・抜けの指摘・範囲の変更・懸念（遠回しなものも含む）を検知する。使うには Claude Code の設定（プロジェクトの `.claude/settings.local.json` など）に次を追記し、セッションを開き直す
 
 ```json
 "hooks": {

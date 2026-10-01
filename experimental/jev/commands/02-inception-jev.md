@@ -1,5 +1,5 @@
 ---
-description: "【実験版】AI-PLC Stage 2: Inception（Jev監視つき）— 分解承認前にJev成功条件カバー判定"
+description: "【実験版】AI-PLC Stage 2: Inception（Jev監視つき）— -jev表記（成功条件カバー判定は凍結中）"
 argument-hint: Layer path
 allowed-tools: Read, Write, Bash, Glob, Grep, WebFetch, WebSearch
 ---

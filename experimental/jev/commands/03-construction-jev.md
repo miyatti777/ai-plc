@@ -1,5 +1,5 @@
 ---
-description: "【実験版】AI-PLC Stage 3: Construction（Jev監視つき）— -jev表記と会話監視の有効化（Agent 定義が要るときだけ — RUL_plc_adaptive §6）"
+description: "【実験版】AI-PLC Stage 3: Construction（Jev監視つき）— -jev表記（会話監視は凍結中。Agent 定義が要るときだけ — RUL_plc_adaptive §6）"
 argument-hint: Layer path
 allowed-tools: Read, Write, Bash, Glob, Grep, WebFetch, WebSearch
 ---

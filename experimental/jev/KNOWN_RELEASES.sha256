@@ -43,3 +43,23 @@ da47cfc5b9ccce9bf7288b9a042f63704f8217c60fd3376f5093b89a99ea28c3  .claude/ai-plc
 1b1736b7ab57188b0ca4c832d67583a7760285bb35ce87a853661de023406f5e  .claude/ai-plc-jev/scripts/jev_prompt_hook.py
 8abd445a13bb90727172550671d2ede7b446156f2222142f0dc779f4dc43297b  .claude/ai-plc-jev/scripts/jev_redact_extra.example.txt
 0cc51b603f23542213266dd7b2dbabfe2b88fb4e93bc7e979d349463d80c635a  .claude/ai-plc-jev/scripts/jev_regression_rank.py
+
+# 1.12.0-exp.1 (18 files)
+de36d490bb8609d5f151258fce1269859d03c43a443c76c8a4099e8710727cd2  .claude/skills/ai-plc-jev/01-collection-jev/SKILL.md
+6e155667f1fee3a84854920491e9da34cb4af138e090e6218380d0966d8aa316  .claude/skills/ai-plc-jev/02-inception-jev/SKILL.md
+71eda9e6f4ddedd83ecbc074c8937dd48a4e789e6ab883b058e30f05f3f34abc  .claude/skills/ai-plc-jev/03-construction-jev/SKILL.md
+9fe345a59403b06d2cac38d2fed64b31846d0211dc54030c32181404867a6130  .claude/skills/ai-plc-jev/04-operation-jev/SKILL.md
+2afb58fcedf0f6df018b3ba78661e83eef27f054c3460f9a4cc64ffaf6b39843  .claude/skills/ai-plc-jev/README.md
+5d1a726c7d3bccdfea07f568adf4a8d7364827fe21af912bd8eb3346b12a8c6c  .claude/commands/01-collection-jev.md
+fccf4053ae8f7b7cae6d4380341804bf5da2f36aa3da12b787793bf122583186  .claude/commands/02-inception-jev.md
+27d1a23a0d672c27e3a8c6a4c87c13d3b68c9f0f1f69657f18441d8b9931237d  .claude/commands/03-construction-jev.md
+ccdcc03f761b78a40325c28c6f27f0561f17605ed6b9c4f12fb482e7c36d01d2  .claude/commands/04-operation-jev.md
+9ee3d4649510dba27646b17075ea8bc7c84524e0ebf2ca2656d554ec7007d3aa  .claude/ai-plc-jev/scripts/README_jev.md
+977eb91f87293cfb182d93921ce6b9cba40c2bd84e9ce0c4ef4a352f444787ab  .claude/ai-plc-jev/scripts/README_status_audit.md
+eb220c5e7bbedfe0b19156d310f6ed1d7f53e5e9128ff2d6a73eb296284414c3  .claude/ai-plc-jev/scripts/aiplc_status_audit.py
+d636bdea9cd1111fe698470ca6e3fddf7a92037388a4294a1af815b95dc16b6d  .claude/ai-plc-jev/scripts/jev_bt_monitor.py
+bd278c23abd90efab3d906efa0d4056774b8fb98de529216bf5ca03cb5394351  .claude/ai-plc-jev/scripts/jev_client.py
+da47cfc5b9ccce9bf7288b9a042f63704f8217c60fd3376f5093b89a99ea28c3  .claude/ai-plc-jev/scripts/jev_coverage_check.py
+1b1736b7ab57188b0ca4c832d67583a7760285bb35ce87a853661de023406f5e  .claude/ai-plc-jev/scripts/jev_prompt_hook.py
+8abd445a13bb90727172550671d2ede7b446156f2222142f0dc779f4dc43297b  .claude/ai-plc-jev/scripts/jev_redact_extra.example.txt
+0cc51b603f23542213266dd7b2dbabfe2b88fb4e93bc7e979d349463d80c635a  .claude/ai-plc-jev/scripts/jev_regression_rank.py
