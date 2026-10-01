@@ -109,7 +109,7 @@ inheritance_rules:
 
 ### Phase 6.5: External Sync設定
 
-intent.yamlのsync_targetsを設定する: ユーザー指定の同期先があればそれを、なければデフォルト（`.claude/db/ai_plc.db` の tasks テーブル、auto_create: true, push — RUL_plc_system §9）を自動設定し、「📊 External Sync設定: [設定内容]」とログ出力する。ユーザーが「同期不要」と明言した場合のみ `[]` のまま。
+intent.yamlのsync_targetsを設定する: ユーザー指定の同期先があればそれを、なければデフォルト（`.claude/db/ai_plc.db` の projects テーブル、push — RUL_plc_system §9。タスクは同期しない: tasks テーブルは凍結）を自動設定し、「📊 External Sync設定: [設定内容]」とログ出力する。ユーザーが「同期不要」と明言した場合のみ `[]` のまま。
 
 > ⚠️ **Layer成果物をNotion同期する場合のスコープ注意（nsync）:** このLayerの成果物ページをNotionと双方向同期したいなら、**このLayer自身のNotionページをrootにした専用nsyncワークスペースを `nsync init <LayerページURL>` で切り出す**こと。既存の広域ワークスペース（例: プログラム全体をrootにした `.nsync.yaml`）の**サブフォルダとして相乗りしない** — nsyncの `sync` はroot配下全体が対象で、Layer単位に絞れず、無関係な変更や機密ファイルまで巻き込んでPushする。機密Context（会計実数・個人情報等）は同期ツリーの外に置くか `exclude_paths` に登録する。
 
@@ -138,4 +138,4 @@ BT-B（ゴールドリフト）/ BT-C（全完了GAP分析）から scope_reinit
 intent.yaml / context.yaml / Context/（常に） / backlog.yaml（空で初期生成） / variables.yaml（platform_builder時のみ）→ Stage 2: SKL_plc_02_inception へ。
 
 ---
-**作成日:** 2026-04-06 ｜ **更新日:** 2026-10-01 ｜ **バージョン:** 2.2（冒頭に自動完走モードの1行・Phase 7 の 4. で自動で進める /goal を1行出す〔RUL_plc_session §10〕／Phase 1 で深度の理由 `workflow_depth_reason` と参考の4軸 `depth_axes` を記録〔RUL_plc_adaptive §0〕／Agents/ は Stage 3 を通したときだけ・simple の backlog に construction を書く〔RUL_plc_adaptive §6〕）｜ 2.1（intent.yamlに`jev_monitor`欄とopt-in判定は実験版 /01-collection-jev のみ〔core では常に false〕。Registry登録を plc_query.py 経由に。Phase 6.5にnsyncスコープ注意。2.0: Fable観点軽量化: 指示形1本化。Wiki波及はOperation Propagationに一本化し本スキルから削除）
+**作成日:** 2026-04-06 ｜ **更新日:** 2026-10-01 ｜ **バージョン:** 2.2（Phase 6.5 の External Sync の既定を projects に〔タスクは同期しない — RUL_plc_system §9〕／冒頭に自動完走モードの1行・Phase 7 の 4. で自動で進める /goal を1行出す〔RUL_plc_session §10〕／Phase 1 で深度の理由 `workflow_depth_reason` と参考の4軸 `depth_axes` を記録〔RUL_plc_adaptive §0〕／Agents/ は Stage 3 を通したときだけ・simple の backlog に construction を書く〔RUL_plc_adaptive §6〕）｜ 2.1（intent.yamlに`jev_monitor`欄とopt-in判定は実験版 /01-collection-jev のみ〔core では常に false〕。Registry登録を plc_query.py 経由に。Phase 6.5にnsyncスコープ注意。2.0: Fable観点軽量化: 指示形1本化。Wiki波及はOperation Propagationに一本化し本スキルから削除）

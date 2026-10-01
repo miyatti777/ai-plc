@@ -37,6 +37,16 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 - `plc-consult`: Re-Inception で `/03-construction` を添えるのは、足したタスクが §6 の条件に当たるときだけにしました
 - 02〜04 の SKILL・`claude/commands/03-construction.md` の説明・Codex アダプターの説明・Cursor の `ai-plc-adaptive.mdc`・`CLAUDE.md` / `AGENTS.md` のテンプレートを合わせて更新
 
+### 変更: Registry の tasks を凍結（タスクの正は backlog.yaml）
+
+- タスクの正を各 Layer の `backlog.yaml` だけにしました。Registry（`.claude/db/ai_plc.db`）の `tasks` テーブルは古い写しとして凍結し、External Sync の既定を `tasks` テーブルから **`projects` テーブル**に変えました（`ai-plc-system.md` §8・§9、v2.5）。既存 Layer の `sync_targets` に `.claude/db/ai_plc.db#tasks` が書かれていても、書き換えずに読む側で無視します
+- `sync.py tasks-sync --status | --freeze --approved-by <名前> [--reason <理由>] | --unfreeze --approved-by <名前>` を追加。凍結の印は `_metadata` の `task_sync_frozen`（承認者・理由・日時の JSON）で、解除すると `task_sync_unfrozen:<日時>` に履歴が残ります。`tasks-sync` は Notion の設定なしで使えます
+- 凍結中は、`plc_query.py add-task` が書き込まずに `[SKIP]` を出して終了コード 0（古い手順から呼ばれても止めない）、`plc_query.py tasks` は各 Layer の backlog.yaml を表示、`dashboard` はタスクの集計を出しません。`sync.py` の pull / push / sync / status は Projects だけを扱い、Notion の Tasks DB には問い合わせません（`AI_PLC_TASKS_DB_ID` も不要）
+- **新しくインストールした DB は最初から凍結**されます（`init_db.py` が新しい DB を作るときだけ、`approved_by: "installer"` の印を入れる）。**既存の DB は installer から書き換えません。** v1.11.0 以前から使っている環境は、更新の後に `python3 .claude/db/sync.py tasks-sync --freeze --approved-by <名前>` を1回実行してください。凍結しても tasks テーブルの行は消えません
+- `/plc-registry`・`/plc-backfill`（Phase 7 で add-task をしない）・`/01-collection`（Phase 6.5 の既定）・`core/db/README.md` を合わせて更新。自動完走（§10）の書き込み範囲も「ローカル sqlite は projects の追加・更新だけで、tasks 行は書かない」にしました
+- 実験版のステータス点検（`aiplc_status_audit.py`）は、凍結中は Registry のタスク行を読まず、分類 3・7・8 を出しません
+- テスト `tests/db/test_task_freeze.py` を追加しました（新しい DB は凍結・既存 DB は凍結しない・凍結中の add-task は SKIP・backlog の表示・tasks-sync の3モード・installer が作る DB）
+
 ### 追加: 使い分け（記録は広く、手順は絞る）と深度の理由の記録
 
 - `ai-plc-adaptive.md` に §0 を新設しました。仕事ごとに、記録（Layer）が要るかと、どの守り（完了条件の ○/×・Collection での資料集め・独立レビュー・取り返しにくい操作の前の承認）が要るかを分けて決める表です。①（その場限り・汎用・自分用）は Layer を作りません
@@ -44,7 +54,7 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 
 ### 版
 
-- rules: `ai-plc-session.md` 2.1・`ai-plc-adaptive.md` 2.5（`ai-plc-system.md` は変えていません）
+- rules: `ai-plc-session.md` 2.1・`ai-plc-adaptive.md` 2.5・`ai-plc-system.md` 2.5
 - スキル: `01-collection` 2.2・`02-inception` 2.1・`03-construction` 2.3・`04-operation` 2.8
 
 ### 同梱: Registry ビューア 0.2.0-alpha（installer 対象外・1.11.0 の後に main に入っていたもの）
@@ -58,7 +68,8 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 - スキル（`/01-collection-jev`〜`/04-operation-jev`）を core 1.12.0 のスキル（`01-collection` 2.2・`04-operation` 2.8）に揃えました。Construction を既定で省く変更（`/03-construction-jev` は要るときだけ、`/02-inception-jev` の Next Action は `construction.required` で選ぶ）、深度の理由の記録、自動完走モードの1行が入ります。core のスキルとの違いは Jev 部分だけです
 - 自動完走中（RUL_plc_session §10 を指す /goal があるセッション）の Jev の扱いを、`04-operation-jev` の「Jev監視ルール」の例外として書きました: opt-in した Layer の Jev の判定は行い、判定ごとの採否の記録とコピペ用プロンプトへの貼り付けはせず、完了報告の冒頭に「🧭 未確認の Jev 判定: N件」と貼り付け用1行をまとめて出します（回収は `jev_bt_monitor.py --pending --layer <Layer>`）。Jev 監視の opt-in は自動では承認しません（`01-collection-jev` Phase 6.5）。`01-collection-jev` の最後に出す /goal 1行は `-jev` 版のコマンドで書きます
 - `KNOWN_RELEASES.sha256` に 1.8.1-exp.1 の配布物のハッシュを追加しました
-- スクリプトと installer の処理は変えていません
+- ステータス点検（`aiplc_status_audit.py`）: Registry のタスク同期が凍結されている（core 1.12.0 で新しく作った DB は最初から凍結）ときは、Registry のタスク行を読まず、分類 3・7・8（完了 PJ の未完了タスク行・status の食い違い・タスク行が無い）を出しません
+- installer の処理は変えていません
 
 ## [1.11.0] - 2026-09-29
 

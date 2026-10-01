@@ -121,7 +121,7 @@ ID の形式: <採った形式>（backlog 内で混在しているときだけ�
 - **検証で P0〜P2 が出たとき**: 直してよいのは書き起こしと backlog の記入欄だけ。既にある成果物（コード等）の欠陥は作業のやり直しになるので直さず、そのタスクは completed で記録しない。足した行は description・output を済んだ部分に絞り直し、済んだ部分が無ければ status を cancelled にする（物理削除しない — 02-inception の Re-Inception と同じ）。どちらも refactoring_log に1行残す。04-operation の完了ゲート（P0〜P2 は Phase 4 に戻って修正）は、事後記録ではこう読み替える: 絞った後の行に P0〜P2 が0件であることを確かめ、Phase 5.5b（BT-A 判定）を経て Phase 6 へ進む。欠陥の扱いは `/plc-consult` に回す
 - **Phase 6b**: 足した ad-hoc タスクは BT-B「ad-hoc 2件以上」に数えられる（Layer が全完了のときは数えられず、BT-C だけが再成立する — 下の completed の項）。スキル外作業が続いた合図なので、出たら 04-operation の定義どおり Backtrack の提案に乗せる。件数を増やす目的でタスクを細かく分けない（1目的=1タスク）
 - **Layer 自体が completed のとき**: 足したタスクは Phase 6 で completed（または cancelled）になるので、Layer と Registry は completed のままにする（active に戻さない）。Phase 7 のステータス点検（`--layer` には L-ID ではなく Layer のパスを渡す。点検ツールが無い環境では intent・backlog を目視）で食い違いが無いことを確かめる。Phase 6b で BT-C（全完了→GAP分析）がもう一度成立するが、完了宣言は済んでいるので GAP分析は実行せず「記録した作業で goal の達成状況が変わるなら /plc-consult で相談」と1行の提案に留める
-- **Phase 7 の External Sync**: 定義どおり intent.yaml の sync_targets に従う（sqlite: 足したタスクは `plc_query.py add-task` で追加してから状態を UPDATE。既存を通すタスクは Registry に行があれば UPDATE だけ、無ければ add-task。Layer の project 自体が Registry に無く add-task が止まるときは、要点を1行出して RUL_plc_system §8 の Registry 項目に従う）。sqlite 以外（notion_db 等）への push は、手順 4 の承認ブロックで「外部 push あり」と示して承認を得たときだけ行う
+- **Phase 7 の External Sync**: 定義どおり intent.yaml の sync_targets に従う。ただしタスクは同期しない（Registry の tasks テーブルは凍結・タスクの正は backlog.yaml だけ — RUL_plc_system §9）ので、`add-task` や tasks の UPDATE は行わない（凍結していない古い DB でも同じ）。sqlite 以外（notion_db 等）への push は、手順 4 の承認ブロックで「外部 push あり」と示して承認を得たときだけ行う
 
 ## 出力の形
 

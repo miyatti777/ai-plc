@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """AI-PLC SQLite DB 初期化スクリプト
 
-AI-PLC の Project Registry（プロジェクト横断台帳）と Tasks（既定の External Sync 先）を
-ローカル SQLite で作成する。空のDBを生成するだけ — 個人データは含まない。
+AI-PLC の Project Registry（プロジェクト横断台帳）と Tasks をローカル SQLite で作成する。
+空のDBを生成するだけ — 個人データは含まない。
+
+新しく作る DB では、タスク同期を凍結した印（_metadata の task_sync_frozen）を入れる。
+タスクの正は各 Layer の backlog.yaml で、tasks テーブルは使わない（RUL_plc_system §9）。
+既存の DB にはこの印を足さない（凍結は `python3 .claude/db/sync.py tasks-sync --freeze
+--approved-by <名前>` で行う）。
 
 Usage:
     python3 init_db.py            # 空DBを作成（既存があればスキーマのみ保証）
@@ -12,16 +17,22 @@ DBは このスクリプトと同じディレクトリの ai_plc.db に作られ
 （Claude Code 既定: .claude/db/ai_plc.db）。
 """
 
+import json
 import sqlite3
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ai_plc.db")
+TASK_FREEZE_KEY = "task_sync_frozen"
 
 
 def create_schema(conn):
-    """AI-PLC Projects / Tasks のスキーマを作成する。"""
+    """AI-PLC Projects / Tasks のスキーマを作成する。
+
+    projects テーブルが無い（新しい DB）ときだけ、タスク同期を凍結した印を入れる。"""
+    new_db = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='projects'").fetchone() is None
     conn.executescript("""
         -- ============================================================
         -- Projects — プロジェクト横断台帳（Project Registry）
@@ -53,7 +64,7 @@ def create_schema(conn):
         CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
 
         -- ============================================================
-        -- Tasks — 既定の External Sync 先（tasks テーブル）
+        -- Tasks — 旧い External Sync 先（新しい DB では凍結。タスクの正は backlog.yaml）
         -- ============================================================
         CREATE TABLE IF NOT EXISTS tasks (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,9 +115,18 @@ def create_schema(conn):
     conn.execute("INSERT OR REPLACE INTO _metadata (key, value) VALUES (?, ?)",
                  ("schema_version", "2.0"))
     conn.execute("INSERT OR REPLACE INTO _metadata (key, value) VALUES (?, ?)",
-                 ("created_at", datetime.utcnow().isoformat() + "Z"))
+                 ("created_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")))
+    if new_db:
+        conn.execute("INSERT OR IGNORE INTO _metadata (key, value) VALUES (?, ?)", (
+            TASK_FREEZE_KEY,
+            json.dumps({"approved_by": "installer",
+                        "reason": "new database: backlog.yaml is the source of tasks",
+                        "frozen_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")},
+                       ensure_ascii=False, sort_keys=True)))
     conn.commit()
     print("[OK] Schema created (projects / tasks / _metadata)")
+    if new_db:
+        print("[OK] Task sync frozen for the new database (tasks live in backlog.yaml)")
 
 
 def main():

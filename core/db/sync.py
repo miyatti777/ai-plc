@@ -8,8 +8,15 @@ Usage:
     python3 .claude/db/sync.py status            # 差分プレビュー
     python3 .claude/db/sync.py pull --dry-run    # dry-run
     python3 .claude/db/sync.py push --dry-run    # dry-run
+    python3 .claude/db/sync.py tasks-sync --status
+    python3 .claude/db/sync.py tasks-sync --freeze --approved-by NAME [--reason TEXT]
+    python3 .claude/db/sync.py tasks-sync --unfreeze --approved-by NAME
 
-Requires: NOTION_API_TOKEN environment variable
+Requires: NOTION_API_TOKEN environment variable (pull / push / sync / status)
+
+タスクの正は各 Layer の backlog.yaml。タスク同期を凍結している間（新しく作った DB は
+凍結済み）は、pull / push / sync / status は Projects だけを扱い、tasks テーブルにも
+Notion の Tasks DB にも触れない。tasks-sync は Notion の設定なしで使える。
 """
 
 import json
@@ -32,6 +39,8 @@ PROJECTS_DB_ID = os.environ.get("AI_PLC_PROJECTS_DB_ID", "")
 TASKS_DB_ID = os.environ.get("AI_PLC_TASKS_DB_ID", "")
 
 RATE_LIMIT_DELAY = 0.35
+
+TASK_FREEZE_KEY = "task_sync_frozen"
 
 # ── Notion API helpers ─────────────────────────────────────
 
@@ -305,6 +314,91 @@ def _meta_set(conn, key, value):
     )
 
 
+def _task_sync_frozen(conn):
+    """Local tasks are a frozen copy of backlog.yaml; never synced while frozen."""
+    value = _meta_get(conn, TASK_FREEZE_KEY)
+    if value is None:
+        return False
+    try:
+        record = json.loads(value)
+        if not isinstance(record, dict) or not isinstance(record.get("approved_by"), str):
+            raise ValueError
+    except (ValueError, TypeError):
+        print("ERROR: the task freeze record in _metadata (%s) is malformed" % TASK_FREEZE_KEY)
+        print("Check it with: python3 .claude/db/sync.py tasks-sync --status")
+        sys.exit(3)
+    return True
+
+
+# ── TASKS-SYNC (freeze / unfreeze / status) ───────────────
+
+def cmd_tasks_sync(args):
+    """tasks-sync --status | --freeze --approved-by NAME [--reason R] | --unfreeze --approved-by NAME."""
+    modes = [m for m in ("--status", "--freeze", "--unfreeze") if m in args]
+    if len(modes) != 1:
+        print("ERROR: tasks-sync requires exactly one of --status, --freeze, or --unfreeze")
+        return 2
+    mode = modes[0]
+
+    def option(name):
+        if name not in args:
+            return None
+        i = args.index(name)
+        return args[i + 1] if i + 1 < len(args) and not args[i + 1].startswith("--") else ""
+
+    approved_by = option("--approved-by")
+    reason = option("--reason")
+    if mode == "--status" and (approved_by is not None or reason is not None):
+        print("ERROR: tasks-sync --status takes no other options")
+        return 2
+    if mode == "--unfreeze" and reason is not None:
+        print("ERROR: tasks-sync --unfreeze does not take --reason")
+        return 2
+    if mode != "--status" and not (approved_by or "").strip():
+        print("ERROR: tasks-sync %s requires --approved-by NAME" % mode)
+        return 2
+
+    conn = _get_conn()
+    try:
+        frozen = _task_sync_frozen(conn)
+        if mode == "--status":
+            if frozen:
+                record = json.loads(_meta_get(conn, TASK_FREEZE_KEY))
+                print("Task sync: FROZEN (tasks are not pushed or pulled; backlog.yaml is the "
+                      "source) approved_by=%s at=%s" % (record.get("approved_by"),
+                                                       record.get("frozen_at")))
+            else:
+                print("Task sync: active")
+            return 0
+        conn.execute("BEGIN IMMEDIATE")
+        if mode == "--freeze":
+            if frozen:
+                conn.rollback()
+                print("  [FREEZE] already frozen (no change)")
+                return 0
+            _meta_set(conn, TASK_FREEZE_KEY, json.dumps({
+                "approved_by": approved_by.strip(), "reason": reason or "",
+                "frozen_at": _now_iso()}, ensure_ascii=False, sort_keys=True))
+            conn.commit()
+            print("  [FREEZE] task sync frozen by %s — the tasks table and the Notion Tasks DB "
+                  "are left as they are" % approved_by.strip())
+            return 0
+        if not frozen:
+            conn.rollback()
+            print("ERROR: task sync is not frozen (check: tasks-sync --status)")
+            return 2
+        previous = _meta_get(conn, TASK_FREEZE_KEY)
+        conn.execute("DELETE FROM _metadata WHERE key=?", (TASK_FREEZE_KEY,))
+        _meta_set(conn, "task_sync_unfrozen:%s" % _now_iso(), json.dumps({
+            "unfrozen_by": approved_by.strip(), "previous": json.loads(previous)},
+            ensure_ascii=False, sort_keys=True))
+        conn.commit()
+        print("  [UNFREEZE] task sync re-enabled by %s" % approved_by.strip())
+        return 0
+    finally:
+        conn.close()
+
+
 # ── PULL ───────────────────────────────────────────────────
 
 def cmd_pull(dry_run=False):
@@ -376,9 +470,13 @@ def cmd_pull(dry_run=False):
                 print("  [UPDATE] %s — %s" % (row["scope_id"], row["name"]))
 
     # Tasks
-    print("\n[Tasks] Querying Notion DB...")
-    pages = _query_db(TASKS_DB_ID)
-    print("  %d rows fetched from Notion" % len(pages))
+    if _task_sync_frozen(conn):
+        print("\n[Tasks] frozen — skipped (backlog.yaml is the source)")
+        pages = []
+    else:
+        print("\n[Tasks] Querying Notion DB...")
+        pages = _query_db(TASKS_DB_ID)
+        print("  %d rows fetched from Notion" % len(pages))
 
     for page in pages:
         row = _notion_row_to_task(page)
@@ -497,11 +595,15 @@ def cmd_push(dry_run=False):
 
     # Tasks — find locally modified rows
     print("\n[Tasks]")
-    rows = conn.execute("""
-        SELECT * FROM tasks
-        WHERE last_sync_at IS NULL
-           OR updated_at > last_sync_at
-    """).fetchall()
+    if _task_sync_frozen(conn):
+        print("  frozen — skipped (backlog.yaml is the source)")
+        rows = []
+    else:
+        rows = conn.execute("""
+            SELECT * FROM tasks
+            WHERE last_sync_at IS NULL
+               OR updated_at > last_sync_at
+        """).fetchall()
 
     for row in rows:
         nid = row["notion_page_id"]
@@ -588,6 +690,10 @@ def cmd_status():
             tag = "(new)" if r["last_sync_at"] is None else "(modified)"
             print("    %s %s — %s" % (tag, r["scope_id"], r["name"]))
 
+    if _task_sync_frozen(conn):
+        print("  Tasks: %d total — frozen (not synced; backlog.yaml is the source)" % total_t)
+        conn.close()
+        return
     print("  Tasks: %d total, %d dirty, %d new" % (
         total_t, len(dirty_tasks), len(new_tasks)))
     if dirty_tasks:
@@ -619,10 +725,21 @@ def main():
     cmd = sys.argv[1]
     dry_run = "--dry-run" in sys.argv
 
-    if not PROJECTS_DB_ID or not TASKS_DB_ID:
+    if cmd == "tasks-sync":
+        sys.exit(cmd_tasks_sync(sys.argv[2:]))
+
+    tasks_needed = cmd in ("pull", "push", "sync", "status")
+    if tasks_needed and os.path.exists(DB_PATH):
+        conn = _get_conn()
+        try:
+            tasks_needed = not _task_sync_frozen(conn)
+        finally:
+            conn.close()
+    if not PROJECTS_DB_ID or (tasks_needed and not TASKS_DB_ID):
         print("ERROR: Notion sync を使うには、対象の Notion DB ID を環境変数で指定してください:")
         print("  export AI_PLC_PROJECTS_DB_ID=<Projects DBのID>")
-        print("  export AI_PLC_TASKS_DB_ID=<Tasks DBのID>")
+        if tasks_needed:
+            print("  export AI_PLC_TASKS_DB_ID=<Tasks DBのID>（タスク同期を凍結していれば不要）")
         print("（Project Registry / External Sync はローカルの ai_plc.db だけでも動作します）")
         return
 

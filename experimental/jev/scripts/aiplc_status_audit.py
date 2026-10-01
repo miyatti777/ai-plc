@@ -206,6 +206,15 @@ def goal_text(intent: dict) -> str:
     return str(g or "")
 
 
+def registry_tasks_frozen(conn):
+    """True when `sync.py tasks-sync --freeze` (or a new DB) has frozen the Registry tasks table."""
+    try:
+        return conn.execute(
+            "SELECT 1 FROM _metadata WHERE key='task_sync_frozen'").fetchone() is not None
+    except sqlite3.OperationalError:
+        return False
+
+
 def detect_task_vocab(conn):
     """'ja' / 'en' / None from the CHECK(status IN (...)) of the tasks.status column only (not the whole CREATE
     statement: a column named completed_at must not make a Japanese schema look English). Japanese is tested
@@ -555,8 +564,12 @@ def audit(db_path: Path, root: Path, today: date, stale_days: int = 30,
     try:
         projects = {r["scope_id"]: r for r in conn.execute(
             "SELECT scope_id, name, goal, status, parent_scope, top_page_url, updated_at FROM projects ORDER BY scope_id")}
-        reg_rows = [(r["scope_id"], str(r["task_id"]).strip(), r["status"])
-                    for r in conn.execute("SELECT scope_id, task_id, status FROM tasks ORDER BY id")]
+        tasks_frozen = registry_tasks_frozen(conn)
+        # Once task sync is frozen, the Registry tasks table is a stale copy and
+        # backlog.yaml is the only source: no task-row checks.
+        reg_rows = [] if tasks_frozen else [
+            (r["scope_id"], str(r["task_id"]).strip(), r["status"])
+            for r in conn.execute("SELECT scope_id, task_id, status FROM tasks ORDER BY id")]
         db_vocab = detect_task_vocab(conn)
     finally:
         conn.close()
@@ -735,7 +748,7 @@ def audit(db_path: Path, root: Path, today: date, stale_days: int = 30,
                 [{"target": "registry.tasks", "scope_id": sid, "task_id": rids[t], "field": "status",
                   "from": rtasks[t], "to": reg_task_target(bl[t], tv),
                   **({"mapped_from": bl[t]} if bl[t] in ("cancelled", "dropped") else {})} for t in mism])
-        missing = sorted(t for t in bl if t not in rtasks)
+        missing = [] if tasks_frozen else sorted(t for t in bl if t not in rtasks)
         if missing:
             add(sid, "registry_task_missing", f"backlog にあって Registry tasks に無いタスク {len(missing)} 件",
                 {"missing": [bl_ids[t] for t in missing], "registry_rows": len(rtasks), "backlog_tasks": len(bl)},

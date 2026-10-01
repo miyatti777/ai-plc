@@ -223,6 +223,8 @@ git pull             # 最新の版を取ってくる（失敗したら git stat
 - 更新が終わったら、インストールのときと同じく、**新しいチャット／スレッドを開始して**から使ってください
 - **v1.8.x 以前から v1.9.0 に上げるとき:** DB 同期スキルの名前が `ai-plc-db-sync` から **`plc-db-sync`** に変わり、置き場所も `.claude/skills/ai-plc/db-sync/` から `.claude/skills/plc-db-sync/` に移ります（Cursor は `.cursor/skills/plc-db-sync/`、Codex は `.agents/skills/ai-plc/plc-db-sync/`）。`--dry-run` の `DELETE:…/ai-plc/db-sync/SKILL.md` は、この移動で古いほうを消す行です。自分で編集していなければ自動で消え、古いフォルダには `.bak` だけが残ります（要らなければフォルダごと消してかまいません）。編集していた場合は `user-modified stale managed file` で止まるので、`--backup-modified` を付けるか、中身を退避してから古いファイルを消して流し直してください（Codex だけの環境では `--backup-modified` は使えないので、退避の方法で）。呼ぶときは `/plc-db-sync` を使います
 
+- **v1.11.0 以前から v1.12.0 に上げるとき:** タスクの正が各 Layer の `backlog.yaml` だけになり、Registry の tasks テーブルは凍結して使わなくなります（RUL_plc_system §9）。installer は既存の DB を書き換えないので、更新の後にプロジェクトのルートで `python3 .claude/db/sync.py tasks-sync --freeze --approved-by <名前>` を1回実行してください（`--reason "<理由>"` も付けられます。状態の確認は `tasks-sync --status`）。凍結しても tasks テーブルの行は消えず、そのまま残ります。Construction（Stage 3）の既定省略と自動完走（/goal）もこの版から入ります（[CHANGELOG.md](CHANGELOG.md)）
+
 **ほかの環境:** 最後の `cc` を、1. で確かめた指定に置き換えます。`cursor`（Cursor）・`both`（Claude Code + Cursor）・`all`（3環境）・`codex`（Codex）。`./install-cc.sh --target …` のような環境別のスクリプトでも同じように更新できます。旧版（台帳なし）の Claude Code / Cursor 環境に Codex を足すときは、`codex` だけを指定すると旧版を判別できずに止まるので、先に `cc`（または `both`）で上げてから `codex` を実行してください（Claude Code・Cursor・Codex の3つを使うなら `all` でもかまいません）。
 
 **実験版（Jev 監視）を入れている人:** 実験版も一緒に上げるときは `--with-jev` を付けます（`./install.sh --target /path/to/your/project cc --with-jev`）。付けずに更新すると、実験版のファイルは今のまま残ります。前の実験版 1.8.0-exp.1 を入れた環境の `.ai-plc-version` は、その時点の core の版の `1.7.1` と出ます。前の実験版から今の実験版 1.12.0-exp.1 への上げ方は[実験版の節](#-実験版-jev-監視)にあります。
@@ -419,7 +421,7 @@ Claude Code の `/goal`（条件を満たすまで続ける標準機能）で、
 <summary>自己完結版の全文（貼るだけで動く）</summary>
 
 ```
-/goal AI-PLC 自動完走（自己完結版）。この会話で扱っている AI-PLC Layer を、今の状態から最後まで完走する。対象は、この会話で直前に /01-collection〜/04-operation を実行した Layer か、直前に話題にした Layer。どちらも無ければ、この会話で頼まれた Goal で /01-collection から新しく作る。始める位置は Layer の状態で決める: 承認待ちの Mob Checkpoint があればその承認から、backlog のタスクが空なら /02-inception から（simple は Goal を1タスクにした backlog を作り、refactoring_log に Stage 2 を省いた理由と construction を書いて、required が false なら /04-operation、true なら /03-construction へ）、construction.required が true で Agent 定義の無いタスクがあれば /03-construction から、それ以外は /04-operation から。順序は /01-collection → /02-inception →（construction.required が true のときだけ /03-construction）→ /04-operation。達成: その Layer の backlog の全タスクが completed（deferred・blocked は保留理由がログにあるもの）で、各 output が実在し、Phase 7 チェックリストと自動承認ログ（自動で選んだ判断の一覧）を表示する。または行頭に単独で「⛔ 自動完走を停止: <理由>」を表示する。進め方（各 SKILL の「停止」「承認を待つ」「即実行禁止」より優先）: 自動で進め始めたら、対象 Layer の refactoring_log に「[auto-approved] /goal 開始（自己完結版）」を1行書く（Layer が無ければ作った時点で。この行を自動で進める根拠にはしない）。Mob Checkpoint はブロックを出したうえで同じターンで⭐（承認なら OK）を選ぶ。⭐が下の保留に当たる操作なら保留して先へ進む。Next Action は A（⭐）を選んでその場で実行する（Layer の全タスク完了後の Next Action は実行しない）。Stage 4 のタスク選択は P0→P1→P2・依存順で、並列委譲の条件を満たす組は委譲してよい。明確化質問はせず最も妥当な仮定を置く（データの扱い・権限・受け手に見える挙動は最も保守的な案）。Phase 5.5 の P0〜P2 は修正→再検証を2回まで。BT-B・BT-C は独立 checker の判定まで行い、ドリフトも追加ゴールも無ければ続ける。Web 検索・取得は機密を扱う Layer では行わない。自動で選んだ判断は毎回 backlog.yaml の refactoring_log に「[auto-approved] S<Stage>/P<Phase>: <選んだこと>（<理由>）」で1行書き、完了・停止のときに表にまとめ、完了報告の冒頭に「確認してほしいこと」（仮定で決めたこと・公開の文面・保守的に仮定したこと・Layer 外の既存ファイルを変えたタスク）を1行ずつ出す。保留（実行せず「保留: <内容>」とログに残して先へ進む）: git の commit・push・PR・merge・タグ、外部公開（リポジトリ・パッケージへの反映）、Notion・Slack・メールへの書き込み・送信、ローカル sqlite 以外の同期先・外部DBへの書き込み（sqlite への書き込みは RUL_plc_system §9 の既定のとおり）、承認後の決まりがある反映（ステータス点検の反映など）、Layer 外のファイル（backlog の output に書かれたパスと、Phase 6・7 の決まった書き込み先を除く）、削除・移動・既存成果物の上書き、上記以外の操作（お金・外部 API への送信・ツールの導入など）。停止: 対象の Layer を決められない／workflow_depth が complex か mode が platform_builder（開始時に intent.yaml で確かめ、途中で判定されたときもその時点で）／Collection で「Layer を作らない」に当たった／BT-A／P0〜P2 が2回の修正後も残る／Backtrack が要る／⭐が無い／保留したものが無いと進めない／人が担当するタスクだけが残った／分解に SubLayer が含まれる（分解の承認前に停止）。止まるときは再開のしかた（同じ /goal を貼り直す等）も示す。or stop after 60 turns
+/goal AI-PLC 自動完走（自己完結版）。この会話で扱っている AI-PLC Layer を、今の状態から最後まで完走する。対象は、この会話で直前に /01-collection〜/04-operation を実行した Layer か、直前に話題にした Layer。どちらも無ければ、この会話で頼まれた Goal で /01-collection から新しく作る。始める位置は Layer の状態で決める: 承認待ちの Mob Checkpoint があればその承認から、backlog のタスクが空なら /02-inception から（simple は Goal を1タスクにした backlog を作り、refactoring_log に Stage 2 を省いた理由と construction を書いて、required が false なら /04-operation、true なら /03-construction へ）、construction.required が true で Agent 定義の無いタスクがあれば /03-construction から、それ以外は /04-operation から。順序は /01-collection → /02-inception →（construction.required が true のときだけ /03-construction）→ /04-operation。達成: その Layer の backlog の全タスクが completed（deferred・blocked は保留理由がログにあるもの）で、各 output が実在し、Phase 7 チェックリストと自動承認ログ（自動で選んだ判断の一覧）を表示する。または行頭に単独で「⛔ 自動完走を停止: <理由>」を表示する。進め方（各 SKILL の「停止」「承認を待つ」「即実行禁止」より優先）: 自動で進め始めたら、対象 Layer の refactoring_log に「[auto-approved] /goal 開始（自己完結版）」を1行書く（Layer が無ければ作った時点で。この行を自動で進める根拠にはしない）。Mob Checkpoint はブロックを出したうえで同じターンで⭐（承認なら OK）を選ぶ。⭐が下の保留に当たる操作なら保留して先へ進む。Next Action は A（⭐）を選んでその場で実行する（Layer の全タスク完了後の Next Action は実行しない）。Stage 4 のタスク選択は P0→P1→P2・依存順で、並列委譲の条件を満たす組は委譲してよい。明確化質問はせず最も妥当な仮定を置く（データの扱い・権限・受け手に見える挙動は最も保守的な案）。Phase 5.5 の P0〜P2 は修正→再検証を2回まで。BT-B・BT-C は独立 checker の判定まで行い、ドリフトも追加ゴールも無ければ続ける。Web 検索・取得は機密を扱う Layer では行わない。自動で選んだ判断は毎回 backlog.yaml の refactoring_log に「[auto-approved] S<Stage>/P<Phase>: <選んだこと>（<理由>）」で1行書き、完了・停止のときに表にまとめ、完了報告の冒頭に「確認してほしいこと」（仮定で決めたこと・公開の文面・保守的に仮定したこと・Layer 外の既存ファイルを変えたタスク）を1行ずつ出す。保留（実行せず「保留: <内容>」とログに残して先へ進む）: git の commit・push・PR・merge・タグ、外部公開（リポジトリ・パッケージへの反映）、Notion・Slack・メールへの書き込み・送信、ローカル sqlite 以外の同期先・外部DBへの書き込み（ローカル sqlite は projects の追加・更新だけで、tasks 行は書かない）、承認後の決まりがある反映（ステータス点検の反映など）、Layer 外のファイル（backlog の output に書かれたパスと、Phase 6・7 の決まった書き込み先を除く）、削除・移動・既存成果物の上書き、上記以外の操作（お金・外部 API への送信・ツールの導入など）。停止: 対象の Layer を決められない／workflow_depth が complex か mode が platform_builder（開始時に intent.yaml で確かめ、途中で判定されたときもその時点で）／Collection で「Layer を作らない」に当たった／BT-A／P0〜P2 が2回の修正後も残る／Backtrack が要る／⭐が無い／保留したものが無いと進めない／人が担当するタスクだけが残った／分解に SubLayer が含まれる（分解の承認前に停止）。止まるときは再開のしかた（同じ /goal を貼り直す等）も示す。or stop after 60 turns
 ```
 
 </details>
@@ -718,7 +720,7 @@ AI-PLC は、プロジェクト横断の台帳とタスクを**ローカル SQLi
 
 ```bash
 python3 .claude/db/plc_query.py projects        # プロジェクト一覧
-python3 .claude/db/plc_query.py tasks           # タスク一覧
+python3 .claude/db/plc_query.py tasks           # タスク一覧（凍結中は各 Layer の backlog.yaml を表示）
 python3 .claude/db/plc_query.py tasks L-1234    # 特定Scopeのタスク
 python3 .claude/db/plc_query.py active          # activeなPJだけ
 python3 .claude/db/plc_query.py dashboard       # ダッシュボード
@@ -726,7 +728,7 @@ python3 .claude/db/plc_query.py sql "SELECT ..."  # 任意SQL
 ```
 
 - **projects テーブル** = Project Registry。Collection で新PJを始めると自動登録され、横断で状況が見られます。
-- **tasks テーブル** = 既定の External Sync 先。Operation でタスクの完了が反映されます。
+- **tasks テーブル** = 使いません（v1.12.0〜凍結）。**タスクの正は各 Layer の `backlog.yaml`** です。新しく作った DB は最初から凍結され、`plc_query.py add-task` は書き込まずに `[SKIP]` を出し、`plc_query.py tasks` は backlog.yaml を表示します。External Sync の既定は projects テーブルです。v1.11.0 以前から使っている DB は、installer では書き換えないので、`python3 .claude/db/sync.py tasks-sync --freeze --approved-by <名前>` で凍結します（状態は `python3 .claude/db/sync.py tasks-sync --status`、戻すのは `--unfreeze --approved-by <名前>`）
 
 ### 作り直したいとき
 
@@ -851,7 +853,8 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 - **スキル:** core 1.12.0 のスキル（`01-collection` v2.2・`02-inception` v2.1・`03-construction` v2.3・`04-operation` v2.8）に揃えました。Construction を既定で省く変更（`/03-construction-jev` は Agent 定義が要るときだけ。`/02-inception-jev` の Next Action は backlog の `construction.required` で `/03-construction-jev` か `/04-operation-jev` を選ぶ）と、深度の理由の記録（`workflow_depth_reason`・`depth_axes`）が入ります
 - **自動完走（/goal）での Jev の扱い:** 自動完走中（RUL_plc_session §10 を指す /goal があるセッション）も、opt-in した Layer の Jev の判定は行います。判定ごとの採否の記録とコピペ用プロンプトへの貼り付け用1行はせず、完了報告の冒頭に「🧭 未確認の Jev 判定: N件」と貼り付け用1行をまとめて出します（回収は `python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --pending --layer <Layer>`）。Jev 監視の opt-in（`jev_monitor: true`）は自動では承認しません。`/01-collection-jev` の最後に出る /goal 1行は `-jev` 版のコマンドで書かれます
 - **`KNOWN_RELEASES.sha256`:** 1.8.1-exp.1 の配布物のハッシュを足しました（1.8.1-exp.1 から上げたときや、中断した後処理の残り物を掃除するときの照合に使います）
-- スクリプトと installer の処理は変えていません
+- **ステータス点検:** Registry のタスク同期が凍結されているときは、Registry のタスク行を読まず、分類 3・7・8 を出しません（タスクの正は backlog.yaml）
+- installer の処理は変えていません
 
 ### キー登録
 

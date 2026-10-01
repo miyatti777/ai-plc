@@ -3,20 +3,28 @@
 
 Usage:
     python3 .claude/db/plc_query.py projects             # 全プロジェクト一覧
-    python3 .claude/db/plc_query.py tasks                # 全タスク一覧
+    python3 .claude/db/plc_query.py tasks                # 全タスク一覧（タスク同期の凍結中は backlog.yaml を表示）
     python3 .claude/db/plc_query.py tasks L-1234         # 特定PJのタスク（Scope ID指定）
     python3 .claude/db/plc_query.py active               # activeプロジェクトのみ
     python3 .claude/db/plc_query.py dashboard            # ダッシュボード表示
     python3 .claude/db/plc_query.py sql "SELECT ..."     # 任意SQL
     python3 .claude/db/plc_query.py add-project          # プロジェクト追加（対話）
-    python3 .claude/db/plc_query.py add-task             # タスク追加（対話）
+    python3 .claude/db/plc_query.py add-task             # タスク追加（タスク同期の凍結中は書き込まず [SKIP]）
+
+タスクの正は各 Layer の backlog.yaml。tasks テーブルは古い写しで、凍結中
+（`python3 .claude/db/sync.py tasks-sync --status`）は読みも書きもしない。
 """
 
+import os
+import re
 import sqlite3
 import sys
-import os
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ai_plc.db")
+# Project root: <root>/.claude/db/plc_query.py (or .cursor/db/) -> two levels up.
+BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+TASK_FREEZE_KEY = "task_sync_frozen"
+SKIP_DIRS = {"node_modules", "Documents", "__pycache__", "venv"}
 
 
 def get_conn():
@@ -56,7 +64,79 @@ def cmd_projects(conn):
     print_table(rows)
 
 
+def _tasks_frozen(conn):
+    """Local tasks are a frozen copy; each Layer's backlog.yaml is the source."""
+    try:
+        return conn.execute("SELECT 1 FROM _metadata WHERE key=?",
+                            (TASK_FREEZE_KEY,)).fetchone() is not None
+    except sqlite3.OperationalError:
+        return False
+
+
+def _layer_backlogs(scope_filter=None):
+    """Yield (scope_id, backlog_path) for Layers whose scope_id matches the prefix."""
+    seen = set()
+    intents = []
+    for dirpath, dirnames, filenames in os.walk(BASE):
+        # Skip hidden folders (.git, .claude ...), dependencies and Layer outputs.
+        dirnames[:] = sorted(d for d in dirnames
+                             if not d.startswith(".") and d not in SKIP_DIRS)
+        if "intent.yaml" in filenames:
+            intents.append(os.path.join(dirpath, "intent.yaml"))
+    for intent in sorted(intents):
+        try:
+            with open(intent, encoding="utf-8") as handle:
+                match = re.search(r'^scope_id:\s*["\']?([^"\'\n#]+?)["\']?\s*(?:#.*)?$',
+                                  handle.read(), re.M)
+        except (OSError, UnicodeDecodeError):
+            continue
+        if not match:
+            continue
+        sid = match.group(1).strip()
+        if sid in seen or (scope_filter and not sid.startswith(scope_filter)):
+            continue
+        backlog = os.path.join(os.path.dirname(intent), "backlog.yaml")
+        if os.path.isfile(backlog):
+            seen.add(sid)
+            yield sid, backlog
+
+
+def _backlog_task_rows(scope_filter=None):
+    try:
+        import yaml
+    except ImportError:
+        print("ERROR: PyYAML is required to read backlog.yaml (pip install pyyaml)")
+        return []
+    rows = []
+    for sid, path in _layer_backlogs(scope_filter):
+        try:
+            with open(path, encoding="utf-8") as handle:
+                data = yaml.safe_load(handle)
+        except (OSError, UnicodeDecodeError, yaml.YAMLError):
+            continue
+        tasks = data.get("tasks") if isinstance(data, dict) else None
+        for task in tasks if isinstance(tasks, list) else []:
+            if not isinstance(task, dict):
+                continue
+            tid = task.get("id") or task.get("task_id")
+            if tid:
+                rows.append(_Row(task_id=str(tid), scope_id=sid, name=task.get("name") or "",
+                                 status=task.get("status") or "", type=task.get("type") or "",
+                                 priority=task.get("priority") or ""))
+    rows.sort(key=lambda r: (r["scope_id"], r["task_id"]))
+    return rows
+
+
+class _Row(dict):
+    def keys(self):  # print_table reads keys() like sqlite3.Row
+        return list(super().keys())
+
+
 def cmd_tasks(conn, scope_filter=None):
+    if _tasks_frozen(conn):
+        print("(task sync is frozen: showing backlog.yaml, the source of truth)")
+        print_table(_backlog_task_rows(scope_filter))
+        return
     if scope_filter:
         rows = conn.execute("""
             SELECT task_id, scope_id, name, status, type, priority, estimate_days
@@ -93,6 +173,14 @@ def cmd_dashboard(conn):
         FROM projects
     """).fetchone()
     print(f"\nProjects: {stats['total']} total / {stats['active']} active / {stats['done']} done / {stats['paused']} paused")
+
+    if _tasks_frozen(conn):
+        print("Tasks: frozen (backlog.yaml is the source — `plc_query.py tasks <scope_id>`)")
+        print("\n--- Active Projects ---")
+        print_table(conn.execute(
+            "SELECT scope_id, name, depth FROM projects WHERE status = 'active' "
+            "ORDER BY scope_id").fetchall())
+        return
 
     tstats = conn.execute("""
         SELECT
@@ -185,7 +273,13 @@ def main():
     elif cmd == "add-project":
         cmd_add_project(conn, sys.argv[2:])
     elif cmd == "add-task":
-        cmd_add_task(conn, sys.argv[2:])
+        if _tasks_frozen(conn):
+            # Older procedures may still call add-task: do not fail them, just do
+            # not write (backlog.yaml is the source of truth).
+            print("[SKIP] task sync is frozen: backlog.yaml is the source; "
+                  "no Registry task row was added")
+        else:
+            cmd_add_task(conn, sys.argv[2:])
     else:
         print(f"Unknown command: {cmd}")
         print(__doc__)
