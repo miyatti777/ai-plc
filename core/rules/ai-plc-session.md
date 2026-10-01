@@ -133,9 +133,11 @@
 
 ## 10. 自動完走モード（/goal で本節を指すとき）
 
+**専用入口 `plc-auto` の例外:** 利用者が `$plc-auto`（対応環境の同名Skill）を明示実行し、固定Goalのnative設定に成功してactiveを確認できた場合も、そのGoalが続いている間だけ本節を適用する。自動選択・引用・Skill作成や説明だけではGoalを設定しない。Goal機能が利用不能なら未設定で停止し、コピペ用 `/goal` を返す。既存の別Goalや停止状態は上書き・自動解除しない。詳細と60ターンの観測・状態管理は `plc-auto/references/goal-preset.md` とSkill本文に従い、本節の保留・停止範囲を緩めない。通常Stageの待機は維持する。
+
 このセッションでユーザーが打った（貼った）/goal の文が本節（RUL_plc_session §10）を指しているか、識別句「AI-PLC 自動完走（自己完結版）」を含むとき、その /goal が続いている間だけ適用する。それ以外のセッションは本節を読まず、§7.4・§8・§9 のとおり止まる。「自動で」などの口頭の指示だけでは適用しない。intent.yaml には何も記録しない。
 
-**始め方・止め方:** Collection・Inception の完了報告の最後に出る /goal 1行（下の短い版）を貼る。新しい Goal から1本で走らせるときは Goal から版、本節の無い環境では自己完結版を貼る。止めるのは `/goal clear`。自動で進め始めたら、対象 Layer の refactoring_log に `[auto-approved] /goal 開始（§10）` を1行書く（Goal から版は Layer ができた時点で。会話が圧縮されても分かるようにするための印で、この行を適用の根拠にはしない — 適用はこのセッションの /goal だけで決める）。
+**始め方・止め方:** Collection・Inception の完了報告の最後に出る /goal 1行（下の短い版）を貼る。新しい Goal から1本で走らせるときは Goal から版、本節の無い環境では自己完結版を貼る。止めるのは `/goal clear`。自動で進め始めたら、対象 Layer の refactoring_log に `[auto-approved] /goal 開始（§10）` を1行書く（Goal から版は Layer ができた時点で。会話が圧縮されても分かるようにするための印で、この行を適用の根拠にはしない — 適用はこのセッションの /goal または上記plc-autoの明示起動とnative Goalのactiveで決める）。
 
 **対象の Layer:** /goal に Layer パスがあればそれ。無ければ、この会話で直前に /01-collection〜/04-operation を実行した Layer か直前に話題にした Layer。どちらも無ければ /goal の Goal で /01-collection から作る。決められなければ停止。SubLayer には及ばない（SubLayer が出たら停止 — 下の「停止」）。
 
@@ -175,8 +177,8 @@
 
 本節を直したら、自己完結版も同じ内容にそろえる（自己完結版は本節の無い環境で唯一の規定になるため）。本節のある環境で自己完結版が貼られて食い違いがあれば、本節を正とする。
 
-開始列（短い版）: backlog のタスクが空 → standard は `/02-inception → /04-operation`（Inception が `construction.required: true` を書いたら間に `/03-construction` を挟む）、simple は `/04-operation`（backlog が空なら上の表の「simple で backlog が空」で先に作る。`construction.required` が true になれば `/03-construction` を挟む）／`construction.required` が true で、`construction.tasks` のうち Agents/ に定義の無いタスクがある（欄が無ければ RUL_plc_adaptive §6 のみなし規定に従う）→ `/03-construction → /04-operation`／それ以外 → `/04-operation`。/goal はユーザーが打つ（スキルは1行出して止まる）。ターン上限で ⛔ も出ずに終わったら、同じ /goal を貼り直して続きから再開できる。
+開始列（短い版）: backlog のタスクが空 → standard は `/02-inception → /04-operation`（Inception が `construction.required: true` を書いたら間に `/03-construction` を挟む）、simple は `/04-operation`（backlog が空なら上の表の「simple で backlog が空」で先に作る。`construction.required` が true になれば `/03-construction` を挟む）／`construction.required` が true で、`construction.tasks` のうち Agents/ に定義の無いタスクがある（欄が無ければ RUL_plc_adaptive §6 のみなし規定に従う）→ `/03-construction → /04-operation`／それ以外 → `/04-operation`。通常Stageでは /goal はユーザーが打つ（Stageは1行出して止まる）。専用plc-autoは上記例外の条件でnative Goalを設定する。ターン上限で ⛔ も出ずに終わったら、同じ /goal を貼り直して続きから再開できる。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-10-01 ｜ **ステータス:** Active
-**バージョン:** 2.1（§10 自動完走モード〔/goal で §10 を指すとき〕を新設〔ローカル sqlite は projects だけを書き、tasks 行は書かない — RUL_plc_system §9〕。§7.4・§8・§9 に例外の参照。§7.4 の Stage 2 の後は backlog の construction.required で決める）｜ 2.0（Fable観点軽量化: 重複貼付解消後に本文圧縮。§7-9が全スキル共通の出力規約の唯一の定義箇所）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-10-02 ｜ **ステータス:** Active
+**バージョン:** 2.2（plc-autoの明示起動・native Goal成功時に限る専用入口）｜ 2.1（§10 自動完走モード〔/goal で §10 を指すとき〕を新設〔ローカル sqlite は projects だけを書き、tasks 行は書かない — RUL_plc_system §9〕。§7.4・§8・§9 に例外の参照。§7.4 の Stage 2 の後は backlog の construction.required で決める）｜ 2.0（Fable観点軽量化: 重複貼付解消後に本文圧縮。§7-9が全スキル共通の出力規約の唯一の定義箇所）

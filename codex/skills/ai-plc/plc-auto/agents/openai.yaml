@@ -1,0 +1,4 @@
+interface:
+  display_name: "plc-auto"
+  short_description: "この会話のAI-PLC Layerに固定Goalを設定して完走する"
+  default_prompt: "$plc-auto で、この会話のAI-PLC Layerに固定文面のGoalを設定して自動完走を開始してください。"

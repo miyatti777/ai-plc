@@ -13,6 +13,17 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-10-02
+
+### 追加: `plc-auto`（固定Goalで自動完走）
+
+- 正本 `core/skills/plc-auto/`（固定Goalを含む）とCodex adapter・UI metadataを同梱。Codexの表示名は `plc-auto`
+- `$plc-auto` の明示実行で、利用可能なnative Goal機能へ固定本文を設定し、成功とactiveを確認して通常版AI-PLCを続行。通常Stageの承認待ちは変えません
+- 別Goalや停止中のGoalを上書きしません。Goal機能が無ければ未設定で停止し、コピペ用 `/goal` を案内。公開・外部送信・git操作等の保留とBacktrack停止を維持
+- 60ターンはモデルへの指示で、nativeの機械的上限やトークン予算ではありません。Jev Layerも通常版を使い、監視opt-inを自動で承認しません
+- `core/rules/ai-plc-session.md` §10（v2.2）に専用入口の適用条件を追加。詳細・実測範囲は [docs/plc-auto.md](docs/plc-auto.md)
+- installerの処理・DB・実験版パッケージ（1.12.0-exp.2）は変更しません
+
 ## [実験版 1.12.0-exp.2] - 2026-10-01
 
 実験版パッケージ（`experimental/jev/`、`--with-jev` のときだけ入る）の新しい版です。前の実験版 1.12.0-exp.1 の次の版で、**core の版は 1.12.0 のまま**です。
