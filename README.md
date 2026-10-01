@@ -400,7 +400,7 @@ Goal: <達成したいことを1〜2文で>
 
 Claude Code の `/goal`（条件を満たすまで続ける標準機能）で、AI-PLC の Layer を**止まらずに最後まで**進める使い方です（v1.12.0〜）。ルールの本文は `core/rules/ai-plc-session.md` §10 にあります。
 
-- **切り替えは /goal だけです。** そのセッションで貼った /goal の文が RUL_plc_session §10 を指しているか、「AI-PLC 自動完走（自己完結版）」を含むときだけ、その /goal が続いている間だけ自動で進みます。「自動で」と口で言うだけでは切り替わらず、`intent.yaml` にも何も書きません。止めるのは `/goal clear`
+- **切り替えは明示したGoalの実行中だけです。** そのセッションで貼った /goal の文が RUL_plc_session §10 を指しているか、「AI-PLC 自動完走（自己完結版）」を含むときだけ、その /goal が続いている間だけ自動で進みます。v1.13.0からは、Goal設定機能のある環境で `$plc-auto` を明示実行し、native Goalの設定成功とactiveを確認した場合も専用入口として切り替わります（[使い方と対応条件](docs/plc-auto.md)）。「自動で」と口で言うだけでは切り替わらず、`intent.yaml` にも何も書きません。止めるのは `/goal clear`
 - **自動で進めるもの:** Mob Checkpoint は承認ブロックを出したうえで⭐（推奨）を選んで続け、Next Action は A（⭐）をその場で実行します。Stage 4 のタスクは P0→P1→P2・依存順に選び、明確化の質問はせずに最も妥当な仮定を置きます（データの扱い・権限・受け手に見える挙動は最も保守的な案）
 - **緩めないもの:** Phase 5.5 の独立検証（未解決 P0〜P2 ゼロが完了の条件。修正→再検証は2回まで）、Backtrack の承認（要る判定なら止まる）
 - **実行せずに保留するもの:** git の commit・push・PR・merge・タグ、外部公開、Notion・Slack・メールへの書き込み・送信、ローカル sqlite 以外の外部 DB への書き込み、承認後の決まりがある反映、Layer 外のファイル（backlog の output に書かれたパスと Phase 6・7 の決まった書き込み先を除く）、削除・移動・既存成果物の上書き、上記以外の操作（お金・外部 API への送信・ツールの導入など）。保留したものはログに残して先へ進みます
@@ -793,6 +793,7 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 | `plc-status-audit` | ステータス点検（intent・backlog・Registry の食い違いの洗い出しと、承認した行だけの反映） | 実験版（`--with-jev`）を入れたとき |
 | `plc-viewer` | Registry ビューア（ブラウザ）の起動・停止 | `experimental/registry-viewer` を手でコピーしたとき（status の変更は実験版も入れたときだけ。無ければ閲覧のみ） |
 | `plc-consult` | アイデア相談。「ここをこうしたい」を今の Layer と照らして 却下／今のタスク内で修正／Re-Inception／Re-Collection／いつかやる に振り分け、所感と次に打つコマンドを返す（読み取り専用。v1.10.0〜） | いつでも |
+| `plc-auto` | 固定本文をnative Goalに設定し、この会話のLayerを自動完走する専用入口（v1.13.0〜）。表示名も `plc-auto` | 利用者の明示実行・Goal管理ツールが利用可能。使えない場合は未設定で停止して `/goal` を案内（[詳細](docs/plc-auto.md)） |
 | `plc-backfill` | スキル外作業の事後記録。スキルを通さずに済ませた作業を、承認を得てから対象 Layer の backlog に ad-hoc タスクとして足し、04-operation の Phase 5.5〜7（検証・ステータス更新・Propagation）を通す（v1.11.0〜） | いつでも |
 
 名前の決まりは `.claude/rules/ai-plc-system.md` の §6 にあります（Stage は `0N-<stage>`、ユーティリティは `plc-<機能>`）。
@@ -805,7 +806,7 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 >
 > ⚠️ **外部送信あり（opt-in）。** APIキーを登録し、Layer の `intent.yaml` に `jev_monitor: true` を書いたときだけ、Layer の文や発話を字数で切ったもの（下の表。要約ではなく原文の抜粋です）を外部の判断専用モデル **Jev**（TypeSafe）に送ります。キーが無ければ何も送らず、すべてスキップされます。
 >
-> **版:** 実験版パッケージ（`experimental/jev/`）の版は **`1.12.0-exp.2`** で、前の実験版 `1.12.0-exp.1` の次の版です。実験版の番号は core の版（**1.12.0**）とは別に数えます。`1.12.0-exp.2` は core 1.12.0 の上の2つ目の版で、末尾の `exp.2` はその版での通し番号です（頭の数字が core の版と一致するとは限りません。たとえば `1.8.0-exp.1` は core 1.7.1 の上に作ったものです）。スキルは core 1.12.0 のスキルを元にしており、違いは Jev 部分だけです（[CHANGELOG.md](CHANGELOG.md)）。
+> **版:** 実験版パッケージ（`experimental/jev/`）の版は **`1.12.0-exp.2`** で、前の実験版 `1.12.0-exp.1` の次の版です。実験版の番号は core の版（**1.13.0**）とは別に数えます。`1.12.0-exp.2` は core 1.12.0 の上の2つ目の版で、末尾の `exp.2` はその版での通し番号です（頭の数字が core の版と一致するとは限りません。たとえば `1.8.0-exp.1` は core 1.7.1 の上に作ったものです）。スキルは core 1.12.0 のスキルを元にしており、違いは Jev 部分だけです（[CHANGELOG.md](CHANGELOG.md)）。
 >
 > 🧊 **1.12.0-exp.2 から、会話監視 hook と成功条件カバー判定は凍結中です。** 作者の試行で、会話監視は人が判定したヒントの約3分の2が外れ、成功条件カバー判定は役に立ったヒントがありませんでした。どちらも新しく有効にしないでください（カバー判定は `/02-inception-jev` から呼ばなくなりました。会話監視 hook を settings に登録している場合は外してかまいません）。Backtrack の異常ヒントとステータス点検は、これまでどおり使えます。
 
@@ -847,7 +848,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 ./install.sh --target /path/to/your/project cc --with-jev
 ```
 
-- core も同時に 1.12.0 に上がります。上がったかどうかは、`.ai-plc-version` が `1.12.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
+- 現在のcheckoutでは core も同時に 1.13.0 に上がります。上がったかどうかは、`.ai-plc-version` が `1.13.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
 - `--with-jev` を付けずに更新すると、core だけが上がり、実験版は前の版のまま残ります。前の版の実験版スキルは core 1.8.1 の時点のもので、Construction を既定で省く変更と自動完走（/goal）に対応していないので、実験版も一緒に上げてください
 - 1.12.0-exp.2 を入れた後に、前の実験版を配る checkout の installer で `--with-jev` を付けると、`[CONFLICT] component downgrade refused: experimental_jev` などの行を出して止まり、何も書き換えません。前の版に戻したいときは、今の checkout で `uninstall.sh cc` してから、前の版の checkout で入れ直します
 
@@ -855,7 +856,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 
 - **会話監視 hook と成功条件カバー判定を凍結しました。** `/02-inception-jev` はカバー判定を呼ばず（`jev_monitor: true` でも）、`/02-inception-jev`・`/03-construction-jev`・`/04-operation-jev` の会話監視の案内は「登録しない（登録済みなら外してよい）」に変えました。スクリプトは残しますが更新しません。Backtrack の異常ヒント（`/04-operation-jev` の 5.5b・6b）とステータス点検は変わりません
 - **`KNOWN_RELEASES.sha256`:** 1.12.0-exp.1 の配布物のハッシュを足しました
-- Python のコードと installer の処理は変えていません。core（1.12.0）も変わりません
+- この実験版リリースでは Python のコードと installer の処理は変えていません。現在のcoreは1.13.0ですが、この実験版はcore 1.12.0時点のままです
 
 それより前の変更（1.12.0-exp.1 など）は CHANGELOG にあります。
 
@@ -1077,7 +1078,7 @@ ai-plc/
 ├── core/
 │   ├── skills/ai-plc/     # 4ステージスキル + テンプレート
 │   ├── skills/utility/    # spec-story-starter / wire-aa-authoring
-│   ├── skills/plc-*/      # plc-db-sync / plc-registry / plc-status-audit / plc-viewer / plc-consult / plc-backfill
+│   ├── skills/plc-*/      # plc-db-sync / plc-registry / plc-status-audit / plc-viewer / plc-consult / plc-backfill / plc-auto
 │   ├── rules/             # system / session / adaptive
 │   └── db/                # init_db.py / plc_query.py / sync.py
 ├── claude/                # Claude Code固有（commands / agents / templates）
