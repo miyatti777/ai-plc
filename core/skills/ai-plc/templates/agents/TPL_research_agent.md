@@ -5,7 +5,7 @@
 - Goal: 「[Subject]について調査・分析し、[Deliverable]を作成する」
 - Input: 調査対象（Subject）、調査の目的・角度（Focus）、参照コンテキスト（Context Store）、出力形式の指定（レポート/テーブル/図）
 - Output: 分析レポート、知見サマリ（Context Storeに追加）、次アクション提案
-- frontmatter（必須）: name（kebab-case）/ description / tools（最小権限）/ delegable（FlowにMob CPを含むならfalse）を先頭に付与（03-construction v2.1）
+- frontmatter（必須）: name（kebab-case）/ description / tools（最小権限）/ delegable（backlog の値を写す — 03-construction Phase 3）を先頭に付与
 
 ## Execution Flow
 
@@ -19,6 +19,7 @@
 
 ## Guardrails
 
+- 独立レビュー: 04-operation Phase 5.5 に従う
 - 調査範囲が明確でない場合はPhase 1で確認必須
 - Web検索結果は必ず出典を明記
 - 定量データはソースと時期を明記

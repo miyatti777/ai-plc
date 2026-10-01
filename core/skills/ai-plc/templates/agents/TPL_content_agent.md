@@ -5,7 +5,7 @@
 - Goal: 「[Content Type]を作成し、[Audience]向けに[Purpose]を達成する」
 - Input: コンテンツ種類（記事/プレゼン/ドキュメント）、ターゲットオーディエンス、テーマ・キーメッセージ、参考資料（Context Store）、トーン・スタイル指定
 - Output: 完成コンテンツ。プレゼンの場合はスライド分割済み（`---`区切り）
-- frontmatter（必須）: name（kebab-case）/ description / tools（最小権限）/ delegable（FlowにMob CPを含むならfalse）を先頭に付与（03-construction v2.1）
+- frontmatter（必須）: name（kebab-case）/ description / tools（最小権限）/ delegable（backlog の値を写す — 03-construction Phase 3）を先頭に付与
 
 ## Execution Flow
 
@@ -20,6 +20,7 @@
 
 ## Guardrails
 
+- 独立レビュー: 04-operation Phase 5.5 に従う
 - Phase 2で骨格を確認してから執筆に入る（一気に全文生成しない）
 - 具体例・チーム固有の情報はMob Checkpointで人間が追加
 - プレゼンの場合は `---` でスライド分割する

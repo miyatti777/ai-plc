@@ -25,6 +25,7 @@ Collection  →  Inception  →  Construction  →  Operation
 - [インストール](#-インストール5分)
 - [アップデート手順](#-アップデート手順)
 - [はじめての AI-PLC（自分のGoalで）](#-はじめての-ai-plc自分のgoalで)
+- [自動完走（/goal）](#-自動完走goal)
 - [こんな使い方ができる](#-こんな使い方ができる)
 - [チュートリアル: コトノハで一周する](#-チュートリアル-コトノハで一周する発散収束仕様化)
 - [メモリの仕組み](#-メモリの仕組みwiki--native-memory)
@@ -222,9 +223,11 @@ git pull             # 最新の版を取ってくる（失敗したら git stat
 - 更新が終わったら、インストールのときと同じく、**新しいチャット／スレッドを開始して**から使ってください
 - **v1.8.x 以前から v1.9.0 に上げるとき:** DB 同期スキルの名前が `ai-plc-db-sync` から **`plc-db-sync`** に変わり、置き場所も `.claude/skills/ai-plc/db-sync/` から `.claude/skills/plc-db-sync/` に移ります（Cursor は `.cursor/skills/plc-db-sync/`、Codex は `.agents/skills/ai-plc/plc-db-sync/`）。`--dry-run` の `DELETE:…/ai-plc/db-sync/SKILL.md` は、この移動で古いほうを消す行です。自分で編集していなければ自動で消え、古いフォルダには `.bak` だけが残ります（要らなければフォルダごと消してかまいません）。編集していた場合は `user-modified stale managed file` で止まるので、`--backup-modified` を付けるか、中身を退避してから古いファイルを消して流し直してください（Codex だけの環境では `--backup-modified` は使えないので、退避の方法で）。呼ぶときは `/plc-db-sync` を使います
 
+- **v1.11.0 以前から v1.12.0 に上げるとき:** タスクの正が各 Layer の `backlog.yaml` だけになり、Registry の tasks テーブルは凍結して使わなくなります（RUL_plc_system §9）。installer は既存の DB を書き換えないので、更新の後にプロジェクトのルートで `python3 .claude/db/sync.py tasks-sync --freeze --approved-by <名前>` を1回実行してください（`--reason "<理由>"` も付けられます。状態の確認は `tasks-sync --status`）。凍結しても tasks テーブルの行は消えず、そのまま残ります。Construction（Stage 3）の既定省略と自動完走（/goal）もこの版から入ります（[CHANGELOG.md](CHANGELOG.md)）
+
 **ほかの環境:** 最後の `cc` を、1. で確かめた指定に置き換えます。`cursor`（Cursor）・`both`（Claude Code + Cursor）・`all`（3環境）・`codex`（Codex）。`./install-cc.sh --target …` のような環境別のスクリプトでも同じように更新できます。旧版（台帳なし）の Claude Code / Cursor 環境に Codex を足すときは、`codex` だけを指定すると旧版を判別できずに止まるので、先に `cc`（または `both`）で上げてから `codex` を実行してください（Claude Code・Cursor・Codex の3つを使うなら `all` でもかまいません）。
 
-**実験版（Jev 監視）を入れている人:** 実験版も一緒に上げるときは `--with-jev` を付けます（`./install.sh --target /path/to/your/project cc --with-jev`）。付けずに更新すると、実験版のファイルは今のまま残ります。前の実験版 1.8.0-exp.1 を入れた環境の `.ai-plc-version` は、その時点の core の版の `1.7.1` と出ます。1.8.0-exp.1 から今の実験版 1.8.1-exp.1 への上げ方は[実験版の節](#-実験版-jev-監視)にあります。
+**実験版（Jev 監視）を入れている人:** 実験版も一緒に上げるときは `--with-jev` を付けます（`./install.sh --target /path/to/your/project cc --with-jev`）。付けずに更新すると、実験版のファイルは今のまま残ります。前の実験版 1.8.0-exp.1 を入れた環境の `.ai-plc-version` は、その時点の core の版の `1.7.1` と出ます。前の実験版から今の実験版 1.12.0-exp.1 への上げ方は[実験版の節](#-実験版-jev-監視)にあります。
 
 ### 3. 止まったとき
 
@@ -382,12 +385,46 @@ Goal: <達成したいことを1〜2文で>
 
 1. **Collection** — 関連情報を集めて構造化し、「成功条件」まで提示して**止まります**（あなたが承認）
 2. **Inception** — Goalをタスクに分解して `backlog.yaml` を作る（承認）
-3. **Construction** — 各タスクの実行役（Agent）を定義（承認）
+3. **Construction**（要るときだけ）— 手順の長い実装・委譲するタスク・complex などのときだけ、各タスクの実行役（Agent 定義）を作る（承認）。それ以外は Inception の後すぐ Operation へ進み、backlog の説明と受け入れ条件から実行します
 4. **Operation** — タスクを実行し、成果物を作り、別AIが検証
 
 各段であなたが `OK` / `修正: 〜` / `差し戻し` を選べます。**前提が変わったら「やっぱり〜したい」と言えば、前の段階に戻って作り直します**（Backtrack）。
 
 > コードでも、企画書でも、OKRでも、リサーチでも同じ流れで回ります。
+>
+> 承認を挟まずに最後まで流したいときは、Collection・Inception の完了報告の最後に出る /goal 1行を貼ります（[自動完走](#-自動完走goal)）。
+
+---
+
+## 🏃 自動完走（/goal）
+
+Claude Code の `/goal`（条件を満たすまで続ける標準機能）で、AI-PLC の Layer を**止まらずに最後まで**進める使い方です（v1.12.0〜）。ルールの本文は `core/rules/ai-plc-session.md` §10 にあります。
+
+- **切り替えは /goal だけです。** そのセッションで貼った /goal の文が RUL_plc_session §10 を指しているか、「AI-PLC 自動完走（自己完結版）」を含むときだけ、その /goal が続いている間だけ自動で進みます。「自動で」と口で言うだけでは切り替わらず、`intent.yaml` にも何も書きません。止めるのは `/goal clear`
+- **自動で進めるもの:** Mob Checkpoint は承認ブロックを出したうえで⭐（推奨）を選んで続け、Next Action は A（⭐）をその場で実行します。Stage 4 のタスクは P0→P1→P2・依存順に選び、明確化の質問はせずに最も妥当な仮定を置きます（データの扱い・権限・受け手に見える挙動は最も保守的な案）
+- **緩めないもの:** Phase 5.5 の独立検証（未解決 P0〜P2 ゼロが完了の条件。修正→再検証は2回まで）、Backtrack の承認（要る判定なら止まる）
+- **実行せずに保留するもの:** git の commit・push・PR・merge・タグ、外部公開、Notion・Slack・メールへの書き込み・送信、ローカル sqlite 以外の外部 DB への書き込み、承認後の決まりがある反映、Layer 外のファイル（backlog の output に書かれたパスと Phase 6・7 の決まった書き込み先を除く）、削除・移動・既存成果物の上書き、上記以外の操作（お金・外部 API への送信・ツールの導入など）。保留したものはログに残して先へ進みます
+- **止まるとき:** 行頭に `⛔ 自動完走を停止: <理由>` を出して止まります（complex・platform_builder の Layer、SubLayer が出たとき、Backtrack が要るとき、2回直しても P0〜P2 が残るとき など）。自動で選んだ判断は backlog の `refactoring_log` に `[auto-approved]` で1行ずつ残り、完了・停止のときに表で示され、完了報告の冒頭に「確認してほしいこと」が出ます
+- **対応環境:** Claude Code と Codex（Codex では開始列のコマンドを `$02-inception` 等に読み替え）。Cursor には /goal が無いので、これまでどおり各 Mob Checkpoint で止まります
+
+### /goal の3種の使い分け
+
+| 種類 | いつ使うか | 貼る文 |
+| --- | --- | --- |
+| **短い版** | `/01-collection` か `/02-inception` を承認しながら進めてきて、残りを自動で走らせたいとき。完了報告の最後に「自動で進めるなら:」として、Layer パスと開始列を埋めた1行が出るので、それを貼る（complex・platform_builder の Layer では出ない） | `/goal <Layerパス> を <開始列> で完走する（RUL_plc_session §10 の自動完走）。達成: backlog の全タスクが completed（deferred・blocked は保留理由がログにあるもの）・各 output が実在・Phase 7 チェックリストと自動承認ログを表示、または行頭に「⛔ 自動完走を停止」を表示。or stop after 40 turns` |
+| **Goal から版** | 新しい Goal を、Layer を作るところから1本で走らせたいとき | `/goal 「<Goal>」を /01-collection から完走する（RUL_plc_session §10 の自動完走）。達成: 作った Layer の backlog の全タスクが completed（deferred・blocked は保留理由がログにあるもの）・各 output が実在・Phase 7 チェックリストと自動承認ログを表示、または行頭に「⛔ 自動完走を停止」を表示。or stop after 60 turns` |
+| **自己完結版** | §10 の無い環境（§10 より前の AI-PLC〔v1.11.0 以前〕を入れた環境・別のリポジトリ・AI-PLC の rules を入れていない環境）で使うとき。編集せずに貼るだけで動く（§10 のある環境で食い違えば §10 が正） | 下の全文 |
+
+ターン上限で `⛔` も出ずに終わったら、同じ /goal を貼り直すと続きから再開します。
+
+<details>
+<summary>自己完結版の全文（貼るだけで動く）</summary>
+
+```
+/goal AI-PLC 自動完走（自己完結版）。この会話で扱っている AI-PLC Layer を、今の状態から最後まで完走する。対象は、この会話で直前に /01-collection〜/04-operation を実行した Layer か、直前に話題にした Layer。どちらも無ければ、この会話で頼まれた Goal で /01-collection から新しく作る。始める位置は Layer の状態で決める: 承認待ちの Mob Checkpoint があればその承認から、backlog のタスクが空なら /02-inception から（simple は Goal を1タスクにした backlog を作り、refactoring_log に Stage 2 を省いた理由と construction を書いて、required が false なら /04-operation、true なら /03-construction へ）、construction.required が true で Agent 定義の無いタスクがあれば /03-construction から、それ以外は /04-operation から。順序は /01-collection → /02-inception →（construction.required が true のときだけ /03-construction）→ /04-operation。達成: その Layer の backlog の全タスクが completed（deferred・blocked は保留理由がログにあるもの）で、各 output が実在し、Phase 7 チェックリストと自動承認ログ（自動で選んだ判断の一覧）を表示する。または行頭に単独で「⛔ 自動完走を停止: <理由>」を表示する。進め方（各 SKILL の「停止」「承認を待つ」「即実行禁止」より優先）: 自動で進め始めたら、対象 Layer の refactoring_log に「[auto-approved] /goal 開始（自己完結版）」を1行書く（Layer が無ければ作った時点で。この行を自動で進める根拠にはしない）。Mob Checkpoint はブロックを出したうえで同じターンで⭐（承認なら OK）を選ぶ。⭐が下の保留に当たる操作なら保留して先へ進む。Next Action は A（⭐）を選んでその場で実行する（Layer の全タスク完了後の Next Action は実行しない）。Stage 4 のタスク選択は P0→P1→P2・依存順で、並列委譲の条件を満たす組は委譲してよい。明確化質問はせず最も妥当な仮定を置く（データの扱い・権限・受け手に見える挙動は最も保守的な案）。Phase 5.5 の P0〜P2 は修正→再検証を2回まで。BT-B・BT-C は独立 checker の判定まで行い、ドリフトも追加ゴールも無ければ続ける。Web 検索・取得は機密を扱う Layer では行わない。自動で選んだ判断は毎回 backlog.yaml の refactoring_log に「[auto-approved] S<Stage>/P<Phase>: <選んだこと>（<理由>）」で1行書き、完了・停止のときに表にまとめ、完了報告の冒頭に「確認してほしいこと」（仮定で決めたこと・公開の文面・保守的に仮定したこと・Layer 外の既存ファイルを変えたタスク）を1行ずつ出す。保留（実行せず「保留: <内容>」とログに残して先へ進む）: git の commit・push・PR・merge・タグ、外部公開（リポジトリ・パッケージへの反映）、Notion・Slack・メールへの書き込み・送信、ローカル sqlite 以外の同期先・外部DBへの書き込み（ローカル sqlite は projects の追加・更新だけで、tasks 行は書かない）、承認後の決まりがある反映（ステータス点検の反映など）、Layer 外のファイル（backlog の output に書かれたパスと、Phase 6・7 の決まった書き込み先を除く）、削除・移動・既存成果物の上書き、上記以外の操作（お金・外部 API への送信・ツールの導入など）。停止: 対象の Layer を決められない／workflow_depth が complex か mode が platform_builder（開始時に intent.yaml で確かめ、途中で判定されたときもその時点で）／Collection で「Layer を作らない」に当たった／BT-A／P0〜P2 が2回の修正後も残る／Backtrack が要る／⭐が無い／保留したものが無いと進めない／人が担当するタスクだけが残った／分解に SubLayer が含まれる（分解の承認前に停止）。止まるときは再開のしかた（同じ /goal を貼り直す等）も示す。or stop after 60 turns
+```
+
+</details>
 
 ---
 
@@ -494,7 +531,7 @@ Scope: （A-1でAIが採番した scope_id を貼る。`L-MMDD` 形式）
 
 → **何が起きる:** Goal が「発散タスク」「評価タスク」「収束・選定タスク」等に分解され `backlog.yaml` になる。→ `OK`
 
-**A-3. Construction**（各タスクの実行役を定義）:
+**A-3. Construction**（各タスクの実行役を定義。Inception の Next Action が `/03-construction` を勧めたときだけ。`/04-operation` を勧めたら A-4 へ）:
 
 ```
 /03-construction を実行してください
@@ -683,7 +720,7 @@ AI-PLC は、プロジェクト横断の台帳とタスクを**ローカル SQLi
 
 ```bash
 python3 .claude/db/plc_query.py projects        # プロジェクト一覧
-python3 .claude/db/plc_query.py tasks           # タスク一覧
+python3 .claude/db/plc_query.py tasks           # タスク一覧（凍結中は各 Layer の backlog.yaml を表示）
 python3 .claude/db/plc_query.py tasks L-1234    # 特定Scopeのタスク
 python3 .claude/db/plc_query.py active          # activeなPJだけ
 python3 .claude/db/plc_query.py dashboard       # ダッシュボード
@@ -691,7 +728,7 @@ python3 .claude/db/plc_query.py sql "SELECT ..."  # 任意SQL
 ```
 
 - **projects テーブル** = Project Registry。Collection で新PJを始めると自動登録され、横断で状況が見られます。
-- **tasks テーブル** = 既定の External Sync 先。Operation でタスクの完了が反映されます。
+- **tasks テーブル** = 使いません（v1.12.0〜凍結）。**タスクの正は各 Layer の `backlog.yaml`** です。新しく作った DB は最初から凍結され、`plc_query.py add-task` は書き込まずに `[SKIP]` を出し、`plc_query.py tasks` は backlog.yaml を表示します。External Sync の既定は projects テーブルです。v1.11.0 以前から使っている DB は、installer では書き換えないので、`python3 .claude/db/sync.py tasks-sync --freeze --approved-by <名前>` で凍結します（状態は `python3 .claude/db/sync.py tasks-sync --status`、戻すのは `--unfreeze --approved-by <名前>`）
 
 ### 作り直したいとき
 
@@ -728,6 +765,7 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 
 - core だけの環境では**閲覧のみ**、Jev 実験版（`--with-jev`）を入れた環境では status の変更やステータス点検の指摘も使えます
 - status を変えると Layer のファイルと Registry の両方を書き換えます。試す前にバックアップを取ってください（手順と、書き換わる範囲・戻し方は [`experimental/registry-viewer/README.md`](experimental/registry-viewer/README.md)）
+- 0.2.1-alpha から、タスク同期を凍結した DB（v1.12.0 以降の新しい DB）では Registry の tasks を読まず・書かず、タスクは backlog.yaml だけで扱います
 - 0.2.0-alpha から、各 Project に分類（所属・種類・実行環境）を付けて、一覧のバッジと絞り込みで見分けられます（`classify.py`。手順は同じ README の「分類」）
 - macOS のメニューバーアプリのソース（自分でビルドする）も同梱しています。試した結果の報告は Issue で歓迎します
 
@@ -767,9 +805,9 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 >
 > ⚠️ **外部送信あり（opt-in）。** APIキーを登録し、Layer の `intent.yaml` に `jev_monitor: true` を書いたときだけ、Layer の文や発話を字数で切ったもの（下の表。要約ではなく原文の抜粋です）を外部の判断専用モデル **Jev**（TypeSafe）に送ります。キーが無ければ何も送らず、すべてスキップされます。
 >
-> **版:** 実験版パッケージ（`experimental/jev/`）の版は **`1.8.1-exp.1`** で、前の実験版 `1.8.0-exp.1` の次の版です。実験版の番号は core の版（**1.9.0**）とは別に数えます。`1.8.1-exp.1` は core 1.8.1 に合わせて出した版で、末尾の `exp.1` はその版での通し番号です（前の実験版 `1.8.0-exp.1` は core 1.7.1 の上に作ったもので、頭の数字が core の版と一致するとは限りません）。スキルは core 1.8.1 のスキルを元にしており、違いは Jev 部分だけです（[CHANGELOG.md](CHANGELOG.md)）。
+> **版:** 実験版パッケージ（`experimental/jev/`）の版は **`1.12.0-exp.1`** で、前の実験版 `1.8.1-exp.1` の次の版です。実験版の番号は core の版（**1.12.0**）とは別に数えます。`1.12.0-exp.1` は core 1.12.0 に合わせて出した版で、末尾の `exp.1` はその版での通し番号です（頭の数字が core の版と一致するとは限りません。たとえば `1.8.0-exp.1` は core 1.7.1 の上に作ったものです）。スキルは core 1.12.0 のスキルを元にしており、違いは Jev 部分だけです（[CHANGELOG.md](CHANGELOG.md)）。
 
-AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか」などを1問だけ聞き、**1行のヒント**を出します。ヒントに作業を止める権限はなく、判断はメインのモデルとあなたが行います。**Claude Code 専用**で、Jev への問い合わせ（外部送信）は `/01-collection-jev` → `/02-inception-jev` → `/03-construction-jev` → `/04-operation-jev` を使ったときだけ動きます（core の `/01-collection`〜`/04-operation` は Jev を呼びません）。例外として、下の表の「ステータス点検」（Jev には送らず、ローカルのファイルと DB を読むだけの点検）は、core 1.8.0 からは core の `/04-operation` の Phase 7 でも、実験版を入れてあれば動きます（実験版が無ければ「点検ツールなし — スキップ」と出して進みます）。
+AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか」などを1問だけ聞き、**1行のヒント**を出します。ヒントに作業を止める権限はなく、判断はメインのモデルとあなたが行います。**Claude Code 専用**で、Jev への問い合わせ（外部送信）は `/01-collection-jev` → `/02-inception-jev` →（要るときだけ `/03-construction-jev`）→ `/04-operation-jev` を使ったときだけ動きます（core の `/01-collection`〜`/04-operation` は Jev を呼びません）。例外として、下の表の「ステータス点検」（Jev には送らず、ローカルのファイルと DB を読むだけの点検）は、core 1.8.0 からは core の `/04-operation` の Phase 7 でも、実験版を入れてあれば動きます（実験版が無ければ「点検ツールなし — スキップ」と出して進みます）。
 
 ### できること（4機能）と外部送信の内容
 
@@ -799,7 +837,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 - 必要なもの: Python 3.9 以上と `pyyaml`
 - インストール後は、新しいチャットで `/01-collection-jev` から始めます。新しい Layer では `/01-collection-jev` の最後に「Jev監視を有効にしますか」と1行で聞かれ、承認すると `intent.yaml` に `jev_monitor: true` が書かれます（機密などに当たる Layer では聞かれず `false` のまま）。既存の Layer で試すなら、`intent.yaml` に `jev_monitor: true` を手で書き、Stage 4 を `/04-operation-jev` で回します
 
-### 前の実験版（1.8.0-exp.1）から上げる
+### 前の実験版（1.8.1-exp.1）から上げる
 
 ```bash
 # 先に確認する（conflicts が [] なら更新できる）
@@ -807,19 +845,17 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 ./install.sh --target /path/to/your/project cc --with-jev
 ```
 
-- core も同時に 1.8.1 に上がります（1.8.0-exp.1 を入れた環境の core は 1.7.1）。上がったかどうかは、`.ai-plc-version` が `1.8.1`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.8.1-exp.1` になっていることで確かめられます
-- `--with-jev` を付けずに更新すると、core だけが上がり、実験版は 1.8.0-exp.1 のまま残ります
-- 1.8.1-exp.1 を入れた後に、1.8.0-exp.1 を配る checkout の installer で `--with-jev` を付けると、`[CONFLICT] component downgrade refused: experimental_jev` などの行を出して止まり、何も書き換えません。前の版に戻したいときは、今の checkout で `uninstall.sh cc` してから、前の版の checkout で入れ直します
+- core も同時に 1.12.0 に上がります。上がったかどうかは、`.ai-plc-version` が `1.12.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.1` になっていることで確かめられます。1.8.0-exp.1 からも同じ手順で上げられます
+- `--with-jev` を付けずに更新すると、core だけが上がり、実験版は前の版のまま残ります。前の版の実験版スキルは core 1.8.1 の時点のもので、Construction を既定で省く変更と自動完走（/goal）に対応していないので、実験版も一緒に上げてください
+- 1.12.0-exp.1 を入れた後に、前の実験版を配る checkout の installer で `--with-jev` を付けると、`[CONFLICT] component downgrade refused: experimental_jev` などの行を出して止まり、何も書き換えません。前の版に戻したいときは、今の checkout で `uninstall.sh cc` してから、前の版の checkout で入れ直します
 
-**この版で直したこと**（前の実験版 1.8.0-exp.1 との違い）:
+**この版で変えたこと**（前の実験版 1.8.1-exp.1 との違い）:
 
-- **中断した uninstall の後片付け:** 前の版の既知の制約（uninstall の後処理中に落ちた後、次が codex 経路だった場合や、再開中にもう一度落ちた場合に `.claude/ai-plc-jev/` などが残る）は、cc を含む uninstall（`uninstall.sh cc` / `both` / `all`）で、残った `.bak` と、それで空になったディレクトリが片付くようになりました。詳しくは下の「既知の制約」
-- **スキル:** core 1.8.1 のスキル（`01-collection` v2.1・`04-operation` v2.7）に揃えました。前の版は core 1.7.1 の時点のスキルを元にしていて、Jev 以外の文言にも違いが残っていました。説明文の古い版表記も直しました
-- **採否の記録:** `jev_bt_monitor.py --override-pending` で、`--only` / `--except` の指定で記録対象が0件になったときは「記録対象なし（未確認は N件残っています・…）— 何も記録していません」と出します（前の版では、未確認が残っていても「未確認の Jev 判定なし」と出ていました）。`--layer` に Layer パスでも scope_id の形でもない値（打ち間違いなど）を渡すと「Layer の scope_id が読めません」と出します（前の版では0件に見えました）
-- **`/02-inception-jev`:** カバー判定の採否の記録を、タスクの実行より先に行うことを明記しました（`/04-operation-jev` と同じ）
-- **ステータス点検:** Registry のタスク ID が `<scope_id>-T001` の形で、backlog が `T001` の形でも、同じタスクとして突き合わせます（前の版では「タスク行なし」と誤って出ていました）。`--apply` で書き換えるのは Registry にある元の ID の行です
-
-**installer の変更について:** この版では installer の処理も変えています。実験版の残り物（実験版の置き場所に残った `<path>.bak.<UTC>.<n>` や、中断した後処理の再開情報）が無い環境では、動きはタグ `v1.8.1` の installer と同じです（`--with-jev` を付けない install・uninstall の出力・終了コードも同じ）。残り物がある環境で、cc を含む uninstall のときにそれを掃除すること、後処理の再開中にもう一度落ちても次の `install.sh`（codex 以外）/ `uninstall.sh` で再開すること（`install-codex.sh` を挟んだなどで再開の情報が失われた場合も、cc を含む uninstall で掃除します）は、意図した差です（install・`--dry-run`・`--plan-only`・cursor / codex だけの uninstall では掃除しません）。
+- **スキル:** core 1.12.0 のスキル（`01-collection` v2.2・`02-inception` v2.1・`03-construction` v2.3・`04-operation` v2.8）に揃えました。Construction を既定で省く変更（`/03-construction-jev` は Agent 定義が要るときだけ。`/02-inception-jev` の Next Action は backlog の `construction.required` で `/03-construction-jev` か `/04-operation-jev` を選ぶ）と、深度の理由の記録（`workflow_depth_reason`・`depth_axes`）が入ります
+- **自動完走（/goal）での Jev の扱い:** 自動完走中（RUL_plc_session §10 を指す /goal があるセッション）も、opt-in した Layer の Jev の判定は行います。判定ごとの採否の記録とコピペ用プロンプトへの貼り付け用1行はせず、完了報告の冒頭に「🧭 未確認の Jev 判定: N件」と貼り付け用1行をまとめて出します（回収は `python3 .claude/ai-plc-jev/scripts/jev_bt_monitor.py --pending --layer <Layer>`）。Jev 監視の opt-in（`jev_monitor: true`）は自動では承認しません。`/01-collection-jev` の最後に出る /goal 1行は `-jev` 版のコマンドで書かれます
+- **`KNOWN_RELEASES.sha256`:** 1.8.1-exp.1 の配布物のハッシュを足しました（1.8.1-exp.1 から上げたときや、中断した後処理の残り物を掃除するときの照合に使います）
+- **ステータス点検:** Registry のタスク同期が凍結されているときは、Registry のタスク行を読まず、分類 3・7・8 を出しません（タスクの正は backlog.yaml）
+- installer の処理は変えていません
 
 ### キー登録
 
@@ -897,7 +933,7 @@ rm -rf .claude/db/status_hygiene
 
 ### 既知の制約
 
-- **中断した uninstall の後片付け（この版で対応）:** uninstall の後処理（`.bak` と空ディレクトリの掃除）の最中にプロセスが落ち、次に実行したのが codex 経路（`install-codex.sh` / `install.sh codex`）だった場合や、後処理の再開中にもう一度落ちた場合に、実験版のファイルの `.bak` と `.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/` が残ることがありました。この版では、cc を含む uninstall（`uninstall.sh cc` / `both` / `all`）を実行すると残り物を掃除し、`[OK] experimental_jev: removed N leftover backup file(s) of an interrupted cleanup` と出ます。台帳が無くて uninstall がエラーで止まる環境でも、残り物だけを掃除してから同じエラーで止まります。消すのは、中身が既知の実験版（`experimental/jev/KNOWN_RELEASES.sha256`）か今の配布物と一致する `.bak` と、それで空になった2つのディレクトリだけです。一致しない `.bak`（自分で編集したものなど）は消さずに残し、`[WARN] experimental_jev: N backup file(s) with unknown content kept` で始まる行が出ます。残っているのは自分で編集した中身なので、**消す前に一覧で確かめ、残したいものはプロジェクトの外へ退避してください。** 対象プロジェクトのルートで、まず 1・2 を実行します（一覧・退避ファイルは親ディレクトリに書くので、同じ名前のファイルがあれば先に名前を変えてください）:
+- **中断した uninstall の後片付け（1.8.1-exp.1 で対応）:** uninstall の後処理（`.bak` と空ディレクトリの掃除）の最中にプロセスが落ち、次に実行したのが codex 経路（`install-codex.sh` / `install.sh codex`）だった場合や、後処理の再開中にもう一度落ちた場合に、実験版のファイルの `.bak` と `.claude/ai-plc-jev/`・`.claude/skills/ai-plc-jev/` が残ることがありました。1.8.1-exp.1 からは、cc を含む uninstall（`uninstall.sh cc` / `both` / `all`）を実行すると残り物を掃除し、`[OK] experimental_jev: removed N leftover backup file(s) of an interrupted cleanup` と出ます。台帳が無くて uninstall がエラーで止まる環境でも、残り物だけを掃除してから同じエラーで止まります。消すのは、中身が既知の実験版（`experimental/jev/KNOWN_RELEASES.sha256`）か今の配布物と一致する `.bak` と、それで空になった2つのディレクトリだけです。一致しない `.bak`（自分で編集したものなど）は消さずに残し、`[WARN] experimental_jev: N backup file(s) with unknown content kept` で始まる行が出ます。残っているのは自分で編集した中身なので、**消す前に一覧で確かめ、残したいものはプロジェクトの外へ退避してください。** 対象プロジェクトのルートで、まず 1・2 を実行します（一覧・退避ファイルは親ディレクトリに書くので、同じ名前のファイルがあれば先に名前を変えてください）:
 
   ```bash
   # 1. 残ったファイルを一覧にして確かめる

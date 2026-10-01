@@ -7,7 +7,7 @@
 - Goal: 「[System Name]を設計・実装し、実際に動作する状態にする」
 - Input: 要件定義（何を管理するか）、スコープ（プロパティ数・ビュー数の目安）、既存システムとの接続点（Relation先等）、初期データ（あれば）
 - Output: Database（プロパティ+ビュー+テンプレート）、初期データ投入済み、使い方ガイド
-- frontmatter（必須）: name（kebab-case）/ description / tools（最小権限）/ delegable（FlowにMob CPを含むならfalse）を先頭に付与（03-construction v2.1）
+- frontmatter（必須）: name（kebab-case）/ description / tools（最小権限）/ delegable（backlog の値を写す — 03-construction Phase 3）を先頭に付与
 
 ## Execution Flow（エスカレーション型）
 
@@ -23,6 +23,7 @@
 
 ## Guardrails
 
+- 独立レビュー: 04-operation Phase 5.5 に従う
 - Phase 3で実際にDatabaseを作成する（設計書だけで止めない）
 - Relation先のDBが存在することを確認してからRelationプロパティを設定
 - ビューは最低1つ（Table）を必ず作成

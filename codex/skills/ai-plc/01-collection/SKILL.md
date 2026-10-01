@@ -23,7 +23,7 @@ repository root基準で、次の4ファイルがregular fileとして存在し�
 1. 必須3 Rulesを上記順で最後まで読む。
 2. 正本`.claude/skills/ai-plc/01-collection/SKILL.md`を最後まで読む。
 3. 正本の手順を実行し、DB、Wiki、Rules、Templatesは`.claude/`配下へ解決する。
-4. Claude Codeのスラッシュ形式は、Codexでは`$01-collection`〜`$04-operation`へ変換する。
+4. Claude Codeのスラッシュ形式は、Codexでは`$01-collection`〜`$04-operation`へ変換する。自動完走モード（/goal で RUL_plc_session §10 を指すとき）は正本と共通。Collection・Inception の最後に出す「自動で進めるなら」の /goal 1行では、開始列を`$02-inception`等へ読み替える。
 5. Claude CodeのAgent toolは、ユーザーまたは適用中の指示が明示的に許可・要求した場合だけCodex sub-agentへ変換する。それ以外はメインエージェントで実行する。
 6. 正本のClaude Code native memory参照を`~/.claude`へ解決してはならない。Codexでは読取・更新とも行わず、該当Propagationは`変更なし — スキップ（Codex adapter: Claude native memory非対象）`と記録する。
 

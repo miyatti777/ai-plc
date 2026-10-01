@@ -9,7 +9,7 @@ This project uses AI-PLC (AI Product Lifecycle) as the primary workflow system.
 |-------|---------|-------|---------|
 | 1. Collection | `/project:01-collection` | `ai-plc/01-collection` | Goal設定・Context収集・Execution Context確立 |
 | 2. Inception | `/project:02-inception` | `ai-plc/02-inception` | Goal分解・Backlog生成 |
-| 3. Construction | `/project:03-construction` | `ai-plc/03-construction` | Agent定義生成・実行計画策定 |
+| 3. Construction | `/project:03-construction` | `ai-plc/03-construction` | Agent定義生成・実行計画策定（要るときだけ — RUL_plc_adaptive §6） |
 | 4. Operation | `/project:04-operation` | `ai-plc/04-operation` | タスク実行・成果物生成 |
 
 ### Key Files

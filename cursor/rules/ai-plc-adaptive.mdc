@@ -5,12 +5,16 @@ alwaysApply: true
 
 # AI-PLC Adaptive Workflow
 
+## When to Use (RUL_plc_adaptive §0)
+
+"Record broadly, keep procedures lean": decide separately whether a Layer (record) is needed and which safeguards apply. One-off / generic / personal work gets no Layer; work you will revisit or that spans sessions gets a Layer with ○/× done criteria; work needing repository- or org-specific context gets Context collection; decision material for others gets an independent review per task; irreversible actions by the AI (publish, send, core rules/skills, external DB, delete, money) need human approval first. If the depth suggested here differs from the criteria below, the criteria win and the reason goes in `workflow_depth_reason`.
+
 ## Workflow Depth Detection
 
 | Depth | Criteria | Pipeline Behavior | Verification |
 |-------|----------|-------------------|-------------|
-| Simple | Single domain, 1-2 tasks, known pattern | Stage 1→4 direct | L1 only |
-| Standard | Multiple tasks, no Sub-Layer needed | All 4 stages sequential | L1+L2 |
+| Simple | Single domain, 1-2 tasks, known pattern | Stage 1→4 direct (Stage 3 only when the conditions below apply) | L1 only |
+| Standard | Multiple tasks, no Sub-Layer needed | Stage 1→2→4 (Stage 3 only when the conditions below apply) | L1+L2 |
 | Complex | Recursive decomposition needed, large scale | All 4 stages + Sub-Layer recursion | L1+L2+L3+NFR |
 
 ## Mode Detection
@@ -25,8 +29,12 @@ alwaysApply: true
 | Current State | Next Action |
 |---------------|-------------|
 | Stage 1 complete | → Stage 2 (Inception) |
-| Stage 2 complete | → Stage 3 (Construction) |
+| Stage 2 complete | backlog `construction.required: true` → Stage 3 (Construction); false → Stage 4 (Operation) |
 | Stage 3 complete | → Stage 4 (Operation) |
 | Task complete (more remain) | → Next executable task |
 | All tasks complete (Direct) | → Pipeline end |
 | All tasks complete (Platform Builder) | → Production Skill generation |
+
+## Stage 3 (Construction) is skipped by default
+
+Run Stage 3 (Agent definitions) only when: complex depth, platform_builder mode, `construction_mode: always` in intent.yaml, a task with `delegable: true`, or an implementation/coding task with more than 5 steps. Whoever writes the backlog records the decision in the top-level `construction` (required / reason / tasks). Without Stage 3, Operation executes from the backlog (description, acceptance_criteria, guardrails, decisions) and Context. See RUL_plc_adaptive §6.

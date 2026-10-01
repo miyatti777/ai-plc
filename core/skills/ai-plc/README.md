@@ -8,7 +8,7 @@ Notion版AI-PLCパイプラインをClaude Code / Cursor環境に移植したス
 |-------|-------|------|
 | 1. Collection | `01-collection/SKILL.md` | Goal設定・Context収集・Execution Context確立 |
 | 2. Inception | `02-inception/SKILL.md` | Goal分析・再帰的分解・Backlog生成 |
-| 3. Construction | `03-construction/SKILL.md` | Harness（実行スキル）生成・Agent定義 |
+| 3. Construction | `03-construction/SKILL.md` | Agent定義（要るときだけ: complex・platform_builder・慎重モード・委譲・長い実装。RUL_plc_adaptive §6） |
 | 4. Operation | `04-operation/SKILL.md` | タスク実行・成果物生成・Post-Deliver Propagation |
 
 ## 関連ファイル

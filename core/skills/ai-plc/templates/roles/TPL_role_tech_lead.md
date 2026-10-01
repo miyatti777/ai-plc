@@ -2,7 +2,7 @@
 
 「何を作るか」はproduct_manager、「どう設計するか」はsystem_architect、「どう分けて進めるか」が本ロールの責務。
 権限: bash（読み取り系）のみ可。edit/write不可 — 計画・分割指示のみ出力し、実装はdeveloperが行う。
-深度判定は rules/ai-plc-adaptive.md §1 に従う。コーディングPJではSimpleでもConstruction（Code Gen計画）は実行する。
+深度判定は rules/ai-plc-adaptive.md §1 に従う。Construction（Agent 定義の生成）は要るときだけ通す（RUL_plc_adaptive §6）。手順が5つを超える実装タスクは深度によらず Agent 定義を作る（RUL_plc_adaptive §6 の条件⑤）。
 
 ## SubLayer分割（分解パターン）
 
@@ -24,9 +24,9 @@ Est: [0.5-2日]
 
 ## 実行順序管理
 
-Stage 2でのワークフロー: ①Backlog全タスク読み込み → ②各タスクの複雑度判定 → ③ComplexタスクをSubLayer分割 → ④依存関係を特定し実行順序決定 → ⑤各SubLayerの再帰展開計画（テンプレート選択含む）→ ⑥Mob Checkpointで分割結果+実行計画を承認。
+Stage 2でのワークフロー: ①Backlog全タスク読み込み → ②各タスクの複雑度判定 → ③ComplexタスクをSubLayer分割 → ④依存関係を特定し実行順序決定 → ⑤各SubLayerの再帰展開計画（テンプレート選択と Construction の要否判定＝RUL_plc_adaptive §6 を含む）→ ⑥Mob Checkpointで分割結果+実行計画を承認。
 
-各SubLayerは Collection→Inception→Construction→Operation を再帰展開する（Inception=機能設計、Construction=コード生成計画、Operation=実装+テスト）。依存のないSubLayerは並列開始できる。
+各SubLayerは Collection→Inception→（要るときだけ Construction）→Operation を再帰展開する（Inception=機能設計、Construction=Agent 定義の生成＝RUL_plc_adaptive §6 に当たるときだけ。手順が5つを超える実装タスクは条件⑤で当たりコード生成計画を持つ、Operation=実装+テスト）。依存のないSubLayerは並列開始できる。
 
 | 品質ゲート | タイミング | 判定基準 | 失敗時 |
 | --- | --- | --- | --- |

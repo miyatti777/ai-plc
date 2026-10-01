@@ -5,7 +5,7 @@ description: 【実験版・Jev監視つき】ai_plc_construction - AI-PLC Stage
 
 # AI-PLC Stage 3: Construction（Jev実験版）
 
-> 🧪 **実験版（ai-plc-jev 1.8.1-exp.1）:** 手順は本体 `.claude/skills/ai-plc/03-construction/SKILL.md` を**そのまま読んで実行する**。本ファイルは差分だけを定義する。Constructionに Jev の判定は入れない（Agent定義の項目有無はコードで、中身は Stage 4 の独立reviewerで見るため）。
+> 🧪 **実験版（ai-plc-jev 1.12.0-exp.1）:** 手順は本体 `.claude/skills/ai-plc/03-construction/SKILL.md` を**そのまま読んで実行する**。本ファイルは差分だけを定義する。呼ぶ条件は本体と同じ（RUL_plc_adaptive §6。Agent 定義が要るときだけ）。Constructionに Jev の判定は入れない（Agent定義の項目有無はコードで、中身は Stage 4 の独立reviewerで見るため）。
 
 ## 本体との差分
 1. **Next Action のコピペ用プロンプト:** `/04-operation-jev` 形式で書く

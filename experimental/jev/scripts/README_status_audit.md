@@ -104,6 +104,8 @@ L-0000-2:stale: N日以上更新なし（停滞） — 停滞の中身を確認 
 | 8 | `registry_task_missing` | backlog にあるタスクが Registry に無い | 対象外（行の追加が要る。§8） |
 | 9 | `registry_missing` | Layer はあるのに Registry に PJ の行が無い | 対象外（行の追加が要る。§8） |
 
+タスク同期の凍結中（`python3 .claude/db/sync.py tasks-sync --status` が FROZEN。core 1.12.0 以降の新しい DB は最初から凍結）は、Registry のタスク行を読まないので、分類 3・7・8 は出ない（タスクの正は backlog.yaml だけ — RUL_plc_system §9）。
+
 - Layer を探すときは、`Documents/`・隠しフォルダ（`.worktrees/` など）・`node_modules` などの依存フォルダの中は見ません（そこにある intent.yaml は Layer として扱わない）
 - 停滞の「最終更新日」は、`backlog.yaml` の更新時刻と、タスクの `completed_at` の最大値のうち新しい方です（`backlog.yaml` が無い Layer は `intent.yaml` の更新時刻）。同じ scope のフォルダが複数あるときは、全フォルダのうち新しい方を採ります。Registry の `updated_at` は使いません（作業が続いていても更新されないため）
 - 14 日以上・停滞の日数未満（既定では 14〜29 日）のものは停滞にせず、参考欄の `watch` に出します
@@ -226,7 +228,7 @@ python3 -c "import sqlite3; s=sqlite3.connect('.claude/db/ai_plc.db'); d=sqlite3
 
 | 分類 | どうするか |
 | --- | --- |
-| 8 Registry にタスク行が無い | `python3 .claude/db/plc_query.py add-task <task_id> <scope_id> "<タスク名>" [type] [priority]` で1行ずつ追加し、status など残りの列は `plc_query.py sql` の UPDATE で入れる。**本番 DB への書き込みなので、人の承認とバックアップの後に行う**。行の追加は `add-project` / `add-task` を使う（列の整合のため） |
+| 8 Registry にタスク行が無い | タスク同期の凍結中は出ない（行を足さない。凍結中の `add-task` は書き込まずに `[SKIP]`）。凍結していない DB での手順: `python3 .claude/db/plc_query.py add-task <task_id> <scope_id> "<タスク名>" [type] [priority]` で1行ずつ追加し、status など残りの列は `plc_query.py sql` の UPDATE で入れる。**本番 DB への書き込みなので、人の承認とバックアップの後に行う**。行の追加は `add-project` / `add-task` を使う（列の整合のため） |
 | 9 Registry に PJ 行が無い | `python3 .claude/db/plc_query.py add-project <scope_id> "<名前>" "<ゴール>"` で追加する（分類8のタスク行より先に）。同じく承認とバックアップの後 |
 | 4 Layer フォルダが見つからない | Notion 等の外部 DB と同期している場合はそちらと突き合わせて、実体がどこにあるか、Registry を閉じるか残すかを人が決める。決めた結果は `plc_query.py` で反映する |
 | 5 停滞 | 人が判断する（続ける／閉じる／他の Layer に引き継いだ）。閉じると決めたら、Layer 側を完了にしてから次の監査で分類1として反映する。Jev のヒントは材料の1つで、判断の後に `--override` で妥当／外れを記録する |

@@ -7,7 +7,7 @@
 - Goal: 「[Feature/Component]のコードを設計・実装し、テスト可能な状態にする」
 - Input: 要件定義/User Stories、既存コードベース情報（Brownfield時）、アーキテクチャ設計、NFR要件（opt-in）、SubLayer定義（分割時）
 - Output: コード生成計画（チェックボックス付き）、実装コード（ロジック+API+テスト）、テスト指示書、ドキュメント
-- frontmatter（必須）: name（kebab-case）/ description / tools（最小権限）/ delegable（FlowにMob CPを含むならfalse）を先頭に付与（03-construction v2.1）
+- frontmatter（必須）: name（kebab-case）/ description / tools（最小権限）/ delegable（backlog の値を写す — 03-construction Phase 3）を先頭に付与
 
 ## Execution Flow
 
@@ -32,6 +32,7 @@
 
 ## Guardrails
 
+- 独立レビュー: 04-operation Phase 5.5 に従う
 - コード配置: アプリケーションコードはワークスペースルート、ドキュメントは成果物ディレクトリ。Brownfieldは既存構造（`src/main/java/`等）、Greenfieldは `src/`・`tests/`・`config/`、複数SubLayer時は `{sublayer-name}/src/`
 - Brownfield修正: 既存ファイルはin-place修正（コピー禁止）、生成後に重複ファイルがないことを検証
 - 計画フェーズ: 番号付きステップ+User Storyトレーサビリティ+SubLayer依存関係を明記し、生成前に明示的な承認を得る

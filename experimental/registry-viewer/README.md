@@ -1,4 +1,4 @@
-# experimental/registry-viewer — Project Registry ビューア（アルファ版 0.2.0-alpha）
+# experimental/registry-viewer — Project Registry ビューア（アルファ版 0.2.1-alpha）
 
 AI-PLC の Project Registry（`.claude/db/ai_plc.db` の projects / tasks）を、ブラウザで見て、Project と Task の status を変えられるローカル専用のツールです。
 
@@ -101,7 +101,8 @@ python3 .claude/db/registry_viewer/server.py
 
 守っている決まり:
 
-- **行は足しません。** Registry への書き込みは `plc_query.py` の `cmd_sql` を通した UPDATE だけです。行を足すときは `plc_query.py add-project` / `add-task` を使ってください
+- **タスク同期の凍結中は Registry の tasks を読まず・書きません**（0.2.1-alpha〜）。`_metadata` に `task_sync_frozen` がある DB（core 1.12.0 以降で新しく作った DB は最初から凍結。`python3 .claude/db/sync.py tasks-sync --status` で確認）では、タスクの一覧・進捗・Project を閉じるときの未完了チェックは backlog.yaml だけを見て、Task の status の変更も backlog.yaml だけに書きます
+- **行は足しません。** Registry への書き込みは `plc_query.py` の `cmd_sql` を通した UPDATE だけです。行を足すときは `plc_query.py add-project` / `add-task`（`add-task` はタスク同期を凍結していない DB だけ。タスクの正は backlog.yaml）を使ってください
 - **YAML は status の1行だけを書き換えます。** 書き込む前に書き換え後のテキストを解析し、status 以外が変わっていないことを確かめます。コメントや並び順はそのまま残ります
 - **画面を読んだ後に値が変わっていたら、何も書きません**（409。再読み込みしてからやり直してください）。Task の変更で書く backlog.yaml は、置き換える直前にも中身が変わっていないかを確かめます
 - **Registry への書き込みに失敗したら、先に書いた YAML を元に戻します。** 書き戻しにも失敗したときや、途中でプロセスが止まったときは戻りません。その場合は、次に読み込んだときに `status差` や `食い違い` として表示され、ステータス点検でも検出されます

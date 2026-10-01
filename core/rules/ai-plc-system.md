@@ -86,7 +86,7 @@ Phase 7では以下のチェックリストを必ず出力する:
 - [x] backlog.yaml更新 — [タスクID] status → completed + Output: [成果物パス]
 - [x] context.yaml更新 — 成果物エントリ [ファイル名] を追加
 - [x] native memory — [概念ページ追記/新規/PJメモリ更新 or 「変更なし — スキップ」]（§7の2系統振り分けに従う）
-- [x] External Sync — [sync_targets確認: 「未定義→スキップ」 or 「push実行: N件」]
+- [x] External Sync — [sync_targets確認: 「未定義→スキップ」 or 「push実行: N件」]（sqlite の tasks は凍結のため対象外 — §9）
 - [x] Wiki波及更新 — [ingest / query-return の更新内容 or 「新規性なし — スキップ」]（Query結果が §11発火点①に該当すればqueryページ化＋概念還元）
 - [x] log.md — [エントリ追加 or 「Wiki更新なしのためスキップ」]
 - [x] Project Registry DB — [「未完了タスクあり→スキップ」 or 「全完了→completed更新」]
@@ -126,7 +126,9 @@ sync_targets:
     sync_direction: push # push / pull / bidirectional
 ```
 
-**実行手順:** ①intent.yamlのsync_targetsを読む ②空→デフォルト（`.claude/db/ai_plc.db` の tasks テーブル、auto_create: true, push）を自動適用 ③mapping/status_mapで変換しsync_directionに従い同期（sqliteの新規タスク行は `python3 .claude/db/plc_query.py add-task` で追加し、直接INSERTしない） ④結果をログ出力「✅ External Sync: [type] [target] — [タスクID] を [ステータス] に更新」。ユーザーが「同期不要」と明言した場合のみ `sync_targets: []` のまま。
+**実行手順:** ①intent.yamlのsync_targetsを読む ②空→デフォルト（`.claude/db/ai_plc.db` の projects テーブル、push。Project 行の status 等は Phase 7 の Project Registry DB 項目で更新する）を自動適用。sqlite の projects が同期先のときは Phase 7 の Project Registry DB 項目がその更新を兼ねるので、External Sync 行は「Project Registry DB で反映→スキップ」と書く ③mapping/status_mapで変換しsync_directionに従い同期 ④結果をログ出力「✅ External Sync: [type] [target] — [ID] を [ステータス] に更新」。ユーザーが「同期不要」と明言した場合のみ `sync_targets: []` のまま。
+
+**タスクは同期しない:** Registry のローカル tasks テーブルは backlog.yaml の古い写しとして凍結する（新しく作った DB は最初から凍結。既存の DB は `python3 .claude/db/sync.py tasks-sync --freeze --approved-by <名前>` で凍結し、状態は `python3 .claude/db/sync.py tasks-sync --status` で確かめる）。タスクの正は backlog.yaml だけで、`plc_query.py add-task` で行を足さない（凍結中は書き込まずに `[SKIP]` を出す）。既存 Layer の sync_targets に `.claude/db/ai_plc.db#tasks` が書かれていても、書き換えずに読む側で無視する。Notion 同期（`sync.py`）を使う場合も、凍結中はタスクを Notion へ送らず、Notion からも取り込まない（Projects だけを同期する）。
 
 ## 10. 🧹 Knowledge Lint ルール
 
@@ -230,5 +232,5 @@ intent.yamlの`extensions`フィールドで宣言し、該当時のみ追加チ
 適用: Collection時にextensionsを読み込み、各Stageで追加チェックを適用、§18のL2/L3に項目を追加する。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-09-29 ｜ **ステータス:** Active
-**バージョン:** 2.4（§6 の現行ユーティリティに plc-backfill を追加）｜ 2.3（§6 の現行ユーティリティに plc-consult を追加）｜ 2.2（§6 に呼び出し名の表を追加: ユーティリティは `plc-<機能>`・`.claude/skills/` 直下）｜ 2.1（§8 Phase 7 チェックリストにステータス点検を追加。点検ツールは experimental/jev 同梱のため、未導入ならスキップ）｜ 2.0（Fable観点軽量化: §番号据え置きで本文圧縮、§13→§11統合、Lint詳細を分離ファイルへ、Wiki波及はOperation Propagation時のみに一本化）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-10-01 ｜ **ステータス:** Active
+**バージョン:** 2.5（§9 External Sync の既定を projects に・タスクは同期しない〔tasks は凍結・add-task を使わない〕／§8 の External Sync 行に注記）｜ 2.4（§6 の現行ユーティリティに plc-backfill を追加）｜ 2.3（§6 の現行ユーティリティに plc-consult を追加）｜ 2.2（§6 に呼び出し名の表を追加: ユーティリティは `plc-<機能>`・`.claude/skills/` 直下）｜ 2.1（§8 Phase 7 チェックリストにステータス点検を追加。点検ツールは experimental/jev 同梱のため、未導入ならスキップ）｜ 2.0（Fable観点軽量化: §番号据え置きで本文圧縮、§13→§11統合、Lint詳細を分離ファイルへ、Wiki波及はOperation Propagation時のみに一本化）
