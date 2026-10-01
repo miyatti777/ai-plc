@@ -140,4 +140,4 @@ BT-B（ゴールドリフト）/ BT-C（全完了GAP分析）から scope_reinit
 intent.yaml / context.yaml / Context/（常に） / backlog.yaml（空で初期生成） / variables.yaml（platform_builder時のみ）→ Stage 2: SKL_plc_02_inception へ。
 
 ---
-**作成日:** 2026-04-06 ｜ **更新日:** 2026-10-01 ｜ **バージョン:** 2.2-jev（公開実験版 1.12.0-exp.1。公開 core 01-collection 2.2 に Jev 監視の opt-in を足したもの）｜ 2.1-jev（公開実験版 1.8.1-exp.1）
+**作成日:** 2026-04-06 ｜ **更新日:** 2026-10-01 ｜ **バージョン:** 2.2-jev（公開実験版 1.12.0-exp.1。公開 core 01-collection 2.2 に Jev 監視の opt-in を足したもの。Phase 6.5 の External Sync の既定を projects に〔タスクは同期しない — RUL_plc_system §9〕も core 2.2 と同じ）｜ 2.1-jev（公開実験版 1.8.1-exp.1）

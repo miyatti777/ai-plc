@@ -15,6 +15,7 @@ Usage:
 （`python3 .claude/db/sync.py tasks-sync --status`）は読みも書きもしない。
 """
 
+import json
 import os
 import re
 import sqlite3
@@ -65,12 +66,26 @@ def cmd_projects(conn):
 
 
 def _tasks_frozen(conn):
-    """Local tasks are a frozen copy; each Layer's backlog.yaml is the source."""
+    """Local tasks are a frozen copy; each Layer's backlog.yaml is the source.
+
+    A malformed freeze record still counts as frozen here (never write task rows by
+    mistake) but prints a warning; sync.py stops on it and `sync.py tasks-sync
+    --unfreeze --approved-by NAME` clears it."""
     try:
-        return conn.execute("SELECT 1 FROM _metadata WHERE key=?",
-                            (TASK_FREEZE_KEY,)).fetchone() is not None
+        row = conn.execute("SELECT value FROM _metadata WHERE key=?", (TASK_FREEZE_KEY,)).fetchone()
     except sqlite3.OperationalError:
         return False
+    if row is None:
+        return False
+    try:
+        record = json.loads(row[0])
+        ok = isinstance(record, dict) and isinstance(record.get("approved_by"), str)
+    except (ValueError, TypeError):
+        ok = False
+    if not ok:
+        print("WARNING: the task freeze record is malformed; treating tasks as frozen "
+              "(check: python3 .claude/db/sync.py tasks-sync --status)", file=sys.stderr)
+    return True
 
 
 def _layer_backlogs(scope_filter=None):

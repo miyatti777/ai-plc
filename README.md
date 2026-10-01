@@ -765,6 +765,7 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 
 - core だけの環境では**閲覧のみ**、Jev 実験版（`--with-jev`）を入れた環境では status の変更やステータス点検の指摘も使えます
 - status を変えると Layer のファイルと Registry の両方を書き換えます。試す前にバックアップを取ってください（手順と、書き換わる範囲・戻し方は [`experimental/registry-viewer/README.md`](experimental/registry-viewer/README.md)）
+- 0.2.1-alpha から、タスク同期を凍結した DB（v1.12.0 以降の新しい DB）では Registry の tasks を読まず・書かず、タスクは backlog.yaml だけで扱います
 - 0.2.0-alpha から、各 Project に分類（所属・種類・実行環境）を付けて、一覧のバッジと絞り込みで見分けられます（`classify.py`。手順は同じ README の「分類」）
 - macOS のメニューバーアプリのソース（自分でビルドする）も同梱しています。試した結果の報告は Issue で歓迎します
 

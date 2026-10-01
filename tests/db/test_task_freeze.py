@@ -127,6 +127,41 @@ class TaskFreeze(unittest.TestCase):
                          .returncode, 2)
 
 
+    def test_malformed_record_can_be_cleared_from_the_cli(self) -> None:
+        self.run_py("init_db.py")
+        with sqlite3.connect(self.db) as conn:
+            conn.execute("UPDATE _metadata SET value='not json' WHERE key=?", (FREEZE_KEY,))
+        status = self.run_py("sync.py", "tasks-sync", "--status")
+        self.assertEqual(status.returncode, 3)
+        self.assertIn("MALFORMED", status.stdout)
+        self.assertIn("--unfreeze --approved-by", status.stdout)
+        self.assertEqual(self.run_py("sync.py", "tasks-sync", "--freeze", "--approved-by", "owner")
+                         .returncode, 3)
+        added = self.run_py("plc_query.py", "add-task", "T001", "T-SCOPE-1", "name")
+        self.assertIn("[SKIP]", added.stdout)  # still treated as frozen, with a warning
+        self.assertIn("malformed", added.stderr)
+        self.assertEqual(self.task_count(), 0)
+        unfreeze = self.run_py("sync.py", "tasks-sync", "--unfreeze", "--approved-by", "owner")
+        self.assertEqual(unfreeze.returncode, 0, unfreeze.stdout)
+        self.assertIsNone(self.freeze_record())
+        with sqlite3.connect(self.db) as conn:
+            history = [json.loads(v) for (v,) in conn.execute(
+                "SELECT value FROM _metadata WHERE key LIKE 'task_sync_unfrozen:%'")]
+        self.assertEqual(history[0]["previous"], {"malformed_record": "not json"})
+        self.assertEqual(self.run_py("sync.py", "tasks-sync", "--freeze", "--approved-by", "owner")
+                         .returncode, 0)
+
+    def test_unfreeze_history_keys_are_unique(self) -> None:
+        self.run_py("init_db.py")
+        for _ in range(3):
+            self.assertEqual(self.run_py("sync.py", "tasks-sync", "--unfreeze", "--approved-by", "o")
+                             .returncode, 0)
+            self.assertEqual(self.run_py("sync.py", "tasks-sync", "--freeze", "--approved-by", "o")
+                             .returncode, 0)
+        with sqlite3.connect(self.db) as conn:
+            n = conn.execute("SELECT COUNT(*) FROM _metadata WHERE key LIKE 'task_sync_unfrozen:%'").fetchone()[0]
+        self.assertEqual(n, 3)
+
 @unittest.skipIf(sys.version_info < (3, 11), "the installer needs Python 3.11+ (sqlite serialize)")
 class InstalledDbIsFrozen(unittest.TestCase):
     def test_install_cc_creates_frozen_db_and_keeps_existing(self) -> None:

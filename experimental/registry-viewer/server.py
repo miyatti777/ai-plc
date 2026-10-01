@@ -122,6 +122,16 @@ def _yaml(path: Path) -> dict:
         return {}
 
 
+def _registry_tasks_frozen(conn):
+    """`sync.py tasks-sync --freeze`（または core 1.12.0 以降の新しい DB）でタスク同期が凍結されていれば、
+    Registry の tasks テーブルは古い写しで、タスクの正は backlog.yaml だけ（読まない・書かない）"""
+    try:
+        return conn.execute(
+            "SELECT 1 FROM _metadata WHERE key='task_sync_frozen'").fetchone() is not None
+    except sqlite3.OperationalError:
+        return False
+
+
 class _ReadonlyAudit:
     """aiplc_status_audit が無い環境用の最小の代替（読み取りだけ）。書き込み・食い違い検出・機密判定はしない"""
     SKIP = frozenset({"Documents", "node_modules", "__pycache__", "venv", "site-packages"})
@@ -425,8 +435,9 @@ class Registry:
         try:
             projects = {r["scope_id"]: r for r in conn.execute("SELECT * FROM projects ORDER BY scope_id")}
             reg_tasks = {}
-            for r in conn.execute("SELECT * FROM tasks ORDER BY scope_id, task_id"):
-                reg_tasks.setdefault(r["scope_id"], []).append(r)
+            if not _registry_tasks_frozen(conn):  # 凍結中は backlog.yaml だけを見る
+                for r in conn.execute("SELECT * FROM tasks ORDER BY scope_id, task_id"):
+                    reg_tasks.setdefault(r["scope_id"], []).append(r)
             cls = self._read_classification(conn)
         finally:
             conn.close()
@@ -684,7 +695,7 @@ class Registry:
                 conn = self._ro()
                 try:
                     vocab = self.audit.task_vocab(self.audit.detect_task_vocab(conn), layer)
-                    reg_open = conn.execute(
+                    reg_open = 0 if _registry_tasks_frozen(conn) else conn.execute(
                         f"SELECT COUNT(*) FROM tasks WHERE scope_id=? AND status NOT IN "
                         f"({','.join('?' * len(vocab['done_set']))})", (sid, *sorted(vocab["done_set"]))).fetchone()[0]
                 finally:
@@ -736,7 +747,8 @@ class Registry:
                 cur_layer = None
             conn = self._ro()
             try:
-                rows = conn.execute("SELECT status FROM tasks WHERE scope_id=? AND task_id=?", (sid, tid)).fetchall()
+                rows = [] if _registry_tasks_frozen(conn) else conn.execute(
+                    "SELECT status FROM tasks WHERE scope_id=? AND task_id=?", (sid, tid)).fetchall()
                 vocab = self.audit.task_vocab(self.audit.detect_task_vocab(conn), layer)
             finally:
                 conn.close()

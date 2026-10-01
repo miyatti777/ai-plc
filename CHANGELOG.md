@@ -40,7 +40,7 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 ### 変更: Registry の tasks を凍結（タスクの正は backlog.yaml）
 
 - タスクの正を各 Layer の `backlog.yaml` だけにしました。Registry（`.claude/db/ai_plc.db`）の `tasks` テーブルは古い写しとして凍結し、External Sync の既定を `tasks` テーブルから **`projects` テーブル**に変えました（`ai-plc-system.md` §8・§9、v2.5）。既存 Layer の `sync_targets` に `.claude/db/ai_plc.db#tasks` が書かれていても、書き換えずに読む側で無視します
-- `sync.py tasks-sync --status | --freeze --approved-by <名前> [--reason <理由>] | --unfreeze --approved-by <名前>` を追加。凍結の印は `_metadata` の `task_sync_frozen`（承認者・理由・日時の JSON）で、解除すると `task_sync_unfrozen:<日時>` に履歴が残ります。`tasks-sync` は Notion の設定なしで使えます
+- `sync.py tasks-sync --status | --freeze --approved-by <名前> [--reason <理由>] | --unfreeze --approved-by <名前>` を追加。凍結の印が壊れていれば `--status` は `MALFORMED`（終了コード 3）と出し、`--unfreeze` で壊れた印を履歴に退避して消せます。凍結の印は `_metadata` の `task_sync_frozen`（承認者・理由・日時の JSON）で、解除すると `task_sync_unfrozen:<日時>` に履歴が残ります。`tasks-sync` は Notion の設定なしで使えます
 - 凍結中は、`plc_query.py add-task` が書き込まずに `[SKIP]` を出して終了コード 0（古い手順から呼ばれても止めない）、`plc_query.py tasks` は各 Layer の backlog.yaml を表示、`dashboard` はタスクの集計を出しません。`sync.py` の pull / push / sync / status は Projects だけを扱い、Notion の Tasks DB には問い合わせません（`AI_PLC_TASKS_DB_ID` も不要）
 - **新しくインストールした DB は最初から凍結**されます（`init_db.py` が新しい DB を作るときだけ、`approved_by: "installer"` の印を入れる）。**既存の DB は installer から書き換えません。** v1.11.0 以前から使っている環境は、更新の後に `python3 .claude/db/sync.py tasks-sync --freeze --approved-by <名前>` を1回実行してください。凍結しても tasks テーブルの行は消えません
 - `/plc-registry`・`/plc-backfill`（Phase 7 で add-task をしない）・`/01-collection`（Phase 6.5 の既定）・`core/db/README.md` を合わせて更新。自動完走（§10）の書き込み範囲も「ローカル sqlite は projects の追加・更新だけで、tasks 行は書かない」にしました
@@ -55,11 +55,13 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 ### 版
 
 - rules: `ai-plc-session.md` 2.1・`ai-plc-adaptive.md` 2.5・`ai-plc-system.md` 2.5
+- 同じリリースの中で後から足した変更（tasks の凍結など）は、版を重ねて上げず、この版で上げた番号（session 2.1・01-collection 2.2 など）の説明に追記しています
 - スキル: `01-collection` 2.2・`02-inception` 2.1・`03-construction` 2.3・`04-operation` 2.8
 
-### 同梱: Registry ビューア 0.2.0-alpha（installer 対象外・1.11.0 の後に main に入っていたもの）
+### 同梱: Registry ビューア 0.2.1-alpha（installer 対象外）
 
-- `experimental/registry-viewer/` に **分類（所属・種類・実行環境）** を追加。intent.yaml の `classification` とタスクの `executed_by` を正本に、Registry の別表（`project_classification` / `task_execution`。projects / tasks の列は変えない）へ写し、ビューアの一覧のバッジと絞り込みで見分けられるようにした。`classify.py`（語彙の検査・表の作成・写し・既存 Project の候補提案と承認反映）と語彙のサンプルを同梱。core のスキルは変えていないので、分類は手で書くか `classify.py suggest` → `apply` で付ける
+- 0.2.1-alpha: タスク同期の凍結（上の「Registry の tasks を凍結」）に対応。凍結中は Registry の tasks 行を読まず（一覧・詳細・進捗）、Project を閉じるときの未完了チェックにも数えず、Task の status の変更でも tasks に UPDATE しません（backlog.yaml だけ）。テストを追加
+- 0.2.0-alpha（1.11.0 の後に main に入っていたもの）: `experimental/registry-viewer/` に **分類（所属・種類・実行環境）** を追加。intent.yaml の `classification` とタスクの `executed_by` を正本に、Registry の別表（`project_classification` / `task_execution`。projects / tasks の列は変えない）へ写し、ビューアの一覧のバッジと絞り込みで見分けられるようにした。`classify.py`（語彙の検査・表の作成・写し・既存 Project の候補提案と承認反映）と語彙のサンプルを同梱。core のスキルは変えていないので、分類は手で書くか `classify.py suggest` → `apply` で付ける
 
 ## [実験版 1.12.0-exp.1] - 2026-10-01
 

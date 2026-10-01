@@ -784,5 +784,50 @@ kind:
         self.assertIsNone(data["projects"][0]["classification"])
 
 
+class TaskFreezeTests(Base):
+    """タスク同期の凍結中（_metadata の task_sync_frozen）は、Registry の古い tasks 行を読まず・書かない"""
+
+    def setUp(self):
+        super().setUp()
+        self.parent = self._sid("親PJ")
+        self.done = self._sid("全部完了")
+        conn = sqlite3.connect(self.db)
+        conn.execute("CREATE TABLE IF NOT EXISTS _metadata (key TEXT PRIMARY KEY, value TEXT)")
+        conn.execute("INSERT OR REPLACE INTO _metadata (key, value) VALUES ('task_sync_frozen', ?)",
+                     (json.dumps({"approved_by": "test", "reason": "", "frozen_at": "2099-01-01T00:00:00Z"}),))
+        # 凍結前に残った古い行: 完了済み Layer に未完了の Registry タスク
+        conn.execute("INSERT INTO tasks (task_id, scope_id, name, status, priority) VALUES (?,?,?,?,?)",
+                     ("T009", self.done, "古い写し", self.V["todo"], "P1"))
+        conn.commit()
+        conn.close()
+
+    def _sid(self, name):
+        return self.reg_status("SELECT scope_id FROM projects WHERE name=?", (name,))[0]
+
+    def test_detail_ignores_registry_tasks(self):
+        d = self.reg.project_detail(self.parent)
+        tasks = {t["task_id"]: t for t in d["tasks"]}
+        self.assertEqual(list(tasks), ["T001", "T002", "T003"])  # Registry だけの T004 は出ない
+        self.assertFalse(any(t["in_registry"] for t in tasks.values()))
+
+    def test_task_write_touches_backlog_only(self):
+        before = self.reg_status("SELECT status FROM tasks WHERE scope_id=? AND task_id=?", (self.parent, "T002"))[0]
+        r = self.reg.set_task_status(self.parent, "T002", "completed", {"backlog": "pending", "registry": None})
+        self.assertEqual(r["wrote"], ["Flow/209901/2099-01-01/parent-layer/backlog.yaml"])
+        self.assertIn("    status: completed", self.backlog_text())
+        after = self.reg_status("SELECT status FROM tasks WHERE scope_id=? AND task_id=?", (self.parent, "T002"))[0]
+        self.assertEqual(after, before)
+
+    def test_registry_only_task_is_not_found(self):
+        with self.assertRaises(server.WriteError) as cm:
+            self.reg.set_task_status(self.parent, "T004", "completed", {"backlog": None, "registry": self.V["wip"]})
+        self.assertEqual(cm.exception.code, 404)
+
+    def test_complete_ignores_stale_open_rows(self):
+        r = self.reg.set_project_status(self.done, "completed", {"intent": "active", "registry": "active"})
+        self.assertIn("registry.projects", r["wrote"])
+        self.assertEqual(self.reg_status("SELECT status FROM projects WHERE scope_id=?", (self.done,))[0], "completed")
+
+
 if __name__ == "__main__":
     unittest.main()

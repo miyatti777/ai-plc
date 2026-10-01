@@ -314,20 +314,46 @@ def _meta_set(conn, key, value):
     )
 
 
-def _task_sync_frozen(conn):
-    """Local tasks are a frozen copy of backlog.yaml; never synced while frozen."""
+def _task_freeze_state(conn):
+    """("active", None) / ("frozen", record) / ("malformed", raw_value) for the freeze record."""
     value = _meta_get(conn, TASK_FREEZE_KEY)
     if value is None:
-        return False
+        return "active", None
     try:
         record = json.loads(value)
         if not isinstance(record, dict) or not isinstance(record.get("approved_by"), str):
             raise ValueError
     except (ValueError, TypeError):
+        return "malformed", value
+    return "frozen", record
+
+
+MALFORMED_HELP = ("The record can be cleared (it is kept in the history) with:\n"
+                  "  python3 .claude/db/sync.py tasks-sync --unfreeze --approved-by <NAME>\n"
+                  "and then frozen again with:\n"
+                  "  python3 .claude/db/sync.py tasks-sync --freeze --approved-by <NAME>")
+
+
+def _task_sync_frozen(conn):
+    """Local tasks are a frozen copy of backlog.yaml; never synced while frozen.
+
+    A malformed record stops pull / push / sync / status (exit 3) instead of guessing."""
+    state, _ = _task_freeze_state(conn)
+    if state == "malformed":
         print("ERROR: the task freeze record in _metadata (%s) is malformed" % TASK_FREEZE_KEY)
-        print("Check it with: python3 .claude/db/sync.py tasks-sync --status")
+        print(MALFORMED_HELP)
         sys.exit(3)
-    return True
+    return state == "frozen"
+
+
+def _history_key(conn, prefix):
+    """A unique history key: <prefix><UTC time with microseconds>[-N]."""
+    base = prefix + datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    key, n = base, 1
+    while _meta_get(conn, key) is not None:
+        n += 1
+        key = "%s-%d" % (base, n)
+    return key
 
 
 # ── TASKS-SYNC (freeze / unfreeze / status) ───────────────
@@ -360,40 +386,55 @@ def cmd_tasks_sync(args):
 
     conn = _get_conn()
     try:
-        frozen = _task_sync_frozen(conn)
         if mode == "--status":
-            if frozen:
-                record = json.loads(_meta_get(conn, TASK_FREEZE_KEY))
+            state, record = _task_freeze_state(conn)
+            if state == "frozen":
                 print("Task sync: FROZEN (tasks are not pushed or pulled; backlog.yaml is the "
                       "source) approved_by=%s at=%s" % (record.get("approved_by"),
                                                        record.get("frozen_at")))
-            else:
-                print("Task sync: active")
+                return 0
+            if state == "malformed":
+                print("Task sync: MALFORMED (the freeze record in _metadata is unreadable; "
+                      "pull / push / sync / status stop until it is fixed)")
+                print(MALFORMED_HELP)
+                return 3
+            print("Task sync: active")
             return 0
+        approved_by = approved_by.strip()
         conn.execute("BEGIN IMMEDIATE")
+        state, record = _task_freeze_state(conn)  # read inside the write lock
         if mode == "--freeze":
-            if frozen:
+            if state == "frozen":
                 conn.rollback()
                 print("  [FREEZE] already frozen (no change)")
                 return 0
+            if state == "malformed":
+                conn.rollback()
+                print("ERROR: the task freeze record in _metadata is malformed")
+                print(MALFORMED_HELP)
+                return 3
             _meta_set(conn, TASK_FREEZE_KEY, json.dumps({
-                "approved_by": approved_by.strip(), "reason": reason or "",
+                "approved_by": approved_by, "reason": reason or "",
                 "frozen_at": _now_iso()}, ensure_ascii=False, sort_keys=True))
             conn.commit()
             print("  [FREEZE] task sync frozen by %s — the tasks table and the Notion Tasks DB "
-                  "are left as they are" % approved_by.strip())
+                  "are left as they are" % approved_by)
             return 0
-        if not frozen:
+        if state == "active":
             conn.rollback()
             print("ERROR: task sync is not frozen (check: tasks-sync --status)")
             return 2
-        previous = _meta_get(conn, TASK_FREEZE_KEY)
+        previous = record if state == "frozen" else {"malformed_record": record}
         conn.execute("DELETE FROM _metadata WHERE key=?", (TASK_FREEZE_KEY,))
-        _meta_set(conn, "task_sync_unfrozen:%s" % _now_iso(), json.dumps({
-            "unfrozen_by": approved_by.strip(), "previous": json.loads(previous)},
+        _meta_set(conn, _history_key(conn, "task_sync_unfrozen:"), json.dumps({
+            "unfrozen_by": approved_by, "previous": previous},
             ensure_ascii=False, sort_keys=True))
         conn.commit()
-        print("  [UNFREEZE] task sync re-enabled by %s" % approved_by.strip())
+        if state == "malformed":
+            print("  [UNFREEZE] malformed freeze record removed by %s (kept in the history); "
+                  "freeze again with --freeze --approved-by <NAME>" % approved_by)
+        else:
+            print("  [UNFREEZE] task sync re-enabled by %s" % approved_by)
         return 0
     finally:
         conn.close()

@@ -44,6 +44,8 @@ python3 .claude/db/sync.py tasks-sync --unfreeze --approved-by <名前>         
 - v1.11.0 以前から使っている DB は、installer が書き換えないので凍結されていません。更新の後に `--freeze` を1回実行してください
 - 凍結しても tasks テーブルの行は消えません（古い写しとして残るだけ）。凍結中、`sync.py` の pull / push / sync / status は Projects だけを扱い、Notion の Tasks DB には問い合わせません（`AI_PLC_TASKS_DB_ID` も不要）
 - Notion の設定が無くても `tasks-sync` は使えます
+- 凍結の印が壊れていると、`tasks-sync --status` は `MALFORMED` と出して終了コード 3、`sync.py` の pull / push / sync / status も止まります（`plc_query.py` は凍結として扱い、警告を1行出します）。`tasks-sync --unfreeze --approved-by <名前>` で壊れた印を履歴（`task_sync_unfrozen:<日時>`）に退避して消し、必要なら `--freeze` し直します
+- 凍結中の `plc_query.py tasks` は、プロジェクトのルートから intent.yaml を探して backlog.yaml を読みます。隠しフォルダ・`node_modules`・`Documents` などは見ず、シンボリックリンクはたどりません。同じ scope_id の Layer が複数あるときは最初に見つかった1つだけを表示します
 
 ## Notion 同期（任意・上級）
 
