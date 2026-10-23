@@ -96,9 +96,9 @@ def inventory(distribution: Path, environments: set[str],
         shared_owners = environments & {"cc", "codex"}
         if shared_owners:
             add_tree(source, "core/skills", ".claude/skills", "shared_claude_runtime", shared_owners, entries, payloads)
-            for name in ("ai-plc-system.md", "ai-plc-session.md", "ai-plc-adaptive.md"):
+            for name in ("ai-plc-system.md", "ai-plc-session.md", "ai-plc-adaptive.md", "ai-plc-model-routing.md"):
                 add_file(source, f"core/rules/{name}", f".claude/rules/{name}", "shared_claude_runtime", shared_owners, entries, payloads)
-            for name in ("init_db.py", "plc_query.py", "sync.py", "README.md"):
+            for name in ("init_db.py", "plc_query.py", "sync.py", "README.md", "project_lifecycle.py", "plc_explain.py"):
                 add_file(source, f"core/db/{name}", f".claude/db/{name}", "shared_claude_runtime", shared_owners, entries, payloads)
         if "cc" in environments:
             add_tree(source, "claude/commands", ".claude/commands", "cc_runtime", {"cc"}, entries, payloads)
@@ -106,7 +106,7 @@ def inventory(distribution: Path, environments: set[str],
         if "cursor" in environments:
             add_tree(source, "core/skills", ".cursor/skills", "cursor_runtime", {"cursor"}, entries, payloads)
             add_tree(source, "cursor/rules", ".cursor/rules", "cursor_runtime", {"cursor"}, entries, payloads)
-            for name in ("init_db.py", "plc_query.py", "sync.py", "README.md"):
+            for name in ("init_db.py", "plc_query.py", "sync.py", "README.md", "project_lifecycle.py", "plc_explain.py"):
                 add_file(source, f"core/db/{name}", f".cursor/db/{name}", "cursor_runtime", {"cursor"}, entries, payloads)
         if "codex" in environments:
             add_tree(source, "codex/skills/ai-plc", ".agents/skills/ai-plc", "codex_adapter", {"codex"}, entries, payloads)
@@ -240,7 +240,7 @@ def legacy_adoption(root: safe.SafeRoot, catalogs: list[dict[str, Any]], detecte
 def legacy_manifest_from_adoption(adopted: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Manifest seed for adopted legacy environments.
 
-    Matched and modified items keep the catalog hash (P1-4): modified ones then surface as
+    Matched and modified items keep the catalog hash: modified ones then surface as
     user-modified managed items. Missing and special items are not recorded."""
     legacy: dict[str, Any] = {"environments": list(adopted), "managed_files": {}, "managed_regions": {}}
     versions: dict[str, str] = {}
@@ -292,7 +292,7 @@ def manifest_from_legacy(legacy: dict[str, Any], versions: dict[str, str]) -> di
     for env in legacy["environments"]:
         manifest["environments"][env] = {"version": versions[env]}
     for path, item in legacy["managed_files"].items():
-        if path == safe.VERSION_MARKER:  # handled by version_marker, never as a managed file (P1-1)
+        if path == safe.VERSION_MARKER:  # handled by version_marker, never as a managed file
             continue
         owner = item["owner"]
         component = "cursor_runtime" if owner == "cursor" else (
@@ -977,7 +977,7 @@ def record_user_backups(root: safe.SafeRoot, tx: safe.Transaction, plan: dict[st
     """Append this run's user backups to the manifest (just before it is written).
 
     Only paths the plan classified as user changes are recorded; routine .bak files are not. Rows of
-    earlier runs whose .bak no longer exists are dropped (P3-4)."""
+    earlier runs whose .bak no longer exists are dropped."""
     planned = {item["path"]: item["reason"] for item in upgrade_info(plan)["backups"]}
     rows: list[dict[str, str]] = []
     stamp = safe.utc_stamp()
@@ -1077,7 +1077,7 @@ def build_uninstall_plan(distribution: Path, root: safe.SafeRoot, mode: str) -> 
         requested = requested & {"cc", "cursor"}
         manifest = None
         detected = safe.detect_legacy_environments(root)
-        if detected:  # D1 for uninstall: exact matches only, never estimated (P2-6)
+        if detected:  # D1 for uninstall: exact matches only, never estimated
             try:
                 catalogs = safe.load_legacy_catalogs(distribution)
             except safe.InstallError:

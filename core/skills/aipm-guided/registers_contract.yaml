@@ -1,0 +1,130 @@
+# AIPM モードの案件側の一覧（registers）の契約。intent の aipm.registers: true のときだけ使う。
+# format_schema.yaml（固定版の契約）は変えない。
+# 版: これは最新版（v2）。旧版は registers_contract.v<版>.yaml にバイト単位で凍結して残し、保存済みの package は
+#     format_contract.yaml の registers_contract_version の版で組み立て・検査する。中身を変えるときは版と接尾を上げ、旧版を凍結して残す。
+version: 2
+contract_suffix: '+registers.2'
+root: registers
+upstream_canonical_unchanged: true
+files:
+  hypotheses:
+    path: registers/hypotheses.yaml
+    top_required: [hypotheses]
+    id_pattern: '^H\d+$'
+    required: [id, kind, claim, status]
+    optional: [issue_id, evidence, expected_value, risk_note, method, success, falsification, priority, due, legacy_ref, judgements, sources]
+    kind: [opportunity, problem, solution, validation]
+    kind_rule:   # how to choose kind (who the claim is about)
+      opportunity: 相手の機会
+      problem: 相手の課題
+      solution: 自分（こちら）の打ち手
+      validation: 検証の仮説（手順6）
+    status: [unknown, not_supported, structurally_supported, supported]
+    priority: [critical, high, medium]
+    judgement:
+      required: [date, event, verdict, judged_by]
+      optional: [evidence_ref, note]
+      verdict: [supported, not_supported, undetermined]
+      judged_by: [owner, decider, ai_proxy]
+  issues:
+    path: registers/issues.yaml
+    list_key: issues
+    top_required: [charter, issues]
+    charter_required: [change_conditions, exit_conditions]
+    id_pattern: '^I\d+$'
+    required: [id, question, status, priority]
+    optional: [owner, due, answer, parent, reason, validation_plan, evidence_refs, decided_by, review_at, sources]
+    status: [open, resolved, not_needed, cancelled, on_hold]
+    completion:
+      each_issue: 'owner and due (a date or undecided) are present; rows whose status is in reason_statuses may instead give reason'
+      reason_statuses: [not_needed, cancelled, on_hold]
+      charter: 'change_conditions and exit_conditions are non-empty'
+      warn_undecided_due: true
+      unknown_mark: '[unknown]'          # also warns when every charter condition is still [unknown]
+      warn_unknown_fields: [owner, priority]   # W_REGISTERS '<field> is still [unknown]' (replaces v1 warn_unknown_owner)
+    refs: {answer: hypotheses, validation_plan: hypotheses, parent: issues}
+    ref_kinds: {validation_plan: validation}   # validation_plan points to validation hypotheses only
+    single_refs: [parent]                       # parent is one id; self and cycles are rejected
+    free_text_refs: [answer]                    # answer may be hypothesis ids or the answer in words; H<number> is checked, other id-like values only warn
+    resolution:
+      resolved_requires: [answer, evidence_refs, decided_by]
+      decided_by: [owner, decider]
+      evidence_refs: 'hypothesis ids whose owner/decider judgement has an actual-user receipt, or Layer-relative paths to an actual-user receipt or a decision record (YAML with kind: decision_record, decided_by owner/decider, decided_at, decision, scope_id)'
+      reason_required: [not_needed, cancelled, on_hold]
+      review_at_required: [on_hold]
+      not_counted: [not_needed, cancelled, on_hold]   # resolved_ratio = resolved / (all - not_counted)
+      done_work: {todo: [done], backlog: [completed]}  # work linked by todo.source or backlog task issue_id
+  todo:
+    path: registers/todo.yaml
+    list_key: todo
+    top_required: [todo]
+    id_pattern: '^D\d+$'
+    required: [id, title, status, owner]
+    optional: [source, wbs_id, due, priority, note, source_of_truth]
+    status: [todo, doing, done, cancelled]
+    refs: {wbs_id: wbs}
+    source_refs: {I: issues, H: hypotheses}     # source may be I/H ids (checked) or free text such as a meeting name
+  wbs:
+    path: registers/wbs.yaml
+    list_key: wbs
+    top_required: [wbs]
+    id_pattern: '^W\d+(\.\d+)*$'
+    required: [id, deliverable, exit_criteria, owner, status]
+    optional: [gate, evidence_refs, issue_ids, milestone_id, depends, schedule, source_of_truth]
+    status: [draft, planned, pending_acceptance, partially_accepted, accepted, cancelled]
+    refs: {issue_ids: issues, milestone_id: roadmap, depends: wbs}
+    acceptance:
+      needs_evidence: [accepted, partially_accepted]   # evidence_refs: Layer-relative paths (task outputs) or H ids
+      candidate: pending_acceptance                    # the furthest an AI or wbs-candidate may set; accepted is set by a person
+    schedule:
+      keys: [baseline, forecast, actual, history]
+      baseline_agreement: [agreed_at, agreed_by, scope]   # baseline without these is only a forecast (warning)
+      range: [start, end]
+  roadmap:
+    path: registers/roadmap.yaml
+    list_key: roadmap
+    top_required: [roadmap]
+    id_pattern: '^MS\d+$'
+    required: [id, milestone, period, status]
+    optional: [wbs_ids, note]
+    period_meaning: 'その節目の成果がそろう時期。作業の期間ではない（作業の見込みは wbs の forecast）'
+    period_format: ['<start>〜<end>', '<start>~<end>', undecided]   # start/end are YYYY-MM-DD
+    status: [draft, planned, reached, cancelled]
+    refs: {wbs_ids: wbs}   # roadmap.wbs_ids and wbs.milestone_id must agree in both directions
+task_links:
+  wbs_id: '^W\d+(\.\d+)*$'      # AI-PLC backlog tasks; 'none' marks a task that maps to no deliverable
+  issue_id: '^I\d+$'
+  warn_missing_wbs_for: 'non-cancelled tasks with output, except type management/coordination and wbs_id: none'
+source_of_truth: [local]          # external sources are not supported yet
+sources:   # the sources key of issues/hypotheses: where a draft row came from (not evidence_refs, which is resolution evidence)
+  type: list of strings
+  source_formats:
+    - {format: layer_relative, example: 'Context/meeting_notes.md', missing: E_REGISTERS}
+    - {format: repo_relative, example: 'Stock/programs/<program>/x.md', missing: W_REGISTERS}
+    - {format: 'Flow@<commit>:<Flow 内パス>', pattern: '^Flow@[0-9a-fA-F]{7,40}:.+$', check: format only (no git call)}
+  other: W_REGISTERS
+schedule_warnings:   # W_REGISTERS only (never changes pass). Silent when a value is undecided or unreadable
+  outside_milestone: 'wbs forecast.end is outside the period of its milestone_id'
+  before_dependency: 'wbs forecast.start is before the forecast.start of a WBS it depends on'
+  issue_due_outside_wbs: 'an open issue whose due is a date falls in no wbs forecast range'
+init_drafts:
+  note: 'package.py init writes these minimal drafts (required keys only) when aipm.registers is true; existing files are never overwritten'
+  wbs_initial_deliverables:
+    - {deliverable: 調査結果, exit_criteria: 必要な問いに対する証拠と不足が整理されている}
+    - {deliverable: 課題と仮説, exit_criteria: 課題・前提・反証条件・検証結果／未実施が区別されている}
+    - {deliverable: 関係者判断, exit_criteria: 提示対象・判断事項・実回答／保留が記録されている}
+    - {deliverable: 解決案, exit_criteria: 課題と検証に結びついた解決仮説・採否・根拠がある}
+    - {deliverable: 実現と検証, exit_criteria: 対象成果が実現・検証され、必要な受入／引継ぎがある}
+rules:
+  supported_needs_human: 'status supported requires a judgement by owner or decider'
+  human_judgement_needs_receipt: 'owner/decider judgements require evidence_ref (the step 8 actual-user receipt)'
+  ai_proxy_is_proposal: 'ai_proxy judgements never change status by themselves'
+  validation_ids: 'every validation_record hypothesis id exists here with kind validation (an opportunity id is a collision)'
+  minimal_lists: 'issues/todo/wbs/roadmap: required keys, id format, unique ids, status values, unknown keys and references; wbs acceptance evidence and schedule; issue completion/resolution; schedule_warnings'
+  validation_result_match: 'rows without an owner/decider judgement keep status equal to validation_record result; rows with one may differ because validation_record is fixed at archive'
+display_ja:
+  kind: {opportunity: Opportunity 仮説, problem: 課題の仮説, solution: 解決策の仮説, validation: 検証の仮説}
+  status: {unknown: 未判定, not_supported: 反証, structurally_supported: 構造上は支持, supported: 支持}
+  verdict: {supported: 支持, not_supported: 反証, undetermined: 判定不能}
+  judged_by: {owner: 本人, decider: 判断者, ai_proxy: AI の代理}
+  issue_status: {open: 未解決, resolved: 解決, not_needed: 検討不要, cancelled: 中止, on_hold: 保留}

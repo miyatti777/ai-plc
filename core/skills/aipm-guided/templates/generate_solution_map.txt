@@ -1,0 +1,17 @@
+# アプリ ソリューションマップ（仮説）
+
+## 対象と課題（PR基準）
+{{persona_and_problem}}
+
+## PR別の解決案
+- PR1: {{sl1_label_final | default:sl1_label | default:pr1_solution}}
+- PR2: {{sl2_label_final | default:sl2_label | default:pr2_solution}}
+- PR3: {{sl3_label_final | default:sl3_label | default:pr3_solution}}
+
+## MVP候補（検証優先の順）
+1. {{mvp_candidate_1}}
+2. {{mvp_candidate_2}}
+3. {{mvp_candidate_3}}
+
+## ソリューション仮説（Statement）
+> {{solution}} することで、より多くのお客様が {{behavior_change}} できるようになると信じています。

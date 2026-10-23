@@ -35,6 +35,15 @@ BASELINE_REF = os.environ.get("AI_PLC_JEV_BASELINE_REF", "e13c3fb")
 INSTALLER_FILES = ("install.sh", "install-cc.sh", "install-cursor.sh", "install-codex.sh", "uninstall.sh",
                    "lib/ai_plc_safe_fs.py", "lib/ai_plc_multi_env.py")
 MODES = ("cc", "both", "all", "cursor", "codex")
+# Files that the installer started to distribute after BASELINE_REF, for every mode (v1.14.0: the
+# model-routing rule and two DB scripts). They are applied to the baseline installer too, so the
+# comparison still isolates the effect of --with-jev instead of reporting these intended additions.
+INVENTORY_ADDITIONS = (
+    ('("ai-plc-system.md", "ai-plc-session.md", "ai-plc-adaptive.md")',
+     '("ai-plc-system.md", "ai-plc-session.md", "ai-plc-adaptive.md", "ai-plc-model-routing.md")'),
+    ('("init_db.py", "plc_query.py", "sync.py", "README.md")',
+     '("init_db.py", "plc_query.py", "sync.py", "README.md", "project_lifecycle.py", "plc_explain.py")'),
+)
 JEV_VERSION = (REPO / "experimental/jev/VERSION").read_text().strip()
 # A package version newer than the current one (same core prefix, exp number + 98), so version bumps
 # of the package never turn the upgrade tests into downgrades.
@@ -127,7 +136,15 @@ def baseline_distribution():
                     "tarball). Run `git fetch --unshallow` (or clone without --depth), or set "
                     "AI_PLC_JEV_BASELINE_REF to an available commit. The tests fail instead of skipping so "
                     "the comparison is never silently dropped.")
-            (dist / rel).write_text(result.stdout)
+            text = result.stdout
+            if rel.startswith("lib/"):
+                for old, new in INVENTORY_ADDITIONS:
+                    if new in text:  # a newer baseline that already has the addition
+                        continue
+                    if old not in text:
+                        raise AssertionError(f"baseline {BASELINE_REF}:{rel} lacks {old}; update INVENTORY_ADDITIONS")
+                    text = text.replace(old, new)
+            (dist / rel).write_text(text)
         yield dist
 
 

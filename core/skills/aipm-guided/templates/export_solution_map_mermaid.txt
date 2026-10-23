@@ -1,0 +1,12 @@
+```mermaid
+flowchart LR
+  {{sl1_actions | default:"A101"}} --> PR1:::problem
+  {{sl2_actions | default:"A201"}} --> PR2:::problem
+  {{sl3_actions | default:"A301"}} --> PR3:::problem
+  PR1:::problem --> SL1[SL1 {{sl1_label_final | default:sl1_label | default:pr1_solution}}]:::solution
+  PR2:::problem --> SL2[SL2 {{sl2_label_final | default:sl2_label | default:pr2_solution}}]:::solution
+  PR3:::problem --> SL3[SL3 {{sl3_label_final | default:sl3_label | default:pr3_solution}}]:::solution
+  classDef problem fill:#ffebee
+  classDef solution fill:#e8f5e8
+  classDef action fill:#fff3e0
+```

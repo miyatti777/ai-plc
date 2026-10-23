@@ -1,0 +1,44 @@
+# 同梱アドオンの目録。載せるのは本体に同梱のアドオンだけ。顧客専用（持ち込み・case）の行は書かない。
+# 読むのは .claude/skills/ai-plc/scripts/plc_addon_select.py（書き込まない）。形の正本は addon-seam-contract_v0.5.yaml の AddonCatalog（operations は v0.5）。
+specification: AI-PLC Bundled Addon Catalog
+schema_version: '0.2'
+contract: addon-seam-contract_v0.5.yaml
+exclusive_groups:
+  work_method:
+    meaning: 作る箱を宣言する方式。AIPM・AIPMO・選ばない のどれか1つ
+    max_selected: 1
+    none_allowed: true
+    case_declaration: 持ち込みのアドオンの common の ADDON_PROFILE ブロック（exclusive_group に work_method か none）
+    undeclared_case_with_member: hold
+addons:
+  - addon_id: aipm
+    source: bundled
+    display_name: 同梱の PM アドオン（AIPM。旧称 AIPM モード）
+    addon_version: '2.0'
+    exclusive_group: work_method
+    hash_pinned: false
+    entry: .claude/skills/aipm-guided/SKILL.md
+    settings_key: aipm
+    init:
+      by: entry_skill
+      when: collection_phase_7_5
+      command: python3 .claude/skills/aipm-guided/package.py init --layer <Layer>
+      record: mode_init
+    stage_reads:
+      collection: Stageとの接続 1・4
+      inception: Stageとの接続 2
+      construction: Stageとの接続 3
+      operation: Stageとの接続 4〜9
+    legacy_alias:
+      intent_field: work_style
+      value: aipm
+      selection_source_field: work_style_source
+    operations:   # 箱の中の操作。本文は entry、呼び出しは /<name>
+      - {name: pm-issue, entry: .claude/skills/aipm-guided/ops/issue.md, writes: true}
+      - {name: pm-hypothesis, entry: .claude/skills/aipm-guided/ops/hypothesis.md, writes: true}
+      - {name: pm-todo, entry: .claude/skills/aipm-guided/ops/todo.md, writes: true}
+      - {name: pm-capture, entry: .claude/skills/aipm-guided/ops/capture.md, writes: false}
+      - {name: pm-today, entry: .claude/skills/aipm-guided/ops/today.md, writes: false}
+      - {name: pm-persona, entry: .claude/skills/aipm-guided/ops/persona.md, writes: false}
+      - {name: pm-story, entry: .claude/skills/aipm-guided/ops/story.md, writes: false}
+      - {name: pm-init, entry: .claude/skills/aipm-guided/ops/init.md, writes: false, before_selection: true}

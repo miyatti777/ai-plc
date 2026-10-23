@@ -1,0 +1,85 @@
+# ペルソナサマリー - {{detected_personas.personas | size}}層構造
+
+## 概要
+
+Sense+Focusフェーズの成果物から{{detected_personas.personas | size}}個のペルソナを検出し、
+Opportunity仮説（FH001-FH014）と対応づけた詳細エクスペリエンスマップを作成しました。
+
+## ペルソナ一覧
+
+{{#detected_personas.personas}}
+### {{@index_plus_1}}. {{type | title}}ペルソナ: {{name}}
+
+- **ID**: {{id}}
+- **プロフィール**: {{age_gender}}, {{occupation}}
+- **企業背景**: {{company_context}}
+- **主要課題**: {{pain_points.0}}
+- **対応仮説**: {{opportunity_hypotheses | join: ', '}}
+
+#### エクスペリエンスフェーズ
+{{#phases}}
+- **{{id}}**: {{name}} - {{description}}
+{{/phases}}
+
+{{/detected_personas.personas}}
+
+## 仮説マッピング
+
+{{#if (any detected_personas.personas 'opportunity_hypotheses')}}
+### Discovery重点検証（FH001-FH004）
+{{#detected_personas.personas}}
+{{#opportunity_hypotheses}}
+{{#if (eq . 'FH001' 'FH002' 'FH003' 'FH004')}}
+- **{{.}}** ({{../name}}): {{lookup ../../focus_opportunity_hypotheses .}}
+{{/if}}
+{{/opportunity_hypotheses}}
+{{/detected_personas.personas}}
+
+### Discovery検証（FH005-FH007）
+{{#detected_personas.personas}}
+{{#opportunity_hypotheses}}
+{{#if (eq . 'FH005' 'FH006' 'FH007')}}
+- **{{.}}** ({{../name}}): {{lookup ../../focus_opportunity_hypotheses .}}
+{{/if}}
+{{/opportunity_hypotheses}}
+{{/detected_personas.personas}}
+{{else}}
+### 質問ベースモード
+- 仮説マッピングは未設定です
+- Discovery フェーズで以下を実施してください：
+  1. 仮説の設定・定義
+  2. ペルソナとの対応づけ
+  3. 段階的検証計画の策定
+{{/if}}
+
+## 検証計画
+
+{{#if (any detected_personas.personas 'opportunity_hypotheses')}}
+### Phase 1: 重点検証（1ヶ月目）
+- 統合UI/UX・セルフサービス・コンテキスト管理・ROI可視化
+
+### Phase 2: 標準検証（2ヶ月目）  
+- 価格受容性・職種特化・自動収集
+
+### Phase 3: 後期検証（3ヶ月目）
+- 段階導入・組織カスタマイズ
+{{else}}
+### 質問ベースモード検証計画
+
+### Phase 1: ペルソナ検証（1ヶ月目）
+- 作成したペルソナの実在性・代表性確認
+- 実際のユーザーインタビュー実施
+
+### Phase 2: 課題・ニーズ検証（2ヶ月目）
+- 想定した課題・ペインポイントの妥当性確認
+- ソリューション仮説の設定・検証
+
+### Phase 3: エクスペリエンス検証（3ヶ月目）
+- エクスペリエンスマップの精度向上
+- プロトタイプでの実証実験
+{{/if}}
+
+---
+**作成日**: {{today}}  
+**検出ペルソナ数**: {{detected_personas.personas | size}}  
+**対応仮説数**: {{detected_personas.personas | map: 'opportunity_hypotheses' | flatten | uniq | size}}

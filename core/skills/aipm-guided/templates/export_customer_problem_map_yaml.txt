@@ -1,0 +1,42 @@
+customer_problem_map:
+  persona_ref: P001
+  phases:
+    - id: PH1
+      actions:
+        - id: A101
+          thoughts: [{{ph1_thoughts_final | default:auto_ph1_thoughts}}]
+          emotions: [{{ph1_emotions_final | default:auto_ph1_emotions}}]
+          issues: [PR1]
+    - id: PH2
+      actions:
+        - id: A201
+          thoughts: [{{ph2_thoughts_final | default:auto_ph2_thoughts}}]
+          emotions: [{{ph2_emotions_final | default:auto_ph2_emotions}}]
+          issues: [PR2]
+    - id: PH3
+      actions:
+        - id: A301
+          thoughts: [{{ph3_thoughts_final | default:auto_ph3_thoughts}}]
+          emotions: [{{ph3_emotions_final | default:auto_ph3_emotions}}]
+          issues: [PR3]
+  problems:
+    - id: PR1
+      summary: {{ph1_problem_summary_final | default:ph1_problem_summary}}
+      causes: [{{ph1_why1}}, {{ph1_why2}}, {{ph1_why3}}]
+      impact: {{ph1_impact}}
+      linked_actions: [{{ph1_linked_actions_final | default:"A101"}}]
+      occurs_in_phases: [PH1]
+    - id: PR2
+      summary: {{ph2_problem_summary_final | default:ph2_problem_summary}}
+      causes: [{{ph2_why1}}, {{ph2_why2}}, {{ph2_why3}}]
+      impact: {{ph2_impact}}
+      linked_actions: [{{ph2_linked_actions_final | default:"A201"}}]
+      occurs_in_phases: [PH2]
+    - id: PR3
+      summary: {{ph3_problem_summary_final | default:ph3_problem_summary}}
+      causes: [{{ph3_why1}}, {{ph3_why2}}, {{ph3_why3}}]
+      impact: {{ph3_impact}}
+      linked_actions: [{{ph3_linked_actions_final | default:"A301"}}]
+      occurs_in_phases: [PH3]
+  numbering_policy:
+    - prefix: PH=Phase, A=Action, PR=Problem

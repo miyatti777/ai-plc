@@ -51,7 +51,8 @@ temporary directory under `/private/tmp` (the repository's `.git` is only read) 
 It covers every legacy group (G1-G6) for Claude Code and Cursor, dry-run / `--plan-only` with zero
 changes, edited files (stop with one hint, or `--backup-modified`), ambiguity and the 50% threshold,
 the superset rule, targets upgraded step by step with the old installers, a different release per
-environment, `--with-jev`, ordinary updates from v1.7.0 / v1.7.1 / v1.8.0-exp.1, a fault at the
+environment, `--with-jev`, ordinary updates from v1.7.0 / v1.7.1 / v1.8.0-exp.1 / v1.13.0 (for v1.13.0 also an edited rule and
+Layers written for v1.13.0 read by the new scripts), a fault at the
 manifest write (rollback, then a successful run), legacy uninstall, and a broken catalog index.
 
 ```bash

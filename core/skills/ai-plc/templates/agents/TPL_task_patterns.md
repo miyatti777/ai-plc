@@ -13,11 +13,20 @@
 
 ## 共通原則（全Agent生成時に適用）
 
+選択済み方式の必須工程/成果を制約にし、最終Goalへ近づく小さな成果スライスの到達点・前段からの増分・次段階をTaskから保持する。スライスは依頼全体を一Taskへまとめる指示ではなく、調査/設計だけの細片へ分ける指示でもない。
+
+生成前に [成果単位の分解・実行・再開](../../references/outcome-delivery.md)を読む。Taskの依頼終点・内包調査・既存成果/未達・次操作・許可境界を引き継ぐ。下のtype/Phase構造はTask内の進め方の参考であり、別の調査/設計TaskやDev固有の終点を全業務へ強制しない。
+
 1. HITL情報の拘束力 — Mob Checkpointやcontext.yamlで人間が明示指定した情報は「要件」として扱い、検索で見つかった類似情報より常に優先する
 2. 出力の検証 — Agent完了前に、指定インプットを実際に使用したか、出力がインプットの規模・範囲と整合しているかを確認する
 3. 出力エンティティの明確化 — 「Kanbanビュー/進捗管理」はDatabase+適切なビュー・プロパティ、「テンプレート/ガイド」はPageとして作る（ページ内の説明文・テーブルで代用しない）
 4. 「動くシステム」ルール — implementationタスクは実際に動くDatabase/システムを生み出さなければ完了としない（設計書だけでは不可）
 5. maker≠checker — 独立レビューは 04-operation Phase 5.5 に従う（Agent 定義の有無によらない）。frontmatter の `delegable` は backlog の値を写す（03-construction Phase 3）
+
+## 開発方式bindingの引継ぎ（全ティア共通）
+
+選択された開発Taskだけ、元Taskと同一のdevelopment binding blockをInputへ一度転記する。Flow/Output/Guardrailsへ既存入口と必要規約/Skill版、上流実判断、段階別許可、有限枠/既消費、writer、入力/返却/停止条件を引き継ぐ。Task/request/run/分類/対象repo/profile/二項目snapshot/source hashが欠けたり違ったりすれば生成前に停止する。
+Liteでは既存の暗黙Flowにこの指示を含め、Fullでは明示Flowへ含める。Task固有のstyle上書き、別loop複製、独立検証免除をしない。Construction Phase2から本共通patternを明示的に読み、Operationが実Task/必要AGTのblockを照合する。
 
 ## 汎用検証ステップ（全Agent共通 — system §18連動）
 

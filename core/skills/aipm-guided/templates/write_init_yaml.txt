@@ -1,0 +1,14 @@
+program_id: {{program_id | default: "AIPM_Hackathon"}}
+project_id: {{project_id}}
+participant_name: {{participant_name}}
+flow_dir: {{flow_dir | default: "hackathon_new"}}
+flow_base: "Flow/{{today | slice: 0, 4}}{{today | slice: 5, 2}}/{{today}}/{{flow_dir}}"
+stock_base: "Stock/programs/{{program_id}}/projects/{{project_id}}"
+period: {{period}}
+purpose: {{purpose}}
+background: {{background}}
+app_type: {{app_type}}
+main_user: {{main_user}}
+app_summary: {{app_summary}}
+share_repo: "<your-org>/<share-repo>"
+share_local_dir: "Share/<share-repo>"

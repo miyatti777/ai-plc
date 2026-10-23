@@ -1,0 +1,23 @@
+problem_map:
+  persona_ref: P001
+  problems:
+    - id: PR1
+      summary: {{ph1_problem_summary_final | default:ph1_problem_summary}}
+      causes: [{{ph1_why1}}, {{ph1_why2}}, {{ph1_why3}}]
+      impact: {{ph1_impact}}
+      linked_actions: [{{ph1_linked_actions_final | default:"A101"}}]
+      occurs_in_phases: [PH1]
+    - id: PR2
+      summary: {{ph2_problem_summary_final | default:ph2_problem_summary}}
+      causes: [{{ph2_why1}}, {{ph2_why2}}, {{ph2_why3}}]
+      impact: {{ph2_impact}}
+      linked_actions: [{{ph2_linked_actions_final | default:"A201"}}]
+      occurs_in_phases: [PH2]
+    - id: PR3
+      summary: {{ph3_problem_summary_final | default:ph3_problem_summary}}
+      causes: [{{ph3_why1}}, {{ph3_why2}}, {{ph3_why3}}]
+      impact: {{ph3_impact}}
+      linked_actions: [{{ph3_linked_actions_final | default:"A301"}}]
+      occurs_in_phases: [PH3]
+  numbering_policy:
+    - prefix: PR=Problem, A=Action

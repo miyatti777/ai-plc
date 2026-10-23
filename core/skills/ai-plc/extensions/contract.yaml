@@ -1,0 +1,147 @@
+schema_version: '1.0'
+status: installed_opt_in_not_selected
+style_storage:
+  work_style: 'PM selection read by .claude/skills/ai-plc/scripts/plc_addon_select.py (bundled aipm in intent.addons, or legacy intent.work_style: aipm); value aipm or null'
+  dev_style: optional intent.dev_style
+  private_ref: intent.development_binding; no private content in common
+required_binding_keys:
+- schema_version
+- task_id
+- request_id
+- run_id
+- kind
+- work_style
+- dev_style
+- repo
+- profile
+- selection_ref
+- goal_sha256
+- source_hashes
+- entry
+- private_binding
+- rules_refs
+- skill_refs
+- upstream_evidence
+- permissions
+- budget
+- writer
+- input_ref
+- return_ref
+- agt_required
+- candidate
+- upstream_required_refs
+ordinary_branch:
+  kind: non_development OR dev_style=null
+  private_reads: 0
+  entry: null
+  private_binding: null
+  stale_binding: deny
+binding_example:
+  schema_version: '1.0'
+  task_id: null
+  request_id: null
+  run_id: null
+  kind: null
+  work_style: null
+  dev_style: null
+  repo: null
+  profile: null
+  selection_ref: null
+  goal_sha256: null
+  source_hashes: {}
+  entry:
+    path: null
+    sha256: null
+  private_binding: null
+  rules_refs: []
+  skill_refs: []
+  upstream_evidence: []
+  permissions:
+    ref: null
+    read: null
+    interview: null
+    plan: null
+    implement: null
+    review: null
+  budget:
+    budget_id: null
+    started_at: null
+    deadline_at: null
+    consumed_minutes: null
+    history_ref: null
+  writer:
+    owner: null
+    receipt: null
+    paths: []
+    valid_until: null
+  input_ref: null
+  return_ref: null
+  agt_required: null
+  candidate: null
+  upstream_required_refs: []
+current_source: independent actual canonical reads; never submitted binding alone
+current_observations:
+- legacy_selector_conflict
+- read_only_target
+- selector_known
+- entry_realpath_and_hash_verified
+- rules_refs_verified
+- skill_refs_verified
+- upstream_evidence_verified
+- permissions_verified
+- budget_history_verified
+- writer_verified
+- same_version_plan_approved
+- upstream_conditions_satisfied
+instruction_transport: instructions(binding) exact single block in actual Task and required AGT; Inception
+  generates, Construction carries, Operation consumes
+result_required:
+- task_id
+- request_id
+- run_id
+- work_style
+- dev_style
+- binding_sha256
+- status
+- evidence_refs
+- ac_judgments
+- candidate
+result_status:
+- result
+- stop
+- plan_approval_pending
+null_policy: unknown is not zero/approved; example nulls make selected route inadmissible
+full_validation: actual Task generation/required AGT generation/direct Operation consumer receipts plus source/contract/input/output
+  hashes; focused units are insufficient
+same_error_limit: 2
+source_write_authority: external concrete scoped human permission, not this schema
+upstream_condition_contract:
+  required_refs: independently derived from actual Task prerequisites/required decisions; empty only if absence
+    actually established
+  evidence_fields:
+  - ref
+  - sha256
+  - required
+  - state
+  - decision
+  - decision_ref
+  - decision_sha256
+  required_gate: required evidence set equals required_refs; each state=completed and decision=satisfied with
+    actual decision ref/hash; verified observation alone is insufficient
+aipm_caller_contract:
+  applies_to: 'PM addon selected per .claude/skills/ai-plc/scripts/plc_addon_select.py (legacy intent.work_style: aipm included) AND selected development Task'
+  entry: check_registered(binding,current,task_text,agt_text,now,layer,phase)
+  registration: Task id_status=registered; aipm_upstream_tasks nonempty unique subset of dependencies
+  upstream_output: each selected upstream Task output is nonempty list of Layer-relative actual files; dependency
+    closure completed
+  inception_pending: execution_binding=null, binding_state=awaiting_upstream allowed at registration, never
+    dispatchable
+  canonical_observations:
+  - inception_task_registered
+  - aipm_upstream_task_ids
+  - canonical_upstream_required_refs
+  - canonical_upstream_hashes
+  semantic_completion: Operation verifies required AIPM package/story map/decisions/final validation/independent
+    review; status and hash alone do not prove these
+  boundary: before first read/interview/plan and later actual calls; caller is read-only, no dispatch
+  ordinary: existing private-read0 branch; non-AIPM selected route keeps original check

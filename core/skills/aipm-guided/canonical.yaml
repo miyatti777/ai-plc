@@ -1,0 +1,5 @@
+repository: livyn-inc/aipm-commands
+reviewed_commit: 2a7cdb8a77cb1b20e1325649faac0d7f177afb62
+source_manifest: source/source_manifest.json
+supported_branch: question_based/single_persona
+source_execution: adapted AI-PLC method; original external shell never executed

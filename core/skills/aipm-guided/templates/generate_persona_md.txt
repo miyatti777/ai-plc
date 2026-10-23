@@ -1,0 +1,52 @@
+# {{item.type | title}}ペルソナ - {{item.name}}
+
+## 基本情報
+- **ID**: {{item.id}}
+- **名前**: {{item.name}}
+- **年齢・性別**: {{item.age_gender}}
+- **職業・役職**: {{item.occupation}}
+- **企業・組織**: {{item.company_context}}
+
+## 日常活動・行動パターン
+{{#item.daily_activities}}
+- {{.}}
+{{/item.daily_activities}}
+
+## 課題・ペインポイント
+{{#item.pain_points}}
+- {{.}}
+{{/item.pain_points}}
+
+## 価値観・重視する要素
+{{#item.values}}
+- {{.}}
+{{/item.values}}
+
+## 対応するOpportunity仮説
+{{#if item.opportunity_hypotheses}}
+{{#item.opportunity_hypotheses}}
+- **{{.}}**: {{lookup ../focus_opportunity_hypotheses .}}
+{{/item.opportunity_hypotheses}}
+{{else}}
+- 質問ベースモードで作成されたため、仮説は未設定です
+- Discovery フェーズで仮説を設定・検証してください
+{{/if}}
+
+## エクスペリエンスフェーズ
+{{#item.phases}}
+### {{id}}: {{name}}
+{{description}}
+
+#### 主要アクション
+{{#actions}}
+- **{{id}}**: {{label}}
+{{#notes}}
+  - {{.}}
+{{/notes}}
+{{/actions}}
+{{/item.phases}}
+
+---
+**作成日**: {{today}}  
+**ベース**: Sense+Focusフェーズ統合分析  
+**検証予定**: Discovery フェーズ

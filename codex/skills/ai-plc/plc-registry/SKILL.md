@@ -1,32 +1,13 @@
 ---
 name: plc-registry
-description: AI-PLCの Project Registry（.claude/db/ai_plc.db）を照会・追加する。
+description: AI-PLC Project Registry（.claude/db/ai_plc.db）の照会と追加。「Registry見せて」「プロジェクト一覧」で使用する。
 ---
 
-# Codex adapter: AI-PLC Registry
+# Codex adapter: plc-registry
 
-このadapterはCodex固有の入口だけを提供し、処理本文は`.claude`互換runtimeの正本を使う。
+実行前に [Codex実行環境の読み替え](../references/codex-runtime.md)を読む。正本の手順・入力・モードは実行時に読み込み、以下は環境差分として適用する。
 
-## 前提確認（変更前に必須）
-
-repository root基準で、次の4ファイルがregular fileとして存在し読めることを確認する。
-
-- `.claude/skills/plc-registry/SKILL.md`
-- `.claude/rules/ai-plc-system.md`
-- `.claude/rules/ai-plc-session.md`
-- `.claude/rules/ai-plc-adaptive.md`
-
-1件でも欠落・読取不能なら、DB、Layer ファイルその他の状態を変更せず、欠落pathを列挙して停止する。
-
-## 実行
-
-1. 必須3 Rulesを上記順で最後まで読む。
-2. 正本`.claude/skills/plc-registry/SKILL.md`を最後まで読む。
-3. コマンドとデータは正本に記載されたパスを使用する。
-4. dashboard / projects / active / tasks / SELECT はread-only確認として実行できる。add-project、add-task、UPDATEはユーザーが明示した操作範囲だけ実行する。
-5. Claude Code固有のAgent toolまたは起動表記が現れた場合は、許可されたCodex sub-agentまたは対応する`$skill-name`へ変換する。
-6. 正本のClaude Code native memory参照を`~/.claude`へ解決してはならない。Codexでは読取・更新とも行わず、該当処理は`変更なし — スキップ（Codex adapter: Claude native memory非対象）`と記録する。
-
-## Read-only diagnostics
-
-ユーザーが`AI-PLC prerequisite diagnostics`を明示した場合は正本の処理を実行せず、変更0で停止する。正本Skillと必須3 Rulesの4件ごとに`absolute_path`、`sha256`、最初のH1、末尾のversion行を`prerequisite_diagnostics`として返す。4件のいずれかが欠落・読取不能なら`status: blocked`と対象pathを返す。Rules 3件は併せて`rule_diagnostics`として識別できるようにする。
+1. リポジトリルートの `.claude/skills/plc-registry/SKILL.md` を最後まで読み、その手順を正本として実行する。
+2. コマンドとデータは正本に記載された `.claude/db/` 配下（`plc_query.py`・`ai_plc.db`）を使用する。
+3. 照会（dashboard / projects / tasks / SELECT）は自由に実行してよい。add-project / add-task / UPDATE はユーザーが求めた範囲だけ実行する。
+4. 正本が欠ける場合は実行せず、欠落内容を報告する。

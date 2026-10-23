@@ -1,0 +1,21 @@
+```mermaid
+flowchart TD
+  subgraph PH1[フェーズ1]
+    A101[行動: A101]
+    A101 --> PR1[PR1 {{ph1_problem_summary_final | default:ph1_problem_summary}}]
+  end
+  subgraph PH2[フェーズ2]
+    A201[行動: A201]
+    A201 --> PR2[PR2 {{ph2_problem_summary_final | default:ph2_problem_summary}}]
+  end
+  subgraph PH3[フェーズ3]
+    A301[行動: A301]
+    A301 --> PR3[PR3 {{ph3_problem_summary_final | default:ph3_problem_summary}}]
+  end
+  classDef phase fill:#f9d71c
+  classDef action fill:#fff9c4
+  classDef problem fill:#5fb3d4
+  class PH1,PH2,PH3 phase
+  class A101,A201,A301 action
+  class PR1,PR2,PR3 problem
+```

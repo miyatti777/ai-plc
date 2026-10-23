@@ -10,11 +10,16 @@ Usage:
     python3 .claude/db/plc_query.py sql "SELECT ..."     # 任意SQL
     python3 .claude/db/plc_query.py add-project          # プロジェクト追加（対話）
     python3 .claude/db/plc_query.py add-task             # タスク追加（タスク同期の凍結中は書き込まず [SKIP]）
+    python3 .claude/db/plc_query.py someday-add <タイトル> [メモ]  # いつかやるPJをストック（planned）
+    python3 .claude/db/plc_query.py someday              # ストック一覧（planned・登録日順）
+    python3 .claude/db/plc_query.py someday-start <S-ID> # ストックを着手済みにし Collection 起動プロンプトを出す
+    python3 .claude/db/plc_query.py someday-revert <S-ID> # 着手を取り消してストックに戻す
 
 タスクの正は各 Layer の backlog.yaml。tasks テーブルは古い写しで、凍結中
 （`python3 .claude/db/sync.py tasks-sync --status`）は読みも書きもしない。
 """
 
+import datetime
 import json
 import os
 import re
@@ -263,6 +268,120 @@ def cmd_add_task(conn, args):
     print(f"[OK] Task added: {task_id} ({scope_id}) - {name}")
 
 
+# ---- いつかやるPJストック（someday） ----------------------------------------------------------------
+SOMEDAY_STATUS = "planned"
+SOMEDAY_ID = re.compile(r"S-\d{4}(-\d+)?")
+STARTED_TAG = re.compile(r" \[着手 \d{4}-\d{2}-\d{2}\]$")
+
+
+def _blocked(code, message, exit_code):
+    print(f"[BLOCKED] {code}: {message}")
+    return exit_code
+
+
+def _today():
+    return datetime.date.today()
+
+
+def _next_someday_id(conn, today):
+    """S-MMDD for the first stock of the day, then S-MMDD-2, -3 ..."""
+    base = f"S-{today:%m%d}"
+    rows = conn.execute("SELECT scope_id FROM projects WHERE scope_id = ? OR scope_id LIKE ?",
+                        (base, base + "-%")).fetchall()
+    used = set()
+    for (scope,) in rows:
+        if scope == base:
+            used.add(1)
+        else:
+            m = re.fullmatch(re.escape(base) + r"-(\d+)", scope)
+            if m:
+                used.add(int(m.group(1)))
+    return base if not used else f"{base}-{max(used) + 1}"
+
+
+def cmd_someday_add(conn, args):
+    if len(args) < 1 or not args[0].strip() or args[0].startswith("-"):
+        print('Usage: someday-add "<タイトル>" ["<メモ>"]')
+        return 0
+    name = args[0].strip()
+    goal = args[1].strip() if len(args) > 1 and args[1].strip() else name
+    today = _today()
+    conn.execute("BEGIN IMMEDIATE")   # the ID is chosen inside the write lock
+    scope_id = _next_someday_id(conn, today)
+    conn.execute("INSERT INTO projects (scope_id, name, goal, status, start_date) VALUES (?, ?, ?, ?, ?)",
+                 (scope_id, name, goal, SOMEDAY_STATUS, today.isoformat()))
+    conn.commit()
+    print(f"[OK] Someday added: {scope_id} - {name}")
+    return 0
+
+
+def cmd_someday(conn):
+    rows = conn.execute("""
+        SELECT scope_id, name, start_date AS added,
+               CASE WHEN goal IS NULL OR goal = name THEN ''
+                    WHEN length(goal) > 40 THEN substr(goal, 1, 40) || '…'
+                    ELSE goal END AS memo
+        FROM projects WHERE status = ? AND scope_id LIKE 'S-%'
+        ORDER BY start_date, id
+    """, (SOMEDAY_STATUS,)).fetchall()
+    print_table(rows)
+    if rows:
+        print("\n着手するとき: someday-start <S-ID>")
+    return 0
+
+
+def cmd_someday_start(conn, args):
+    args = [a for a in args if not a.startswith("--")]
+    if len(args) < 1:
+        print("Usage: someday-start <S-ID>")
+        return 0
+    scope_id = args[0].strip()
+    if not SOMEDAY_ID.fullmatch(scope_id):
+        return _blocked("SOMEDAY_NOT_FOUND", f"{scope_id} is not a someday ID (S-MMDD[-n])", 2)
+    row = conn.execute("SELECT name, goal, status FROM projects WHERE scope_id = ?", (scope_id,)).fetchone()
+    if row is None:
+        return _blocked("SOMEDAY_NOT_FOUND", f"{scope_id} is not in projects", 2)
+    if row["status"] != SOMEDAY_STATUS:
+        return _blocked("SOMEDAY_NOT_PLANNED", f"{scope_id} is {row['status']}, not {SOMEDAY_STATUS}", 2)
+    today = _today().isoformat()
+    goal = row["goal"] or row["name"]
+    cursor = conn.execute("UPDATE projects SET status = 'completed', goal = ? WHERE scope_id = ? AND status = ?",
+                          (f"{goal} [着手 {today}]", scope_id, SOMEDAY_STATUS))
+    if cursor.rowcount != 1:
+        conn.rollback()
+        return _blocked("SOMEDAY_NOT_PLANNED", f"{scope_id} changed while starting", 2)
+    conn.commit()
+    memo = "" if goal == row["name"] else f"。{goal}"
+    print(f"[OK] Someday started: {scope_id} (status {SOMEDAY_STATUS} → completed)")
+    print("\nコピペ用プロンプト:")
+    print(f"/01-collection を実行してください / Goal: {row['name']}{memo} / 起点ストック: {scope_id}")
+    print(f"\n（Collection を始めなかったときは someday-revert {scope_id} でストックに戻せます）")
+    return 0
+
+
+def cmd_someday_revert(conn, args):
+    if len(args) < 1:
+        print("Usage: someday-revert <S-ID>")
+        return 0
+    scope_id = args[0].strip()
+    if not SOMEDAY_ID.fullmatch(scope_id):
+        return _blocked("SOMEDAY_NOT_FOUND", f"{scope_id} is not a someday ID (S-MMDD[-n])", 2)
+    row = conn.execute("SELECT goal, status FROM projects WHERE scope_id = ?", (scope_id,)).fetchone()
+    if row is None:
+        return _blocked("SOMEDAY_NOT_FOUND", f"{scope_id} is not in projects", 2)
+    goal = row["goal"] or ""
+    if row["status"] != "completed" or not STARTED_TAG.search(goal):
+        return _blocked("SOMEDAY_NOT_STARTED", f"{scope_id} was not started by someday-start (status {row['status']})", 2)
+    cursor = conn.execute("UPDATE projects SET status = ?, goal = ? WHERE scope_id = ? AND status = 'completed'",
+                          (SOMEDAY_STATUS, STARTED_TAG.sub("", goal), scope_id))
+    if cursor.rowcount != 1:
+        conn.rollback()
+        return _blocked("SOMEDAY_NOT_STARTED", f"{scope_id} changed while reverting", 2)
+    conn.commit()
+    print(f"[OK] Someday reverted: {scope_id} (status completed → {SOMEDAY_STATUS})")
+    return 0
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -270,6 +389,7 @@ def main():
 
     cmd = sys.argv[1]
     conn = get_conn()
+    code = 0
 
     if cmd == "projects":
         cmd_projects(conn)
@@ -295,12 +415,21 @@ def main():
                   "no Registry task row was added")
         else:
             cmd_add_task(conn, sys.argv[2:])
+    elif cmd == "someday-add":
+        code = cmd_someday_add(conn, sys.argv[2:])
+    elif cmd == "someday":
+        code = cmd_someday(conn)
+    elif cmd == "someday-start":
+        code = cmd_someday_start(conn, sys.argv[2:])
+    elif cmd == "someday-revert":
+        code = cmd_someday_revert(conn, sys.argv[2:])
     else:
         print(f"Unknown command: {cmd}")
         print(__doc__)
 
     conn.close()
+    return code
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main() or 0)

@@ -1,34 +1,21 @@
 ---
 name: 04-operation
-description: AI-PLC Stage 4 Operation。Backlog（Agent定義があればそれ）に従ってタスクを実行し、成果物生成、検証、ステータス更新、Propagationを行う。
+description: AI-PLC Stage 4 Operation。Backlog（Agent定義があればそれ）に従ってタスクを実行し、成果物生成、検証、ステータス更新、Propagationを行う。AI-PLCタスク実行と完了処理で使用する。
 ---
 
 # Codex adapter: AI-PLC Stage 4
 
-このadapterはCodex固有の入口だけを提供し、処理本文は`.claude`互換runtimeの正本を使う。
+実行前に [Codex実行環境の読み替え](../references/codex-runtime.md)を読む。正本の手順・入力・モードは実行時に読み込み、以下は環境差分として適用する。
 
-## 前提確認（変更前に必須）
+1. リポジトリルートの `.claude/skills/ai-plc/04-operation/SKILL.md` を最後まで読み、その手順を正本として実行する。
+2. `.claude/rules/ai-plc-system.md`、`.claude/rules/ai-plc-session.md`、`.claude/rules/ai-plc-adaptive.md` を最後まで読む。
+3. Knowledge Lintでは `.claude/skills/ai-plc/04-operation/knowledge-lint.md`、Platform Builderでは同階層の `platform-builder.md` を読む。
+4. DB、Wiki、Rules、Templatesは正本に記載された `.claude/` 配下を使用する。
+5. Claude CodeのAgent toolやスラッシュコマンド表記は、利用可能なCodexのsub-agentまたは対応スキル指定へ置き換える。
+6. 正本のPhase 5.5の発動強度（必須・既定・省略可）を判定する。対象になる「独立検証（maker≠checker）」は、Codexのsub-agent起動を明示的に要求する適用中の指示として扱う。対象タスクではユーザーへ再確認せず、成果物作成者とは別のsub-agent reviewerを自動起動する。
+7. backlog（または Agent 定義）の`delegable: false`はPhase 4の成果物作成を並列委譲しないという意味であり、Phase 5.5の独立reviewer起動を禁止しない。
+8. 独立レビュー対象でのセルフ検証へのフォールバックは、sub-agent機能が利用不能、起動失敗、またはreviewer出力を取得できない場合に限る。フォールバック時は理由をVerification recordへ1行記録する。
 
-repository root基準で、次の4ファイルがregular fileとして存在し読めることを確認する。
+正本が見つからない場合はタスク実行やbacklog.yaml更新を行わず、欠落パスを報告して停止する。
 
-- `.claude/skills/ai-plc/04-operation/SKILL.md`
-- `.claude/rules/ai-plc-system.md`
-- `.claude/rules/ai-plc-session.md`
-- `.claude/rules/ai-plc-adaptive.md`
-
-1件でも欠落・読取不能なら、成果物、backlog、context、DB、Wikiその他のファイルを変更せず、欠落pathを列挙して停止する。
-
-## 実行
-
-1. 必須3 Rulesを上記順で最後まで読む。
-2. 正本`.claude/skills/ai-plc/04-operation/SKILL.md`を最後まで読む。
-3. Knowledge Lintでは`.claude/skills/ai-plc/04-operation/knowledge-lint.md`、Platform Builderでは同階層の`platform-builder.md`を読む。
-4. DB、Wiki、Rules、Templatesは正本に記載された`.claude/`配下へ解決する。
-5. Claude Codeのスラッシュ形式は、Codexでは対応する`$skill-name`へ変換する。Claude CodeのAgent toolは利用可能なCodex sub-agentへ変換する。
-6. 正本Phase 5.5のmaker≠checker規定は、Codex sub-agent reviewerを起動する明示的要求として扱う。backlog（または Agent 定義）の`delegable: false`は成果物作成の委譲だけを禁止し、独立reviewerを禁止しない。
-7. reviewerが利用不能、起動失敗、または出力未取得の場合だけ正本のセルフ検証fallbackを使用し、理由をVerification recordへ記録する。
-8. Phase 7を含め、正本のClaude Code native memory参照を`~/.claude`へ解決してはならない。Codexでは読取・更新とも行わず、Propagationへ`変更なし — スキップ（Codex adapter: Claude native memory非対象）`と記録する。
-
-## Read-only diagnostics
-
-ユーザーが`AI-PLC prerequisite diagnostics`を明示した場合は正本のStage処理を実行せず、変更0で停止する。正本Skillと必須3 Rulesの4件ごとに`absolute_path`、`sha256`、最初のH1、末尾のversion行を`prerequisite_diagnostics`として返す。4件のいずれかが欠落・読取不能なら`status: blocked`と対象pathを返す。Rules 3件は併せて`rule_diagnostics`として識別できるようにする。
+**モデルの既定:** `.claude/rules/ai-plc-model-routing.md` の「実行環境の既定」に従う。本人のモデル指定が無ければ Operation は Claude Code（Opus）へ切り替える案内を出して止まり、本人が Codex での実行を明示したときだけ続行する。
