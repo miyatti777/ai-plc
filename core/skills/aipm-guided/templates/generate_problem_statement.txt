@@ -1,0 +1,9 @@
+# アプリ 課題定義（仮説）
+
+## フェーズ別の主要課題
+- PH1 → PR1: {{ph1_problem_summary_final | default:ph1_problem_summary}}
+- PH2 → PR2: {{ph2_problem_summary_final | default:ph2_problem_summary}}
+- PH3 → PR3: {{ph3_problem_summary_final | default:ph3_problem_summary}}
+
+## 現状の対処と限界
+{{current_solution}}

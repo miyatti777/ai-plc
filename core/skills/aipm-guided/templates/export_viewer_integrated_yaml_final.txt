@@ -1,0 +1,59 @@
+integrated_story_map:
+  meta:
+    project_name: {{project_name | default:"Untitled Project"}}
+  version_definitions:
+    order: [MVP, V1, V2]
+  story_map_structure:
+    activities:
+      - id: ACT-ONBOARD
+        name: Onboarding
+      - id: ACT-TASKS
+        name: Tasks
+    backbones:
+      - id: BB-SIGNUP
+        name: Sign up
+        sequence: 1
+        activity_id: ACT-ONBOARD
+      - id: BB-FLOW
+        name: Create Task
+        sequence: 2
+        activity_id: ACT-TASKS
+  display_order:
+    backbones: [BB-SIGNUP, BB-FLOW]
+  personas_stories:
+    P001:
+      name: 主要ペルソナ
+      stories:
+        - id: ST-001
+          story: {{st1_summary | default:"I want to register"}}
+          backbone_id: BB-SIGNUP
+          version: MVP
+          status: TODO
+          backbone_x_version_sort: 1
+        - id: ST-002
+          story: {{st2_summary | default:"I want to login"}}
+          backbone_id: BB-SIGNUP
+          version: MVP
+          status: TODO
+          backbone_x_version_sort: 2
+    P002:
+      name: セカンダリ
+      stories:
+        - id: ST-003
+          story: {{st3_summary | default:"I want to create a task"}}
+          backbone_id: BB-FLOW
+          version: V1
+          status: TODO
+          backbone_x_version_sort: 1
+  cross_persona_stories:
+    - id: ST-004
+      story: I want to see dashboard
+      backbone_id: BB-FLOW
+      version: V2
+      status: TODO
+      backbone_x_version_sort: 2
+  story_mapping:
+    ST-001: { backbone_id: BB-SIGNUP, sequence: 1 }
+    ST-002: { backbone_id: BB-SIGNUP, sequence: 2 }
+    ST-003: { backbone_id: BB-FLOW, sequence: 1 }
+    ST-004: { backbone_id: BB-FLOW, sequence: 2 }

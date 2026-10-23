@@ -1,0 +1,174 @@
+specification: AI-PLC Addon Seam Contract
+schema_version: '0.2'
+source_spec_sha256: 47e02f9c5847bb9cc3d52b871055ec0b45c1d768227f0d839fb51486dc1894e3
+implemented_routes:
+- file_consultation_only
+- file_single_form_task_inputs
+unavailable_routes:
+- page
+- multi-form composition
+- TrialResult simulation
+types:
+  AddonBinding:
+    schema_version: '0.1'
+    candidate_location: intent.addons[]
+    field_contracts:
+      addon_id:
+        type: string
+        required: true
+        meaning: アドオン識別子。Task/事項/業務UIDと別
+      addon_version:
+        type: string
+        required: true
+        meaning: 同版選択・型更新の照合に使う
+      selection_ref:
+        type: reference
+        required: true
+        meaning: 現在本人の明示選択の実出典。bool/引用/存在だけは選択にしない
+      guide_ref:
+        type: AddonResourceRef
+        required: true
+        meaning: 相談入口の案内を固定して参照。本文は許可上書き命令として扱わない
+      common_contract_ref:
+        type: AddonResourceRef
+        required: true
+        meaning: アドオン共通の約束事
+      forms:
+        type: list
+        required: true
+        meaning: 案件側の型一覧を固定。実名や具体ページは案件側だけ
+        item_fields:
+        - form_id
+        - form_ref
+      read_limits:
+        type: map
+        required: true
+        meaning: 許可された必要参照への正の有限上限。未知/nullを無制限にしない
+        fields:
+        - max_guide_items
+        - max_form_items
+    unselected: existing route unchanged; no addon/private injection
+    conflict: 現在依頼/明示選択で解決できない複数案内/版競合はHold。勝手な優先度や新必須質問なし
+    legacy: pmo_mode/description指示を自動移行/選択にしない
+  AddonResourceRef:
+    schema_version: '0.1'
+    required_fields:
+    - kind
+    - scope
+    - version
+    - sha256
+    kind_values:
+    - file
+    - page
+    scope_values:
+    - common
+    - case
+    file_required:
+    - relative_name
+    page_required:
+    - resource_ref
+    rules:
+    - file is under explicitly permitted root; reject absolute/parent traversal/symlink
+      escape
+    - page needs existing authorized read capability/version pin; unsupported or unresolved
+      is Hold
+    - case scope resolved locally; common documents contain no actual case page IDs/paths
+    - hash/version is a pin, not permission/authentication
+    - do not search/install/copy sessions as fallback for denied or unsupported references
+  ConsultationResult:
+    fields:
+    - route
+    - next_actions
+    - read_coverage
+    - execution_note
+    - source_refs
+    route_values:
+    - operational_guidance
+    - existing_plan_change_classification
+    - held
+    operational_guidance: 既存plc-nextの現在Task/依存/状態照合へ接続、相談からの実行0
+    plan_change: plc-consultの既存5分類を維持。priority questionを今のTask修正へ誤分類しない
+    next_actions: 既存session §7.4の正式入口/対象/得る成果、現実的案最大3つ、同一判断点で唯一のNextブロック
+    read_coverage: ReadCoverage型の要約を再利用。読取0/不明/欄なし等を区別
+    execution_note: 1行で相談のみ/実Task未実行/試行のみを明示
+    MatterTrace: assignment timing and numbering remain addon/case-owned; no common
+      real ID generated
+  TrialPolicy:
+    specification: AI-PLC Trial Policy
+    schema_version: '0.1'
+    candidate_location: optional intent.trial_policy or current explicit session instruction
+    resolved_value: effective_trial_policy; computed read-only before mutations
+    fields:
+      schema_version:
+        type: string
+        required: true
+        meaning: '0.1'
+      effect:
+        type: enum
+        required: true
+        meaning: 永続的な副作用を行わない上限制約
+        values:
+        - observe_only
+      interaction:
+        type: enum
+        required: true
+        meaning: 実判断を代行せず、質問UI/承認待機なしで不足を返す
+        values:
+        - no_wait
+      read_scope:
+        type: list
+        required: true
+        meaning: 現在の実読取許可内の必要参照。未知を全域へ補完しない
+      limits:
+        type: map
+        required: true
+        meaning: 読取/試行の正の有限上限。既存期限/消費をリセットしない
+      source_ref:
+        type: reference
+        required: true
+        meaning: 現在本人の明示試行指示、又は現在許可に基づくLayer選択出典。メモ引用は起動指示でない
+    default: unset => existing ordinary policy and gates; no implicit write grant
+    mode_collision: intent.mode direct/platform_builder and work_style/dev_style/extensions
+      unchanged
+    denied_effects:
+    - artifact file writes including temp/cache/bytecode/automatic logs
+    - intent/context/backlog changes
+    - writer claim/release and binding/receipt journal writes
+    - Registry/classification/Stock changes
+    - Wiki/log/memory and automatic end-of-request Backfill
+    - external update/transmission/sync
+    - native Goal state updates
+    - automation/schedule creation
+    - Git changes/tool installation/new spend
+    no_wait: 表示した候補/判断内容を実本人回答・採択・反映へ昇格しない。必要判断/実操作は未実施又は未確認
+    quality: self/independent read-only verification may run only if actual effects
+      are known and allowed. Unavailable quality stays unverified; no normal Task
+      gate waived
+    completion: No Task.completed/Goal.complete/persistent status transition; TrialResult
+      is not real Task status
+    normal_auto_force: 明示observe_only制約は全経路で維持。forceの待機例外は操作権限・期限解除を生成しない
+    exit: 別の明示本人指示と現在条件照合まで通常書込みへ戻さない。試行終了を解除としない
+    unknown_tool_effects: Hold; do not exercise tool with uncertain persistence
+    separate_record: 試行終了の自動Backfill0。後に別の具体通常記録許可がある場合だけ、その範囲で記録
+    native_runtime_limit: Persistent native Goal controls not changed in trial; response
+      does not prove mechanical cancellation or future background-stop guarantee
+  TaskAddonRef:
+    schema_version: '0.1'
+    candidate_location: backlog.tasks[].addon_refs[]
+    required_fields:
+    - addon_id
+    - addon_version
+    - form_id
+    - form_ref
+    field_meanings:
+      form_ref: AddonResourceRef; must match same-version intent.addons.forms binding
+    display_alias: addon/form@version is display only, not path/command resolution
+    operation_checks:
+    - current Task and approval version
+    - same-version Layer explicit addon selection
+    - guide/common contract/form fixed hashes and permitted reads
+    - actual upstream evidence/current capabilities/permissions/finite allocation
+    - existing writer/stop/quality gates for real execution
+    update: 型改版を自動反映しない。影響Task/計画の版と許可を再照合
+    missing_selected_ref: Hold; distinguish from unselected legacy route
+    execution_permission_created: false

@@ -1,0 +1,777 @@
+version: '2.0'
+reviewed_commit: 2a7cdb8a77cb1b20e1325649faac0d7f177afb62
+source_manifest: source/source_manifest.json
+folders:
+- 01_ペルソナ作成
+- 02_課題定義
+- 03_ソリューションマップ
+- 04_ストーリーマップ
+- 05_UIワイヤーフレーム
+- 06_設計__Drawioスクリーン生成
+- 07_開発タスク分解
+- 08_チケット開始
+- 09_チケット実行と検証
+- 10_タスクリファイン
+- hackathon/発表__Marpスライド生成
+- hackathon/提出__成果物パッケージング
+- hackathon/提出__GitHub提出
+course:
+- init
+- persona
+- problem
+- validation
+- solution
+- story
+- archive
+documents:
+- path: 01_ペルソナ作成/{persona_id}_{name_slug}_{type}/persona_{type}_{name_slug}.md
+  source: 3_discovery/01_ペルソナ作成.md
+  step: generate_persona_md
+  source_content_lines:
+  - 220
+  - 272
+  raw_template: templates/generate_persona_md.txt
+  template_sha256: c3dc74820dabf7249851e4c2a2498d8b5c90a341886eb38da935f4e3cfaac7ae
+  kind: markdown
+  required_headings:
+  - 基本情報
+  - 日常活動・行動パターン
+  - 課題・ペインポイント
+  - 価値観・重視する要素
+  - 対応するOpportunity仮説
+  - エクスペリエンスフェーズ
+- path: 01_ペルソナ作成/{persona_id}_{name_slug}_{type}/experience_map_{type}_{name_slug}.yaml
+  source: 3_discovery/01_ペルソナ作成.md
+  step: generate_experience_yaml
+  source_content_lines:
+  - 277
+  - 330
+  raw_template: templates/generate_experience_yaml.txt
+  template_sha256: f800d4abec3075c4aa872c83aa280ae9779ea10431a5b73aa081afd61b6ac026
+  kind: yaml
+  required_headings: []
+  schema:
+    type: map
+    fields:
+      persona:
+        type: map
+        fields:
+          id: &id001
+            type: string
+            nonempty: true
+          name: *id001
+          profile:
+            type: map
+            fields:
+              age_gender: *id001
+              occupation: *id001
+              company_context: *id001
+          behaviors:
+            type: list
+            items: *id001
+            min_items: 1
+          values:
+            type: list
+            items: *id001
+            min_items: 1
+      experience_map:
+        type: map
+        fields:
+          phases:
+            type: list
+            items:
+              type: map
+              fields:
+                id: *id001
+                name: *id001
+                description: *id001
+                actions:
+                  type: list
+                  items:
+                    type: map
+                    fields:
+                      id: *id001
+                      label: *id001
+                      notes: &id002
+                        type: list
+                        items: *id001
+                        min_items: 0
+                  min_items: 1
+            min_items: 1
+      opportunity_hypotheses_mapping:
+        type: map
+        values: *id002
+      numbering_policy:
+        type: list
+        items: *id001
+        min_items: 1
+- path: 01_ペルソナ作成/{persona_id}_{name_slug}_{type}/experience_map_{type}_{name_slug}_mermaid.md
+  source: 3_discovery/01_ペルソナ作成.md
+  step: generate_experience_mermaid
+  source_content_lines:
+  - 335
+  - 409
+  raw_template: templates/generate_experience_mermaid.txt
+  template_sha256: 54efabec3bc7fc4bf040fb7711c85db86a9e4edfc21b11312a578e3e35f1a994
+  kind: mermaid
+  required_headings:
+  - Mermaid図
+  - Opportunity仮説との対応
+  - 検証ポイント
+- path: 01_ペルソナ作成/experience_map_integrated.yaml
+  source: 3_discovery/01_ペルソナ作成.md
+  step: generate_integrated_experience_map
+  source_content_lines:
+  - 415
+  - 466
+  raw_template: templates/generate_integrated_experience_map.txt
+  template_sha256: ac624bb17c0f845f4ace817c68c24da460ddc8b67873098468cdd09ca5204276
+  kind: yaml
+  required_headings: []
+  schema:
+    type: map
+    fields:
+      integrated_experience_map:
+        type: map
+        fields:
+          meta:
+            type: map
+            fields:
+              created_date: *id001
+              project: *id001
+              phase: *id001
+              description: *id001
+          personas:
+            type: map
+            values:
+              type: map
+              fields:
+                id: *id001
+                name: *id001
+                role: *id001
+                focus: *id001
+            min_items: 1
+          integrated_phases:
+            type: list
+            items:
+              type: map
+              fields:
+                id: *id001
+                name: *id001
+                description: *id001
+                persona_mapping:
+                  type: map
+                  values: *id001
+                  min_items: 1
+                opportunity_hypotheses: *id002
+            min_items: 1
+          validation_priorities:
+            type: map
+            fields:
+              critical: *id002
+              high: *id002
+- path: 01_ペルソナ作成/personas_summary.md
+  source: 3_discovery/01_ペルソナ作成.md
+  step: generate_personas_summary
+  source_content_lines:
+  - 472
+  - 557
+  raw_template: templates/generate_personas_summary.txt
+  template_sha256: 5f7201e9755c24660588323a4c143dc1631ff3465a3b84f2af11e5a3149329a9
+  kind: markdown
+  required_headings:
+  - 概要
+  - ペルソナ一覧
+  - 仮説マッピング
+  - 検証計画
+- path: 02_課題定義/customer_problem_map.yaml
+  source: 3_discovery/02_課題定義.md
+  step: export_customer_problem_map_yaml
+  source_content_lines:
+  - 577
+  - 619
+  raw_template: templates/export_customer_problem_map_yaml.txt
+  template_sha256: 9de77bc8f01fd48fb3987dca2dbac45c8103f546eba25031405acaf84fad8bc8
+  kind: yaml
+  required_headings: []
+  schema:
+    type: map
+    fields:
+      customer_problem_map:
+        type: map
+        fields:
+          persona_ref: *id001
+          phases:
+            type: list
+            items:
+              type: map
+              fields:
+                id: *id001
+                actions:
+                  type: list
+                  items:
+                    type: map
+                    fields:
+                      id: *id001
+                      thoughts: *id002
+                      emotions: *id002
+                      issues:
+                        type: list
+                        items: *id001
+                        min_items: 1
+                  min_items: 1
+            min_items: 1
+          problems:
+            type: list
+            items: &id003
+              type: map
+              fields:
+                id: *id001
+                summary: *id001
+                causes:
+                  type: list
+                  items: *id001
+                  min_items: 1
+                impact: *id001
+                linked_actions:
+                  type: list
+                  items: *id001
+                  min_items: 1
+                occurs_in_phases:
+                  type: list
+                  items: *id001
+                  min_items: 1
+            min_items: 1
+          numbering_policy:
+            type: list
+            min_items: 1
+            items:
+              type: map
+              fields:
+                prefix:
+                  type: string
+                  nonempty: true
+- path: 02_課題定義/customer_problem_map_mermaid.md
+  source: 3_discovery/02_課題定義.md
+  step: export_customer_problem_map_mermaid
+  source_content_lines:
+  - 624
+  - 639
+  raw_template: templates/export_customer_problem_map_mermaid.txt
+  template_sha256: 20d9d9d79633767651623bf24f1619146f50998e514fb80e97fea72dfc6df38d
+  kind: mermaid
+  required_headings: []
+- path: 02_課題定義/problem_todo.md
+  source: 3_discovery/02_課題定義.md
+  step: generate_problem_statement
+  source_content_lines:
+  - 644
+  - 653
+  raw_template: templates/generate_problem_statement.txt
+  template_sha256: 0f960fe0921d628089a004bfd77e6768be85e77e297a4b20466f64835a59e378
+  kind: markdown
+  required_headings:
+  - フェーズ別の主要課題
+  - 現状の対処と限界
+- path: 02_課題定義/problem_map.yaml
+  source: 3_discovery/02_課題定義.md
+  step: export_problem_map_yaml
+  source_content_lines:
+  - 658
+  - 681
+  raw_template: templates/export_problem_map_yaml.txt
+  template_sha256: 52e19fbbd769c649ec8800d72ffe8b855fa5f7e8d40ca67f9b0cbc8e4d33949e
+  kind: yaml
+  required_headings: []
+  schema:
+    type: map
+    fields:
+      problem_map:
+        type: map
+        fields:
+          persona_ref: *id001
+          problems:
+            type: list
+            items: *id003
+            min_items: 1
+          numbering_policy:
+            type: list
+            min_items: 1
+            items:
+              type: map
+              fields:
+                prefix:
+                  type: string
+                  nonempty: true
+- path: 02_課題定義/problem_map_mermaid.md
+  source: 3_discovery/02_課題定義.md
+  step: export_problem_map_mermaid
+  source_content_lines:
+  - 686
+  - 707
+  raw_template: templates/export_problem_map_mermaid.txt
+  template_sha256: 855edf4be9d236396ab12da5c8161342ec46bb503c8a4a6e65863196ce9331c8
+  kind: mermaid
+  required_headings: []
+- path: 03_ソリューションマップ/solution_map_todo.md
+  source: 3_discovery/03_ソリューションマップ.md
+  step: generate_solution_map
+  source_content_lines:
+  - 581
+  - 598
+  raw_template: templates/generate_solution_map.txt
+  template_sha256: 83aaa4fdbb48ada0e4677dba7c770adcb09c3374115a9b480184cfa3625f3096
+  kind: markdown
+  required_headings:
+  - 対象と課題（PR基準）
+  - PR別の解決案
+  - MVP候補（検証優先の順）
+  - ソリューション仮説（Statement）
+- path: 03_ソリューションマップ/solution_map.yaml
+  source: 3_discovery/03_ソリューションマップ.md
+  step: export_solution_map_yaml
+  source_content_lines:
+  - 603
+  - 627
+  raw_template: templates/export_solution_map_yaml.txt
+  template_sha256: 0862d6bd13eb3faa1f8bf777b622d5f738f49ff08e690dec4119a7506f9f41c9
+  kind: yaml
+  required_headings: []
+  schema:
+    type: map
+    fields:
+      solution_map:
+        type: map
+        fields:
+          persona_ref: *id001
+          problems:
+            type: list
+            items: *id001
+            min_items: 1
+          phases:
+            type: list
+            items:
+              type: map
+              fields:
+                id: *id001
+                name: *id001
+                solutions:
+                  type: list
+                  items:
+                    type: map
+                    fields:
+                      id: *id001
+                      label: *id001
+                      links:
+                        type: list
+                        items: *id001
+                        min_items: 2
+                  min_items: 1
+            min_items: 1
+          numbering_policy:
+            type: list
+            min_items: 1
+            items:
+              type: map
+              fields:
+                prefix:
+                  type: string
+                  nonempty: true
+- path: 03_ソリューションマップ/solution_map_mermaid.md
+  source: 3_discovery/03_ソリューションマップ.md
+  step: export_solution_map_mermaid
+  source_content_lines:
+  - 632
+  - 644
+  raw_template: templates/export_solution_map_mermaid.txt
+  template_sha256: 5832122f64fd1872f5edb14c132af8daeded1915e70bfdd4438126f39f04750f
+  kind: mermaid
+  required_headings: []
+- path: 04_ストーリーマップ/story_map_todo.md
+  source: 3_discovery/04_ストーリーマップ.md
+  step: generate_story_map_md
+  source_content_lines:
+  - 392
+  - 401
+  raw_template: templates/generate_story_map_md.txt
+  template_sha256: 51ad7fffb7f4a64881d45127420ca5ee8ed6c31b1f43d5b6bd842b9a6e06ce85
+  kind: markdown
+  required_headings:
+  - 優先度順ユーザーストーリー（PR連動）
+  - 実装順序
+- path: 04_ストーリーマップ/story_map.yaml
+  source: 3_discovery/04_ストーリーマップ.md
+  step: export_story_map_yaml
+  source_content_lines:
+  - 406
+  - 436
+  raw_template: templates/export_story_map_yaml.txt
+  template_sha256: 37d123d44980a95e39f6476efd0d9e5e64ca85fc607e62adc7f22c56611eff7b
+  kind: yaml
+  required_headings: []
+  schema:
+    type: map
+    fields:
+      story_map:
+        type: map
+        fields:
+          persona_ref: *id001
+          problem_refs:
+            type: list
+            items: *id001
+            min_items: 1
+          links:
+            type: list
+            items:
+              type: map
+              fields:
+                chain:
+                  type: list
+                  items: *id001
+                  min_items: 4
+            min_items: 1
+          stories:
+            type: list
+            items:
+              type: map
+              fields:
+                id: *id001
+                summary: *id001
+                acceptance:
+                  type: list
+                  items: *id001
+                  min_items: 1
+                release: *id001
+                links:
+                  type: list
+                  items: *id001
+                  min_items: 3
+            min_items: 1
+          releases:
+            type: list
+            items:
+              type: map
+              fields:
+                name: *id001
+                includes:
+                  type: list
+                  items: *id001
+                  min_items: 1
+            min_items: 1
+          numbering_policy:
+            type: list
+            min_items: 1
+            items:
+              type: map
+              fields:
+                prefix:
+                  type: string
+                  nonempty: true
+- path: 04_ストーリーマップ/story_map_mermaid.md
+  source: 3_discovery/04_ストーリーマップ.md
+  step: export_story_map_mermaid
+  source_content_lines:
+  - 441
+  - 451
+  raw_template: templates/export_story_map_mermaid.txt
+  template_sha256: f272992a3fcd3084cc7674246bca9a9fd482c156f95083426c63f52f30a05da0
+  kind: mermaid
+  required_headings: []
+- path: 04_ストーリーマップ/viewer_story_map.yaml
+  source: 3_discovery/04_ストーリーマップ.md
+  step: export_viewer_integrated_yaml_final
+  source_content_lines:
+  - 321
+  - 380
+  raw_template: templates/export_viewer_integrated_yaml_final.txt
+  template_sha256: a937b91ebd0b0fb5e9e0f3975d945b7c4c2d57cb9d6bb1884b85378755980d04
+  kind: yaml
+  required_headings: []
+  schema:
+    type: map
+    fields:
+      integrated_story_map:
+        type: map
+        fields:
+          meta:
+            type: map
+            fields:
+              project_name: *id001
+          version_definitions:
+            type: map
+            fields:
+              order:
+                type: list
+                items: *id001
+                min_items: 1
+          story_map_structure:
+            type: map
+            fields:
+              activities:
+                type: list
+                items:
+                  type: map
+                  fields:
+                    id: *id001
+                    name: *id001
+                min_items: 1
+              backbones:
+                type: list
+                items:
+                  type: map
+                  fields:
+                    id: *id001
+                    name: *id001
+                    sequence: &id004
+                      type: integer
+                    activity_id: *id001
+                min_items: 1
+          display_order:
+            type: map
+            fields:
+              backbones:
+                type: list
+                items: *id001
+                min_items: 1
+          personas_stories:
+            type: map
+            values:
+              type: map
+              fields:
+                name: *id001
+                stories:
+                  type: list
+                  items: &id005
+                    type: map
+                    fields:
+                      id: *id001
+                      story: *id001
+                      backbone_id: *id001
+                      version: *id001
+                      status: *id001
+                      backbone_x_version_sort: *id004
+                  min_items: 1
+            min_items: 1
+          cross_persona_stories:
+            type: list
+            items: *id005
+            min_items: 0
+          story_mapping:
+            type: map
+            values:
+              type: map
+              fields:
+                backbone_id: *id001
+                sequence: *id004
+            min_items: 1
+- path: project_init.yaml
+  side: flow
+  source: 0_initialize/00_プロジェクト開始.md
+  step: write_init_yaml
+  source_content_lines:
+  - 176
+  - 190
+  raw_template: templates/write_init_yaml.txt
+  template_sha256: 3c7e0413607b7041dbaea0864ed00ee435b2014b4434ceae1405350ed8cc78b2
+  template_sha256_upstream: fd074d1a1a5b35c4b35bb41d255d1f22d3d064d0914fccef385a9402065a3010
+  kind: yaml
+  required_headings: []
+  schema:
+    type: map
+    fields:
+      program_id: *id001
+      project_id: *id001
+      participant_name: *id001
+      flow_dir: *id001
+      flow_base: *id001
+      stock_base: *id001
+      period: *id001
+      purpose: *id001
+      background: *id001
+      app_type: *id001
+      main_user: *id001
+      app_summary: *id001
+      share_repo: *id001
+      share_local_dir: *id001
+- path: README.md
+  side: stock_project
+  source: 0_initialize/00_プロジェクト開始.md
+  step: create_stock_readme
+  source_content_lines:
+  - 144
+  - 170
+  raw_template: templates/create_stock_readme.txt
+  template_sha256: 0f3a46573c40c6ff41c46b5af093195adb190da67044196d434d4e49d8b3aad6
+  kind: markdown
+  required_headings:
+  - 概要（簡易プロジェクト憲章）
+  - 背景
+  - 目的（現時点の仮説）
+  - アプリ/サービス概要
+  - 構造
+  - 次のステップ
+id_mapping:
+  trace_story: ST1
+  viewer_story: ST-001
+  persona: P001
+  phase: PH1
+  action: A101
+  problem: PR1
+  solution: SL1
+adaptations:
+- id: D1
+  source: mixed Flow/<today>/patterns.flow_date/3_discovery
+  target: explicit internal flow_rel / folder
+  reason: 同Projectに束縛し外部を触らない
+- id: D2
+  source: 3件固定のPH/PR/SL/STとViewer例のP002/ST004
+  target: 実証された件数1以上、P002/cross例は削除せずrawテンプレート保持、実文書は不要例を生成しない
+  reason: 構造を保ち架空事実を作らない
+- id: D3
+  source: age_gender/occupation/company_context
+  target: キー保持、[unknown]値を明示。原文末尾のSense+Focusベース表現を実際の質問ベース出典へ読み替え
+  reason: 実データの出典へ合わせる
+- id: D4
+  source: question branch hypotheses mappingコメントのみ/priority空欄
+  target: 空map/空listへ正規化、仮説はAIPLC別検証記録
+  reason: 型を明確にし事実の欠落と空集合を区別
+- id: D5
+  source: Summaryの1〜3ヶ月の検証見出し/固定検証例
+  target: 見出しは参照形式として保持、今回の各節に局所確認・未確認と対象外の期間を記述
+  reason: 計画を実施済みと偽らない
+- id: D6
+  source: viewer_story_map型とST-001 /後工程integrated_story_map
+  target: Viewerは別YAML、traceはST1。id_mappingをmanifestへ。後工程aliasは未使用なので作らない
+  reason: 暗黙形式変換をしない
+- id: D7
+  source: persona末尾旧単一出力
+  target: 今回はgenerate_all_personasの質問branch。legacy aliasは作らずsource mappingに未採用理由を残す
+  reason: 原文分岐を固定し重複を避ける
+- id: D8
+  source: share_repo固定/提出コマンド次案内
+  target: 14キーと憲章節保持、share値はdisabled。次工程はLayer内、公開提出無効
+  reason: 送信/公開未許可
+- id: D9
+  source: proposed→wait→確定
+  target: proposed内容は同形式の候補履歴として保持、Goal自動判断をauto_decisionと記録。実本人回答と別
+  reason: 無回答を本人確認としない
+additional_records:
+  manifest: manifest.yaml
+  validation: validation_record.yaml
+  required_evidence_labels:
+  - user_reported
+  - observed
+  - hypothesis
+  - inference
+  - unknown
+  human_confirmation_policy: Require actual-user source receipt with kind/actor/origin/question_id/thread/time
+    and matching stage-required target document; no hypothesis/quote promotion. Independent
+    reviewer verifies provenance, code does not authenticate real-world identity.
+  manifest_schema:
+    required:
+    - scope_id
+    - source_commit
+    - contract_version
+    - branch
+    - flow_rel
+    - stock_project_rel
+    - id_mapping
+    - completion_claim
+    - stages
+    - evidence
+    - records
+    completion_claim: local_trial_only; new human readability/effectiveness unknown
+    branch: question_based/single_persona
+    stages: ordered init/persona/problem/validation/solution/story/archive; each has
+      started_at/finished_at/checkpoint_actor/checkpoint_status/evidence_refs
+    evidence: list{id,kind,source,source_sha256,scope}; kind in five declared labels;
+      source relative to Layer and hash-match, no invented interview
+    records: list{path,source_step,template_sha256,version,branch,stage,status,requires_human,human_state,inputs,evidence_refs,decision,sha256,generated_mtime_ns,archive_path,archive_sha256};
+      path/archival targets inside package; all required documents exactly once
+    status_allowed:
+    - draft
+    - generated
+    - validated_local_final
+    - archived_local_final
+    - blocked
+    human_state_allowed:
+    - not_required
+    - confirmed_actual
+    - pending
+    completed_package_state: Flow stage docs archived_local_final with matching Stock
+      bytes; Init/README validated_local_final; no draft/blocked/pending requires_human
+      allowed
+    version: nonempty string
+    generated_state_transition: draft→generated→validated_local_final→archived_local_final;
+      requires_human+pending→blocked; validation/drafts remain distinct
+    archive_condition: Only source-contract/source ID/labels checks passed and no
+      required real-user decision pending. auto_decision on local reversible output
+      is recorded as auto, never as actual human.
+    human_responses: optional map stage -> {source,source_sha256,answer,target_path,target_sha256};
+      source is Context YAML actual_user_reply receipt with scope_id/stage/kind=user_reported/actor=actual_user/question_id/source_thread_id/received_at;
+      same source in user_reported evidence; target is that stage required document
+      and hash matches actual bytes/checkpoint_targets
+    checkpoint_targets: optional map stage -> actual target document SHA256
+  validation_schema:
+    required:
+    - scope_id
+    - before_solution
+    - hypotheses
+    - evidence_refs
+    - actual_new_user_response
+    - limits
+    before_solution: true only if written in validation stage before any solution
+      stage output
+    hypotheses: list{id,kind,claim,method,success,falsification,result,scope}; kind=hypothesis;
+      result unknown/not_supported/structurally_supported, no general effect
+    actual_new_user_response: null unless a typed actual-user validation receipt matches
+      its answer and required target; psychological effects remain unknown
+    limits: psychological effect/new-user understanding unmeasured; structural fixtures
+      are separate
+  fixture_oracles:
+  - name: normal
+    mutation: valid independently authored synthetic minimal package
+    expect: pass, empty errors
+  - name: missing
+    mutation: remove problem_map.yaml
+    expect: fail E_MISSING with missing path
+  - name: format
+    mutation: replace a story acceptance list with string
+    expect: fail E_SCHEMA at acceptance; a duplicate YAML key also must fail
+  - name: reference
+    mutation: point an SL link to absent PR999
+    expect: fail E_REF with unresolved PR999
+  - name: order
+    mutation: solution before validation in stages
+    expect: fail E_ORDER
+  - name: archive
+    mutation: change Stock bytes without Flow change
+    expect: fail E_ARCHIVE or E_HASH
+  - name: checkpoint
+    mutation: requires_human=true + human_state=pending
+    expect: fail E_CHECKPOINT; not archive as locally final
+  - name: boundary
+    mutation: symlink required file outside package
+    expect: fail E_BOUNDARY before reading target
+  validation_checkpoint: 'optional immutable validation_checkpoint.yaml: validation
+    record excluding actual_new_user_response, written before actual reply; final
+    question content must still match'
+checks:
+- required_files_and_folders
+- YAML_recursive_schema
+- Markdown_source_headings
+- Mermaid_closed_fence_and_IDs
+- no_unrendered_placeholders
+- referential_integrity_and_duplicate_IDs
+- evidence_labels_and_refs
+- stage_order
+- internal_root_and_symlinks
+- manifest_hash_and_archived_bytes
+trial_limit: Common structural contract. Single persona Init/Discovery01–04; no native
+  registration, Viewer E2E or psychological effect guarantee.
+
+# Local extension reference; stripped from legacy bound contracts.
+local_courses:
+  contract: course_contracts.yaml
+  version: 1
+  upstream_canonical_unchanged: true

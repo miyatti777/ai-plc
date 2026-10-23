@@ -229,6 +229,23 @@ git pull             # 最新の版を取ってくる（失敗したら git stat
 
 **実験版（Jev 監視）を入れている人:** 実験版も一緒に上げるときは `--with-jev` を付けます（`./install.sh --target /path/to/your/project cc --with-jev`）。付けずに更新すると、実験版のファイルは今のまま残ります。前の実験版 1.8.0-exp.1 を入れた環境の `.ai-plc-version` は、その時点の core の版の `1.7.1` と出ます。前の実験版から今の実験版 1.12.0-exp.2 への上げ方は[実験版の節](#-実験版-jev-監視)にあります。
 
+### v1.13.x から v1.14.0 へ
+
+流すコマンドは 2. と同じです（`--dry-run` で確かめてから、最初に入れたときと同じ指定で実行）。
+
+```bash
+./install.sh --dry-run --target /path/to/your/project cc
+./install.sh --target /path/to/your/project cc
+```
+
+- **配ったファイルを自分で編集していたら** `[CONFLICT] user-modified managed file: …` で止まります（何も書き換わりません）。`--backup-modified` を付けると、編集したファイルを `.bak` に退避して進みます（[3-1.](#3-1-自分で編集したファイルがある場合)）。v1.14.0 は rules を v3.0 に書き直しているので、rules を編集していた人は、`.bak` と diff して自分の追記を戻してください。自分用の追記は、AI-PLC が配らない別のファイルに書くと次の更新で止まりません
+- **既存の Layer はそのまま使えます。** `intent.yaml`・`backlog.yaml` の書き換えは要りません。`recurrence`・`scheduled_for` の無い Task は今までどおり扱われ、`work_style: aipm` と書いた Layer は同梱の AIPM を選んだものとして読まれます
+- **増えるもの:** rules `ai-plc-model-routing.md`、ユーティリティ `plc-next`・`plc-decision`・`plc-brief`・`plc-project-status`・`plc-model-routing`・`plc-someday`、同梱アドオン AIPM（`.claude/skills/aipm-guided/`）と `/pm-` コマンド8本、アドオンの判定スクリプト（`.claude/skills/ai-plc/scripts/`）、DB のスクリプト `project_lifecycle.py`・`plc_explain.py`、Codex の入口 14本
+- **消えるもの:** 配らなくなったファイルはありません（`--dry-run` に `DELETE:` は出ません）。Codex の入口の診断モード（`AI-PLC prerequisite diagnostics`）は無くなり、正本が欠けていれば欠けたパスを報告して止まります
+- **本文に名前が出るが、公開版に無いもの:** ステータス点検（実験版 `--with-jev` にだけ入る）、ライブの進捗表示、`plc-brief` の HTML モード、Project の分類（`experimental/registry-viewer` にある）、社内向けの共有 Stock・業務 Project への割り当て、本人専用の情報の保存先。どれも「無ければスキップ」と書いてあり、無くても Stage は止まりません
+- **実験版（Jev 監視）を入れている人:** 実験版は 1.12.0-exp.2 のまま変わりません。`--with-jev` を付けても付けなくても、core だけが 1.14.0 に上がります
+- DB（`.claude/db/ai_plc.db`）は書き換えません。`plc_query.py someday` は既存の `projects` テーブルを使うので、DB の作り直しは要りません
+
 ### 3. 止まったとき
 
 installer は、プロジェクトを壊すおそれがあると**書き換えを始める前に止まります**。本実行で最後の行が次のどちらかなら、プロジェクトは何も変わっていません（終了コード 2）。
@@ -393,6 +410,10 @@ Goal: <達成したいことを1〜2文で>
 > コードでも、企画書でも、OKRでも、リサーチでも同じ流れで回ります。
 >
 > 承認を挟まずに最後まで流したいときは、Collection・Inception の完了報告の最後に出る /goal 1行を貼ります（[自動完走](#-自動完走goal)）。
+
+**繰り返す仕事と、実行する日が決まっている仕事（v1.14.0〜）:** 毎週の振り返りのような繰り返しの仕事は、Inception で `recurrence` のある「運用タスク」になります。一度きりのタスクとは分けて「次に回す運用タスク」として示され、完了率には数えません。回すときは `/04-operation` で Task を指定します。「来週の月曜から」のように時期が決まっている Task は `scheduled_for` を持ち、その日までは「待ち」として一覧に出ます。
+
+> rules は v1.14.0 で v3.0 に軽量化しました。細かい手順は各スキルの `references/` にあり、挙動は変わりません。
 
 ---
 
@@ -773,7 +794,7 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 
 ## 🛠 同梱スキル
 
-**コア（4ステージ本体）:** `/01-collection` `/02-inception` `/03-construction` `/04-operation` ＋ `/status`
+**コア（4ステージ本体）:** `/01-collection` `/02-inception` `/03-construction` `/04-operation` ＋ `/status`（AIPM を選んだ Layer では `/pm-…` も。[下の節](#同梱アドオン-aipm-と-pm--コマンドv1140)）
 
 **ユーティリティ（収束を深める）:**
 
@@ -795,8 +816,40 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 | `plc-consult` | アイデア相談。「ここをこうしたい」を今の Layer と照らして 却下／今のタスク内で修正／Re-Inception／Re-Collection／いつかやる に振り分け、所感と次に打つコマンドを返す（読み取り専用。v1.10.0〜） | いつでも |
 | `plc-auto` | 固定本文をnative Goalに設定し、この会話のLayerを自動完走する専用入口（v1.13.0〜）。表示名も `plc-auto` | 利用者の明示実行・Goal管理ツールが利用可能。使えない場合は未設定で停止して `/goal` を案内（[詳細](docs/plc-auto.md)） |
 | `plc-backfill` | スキル外作業の事後記録。スキルを通さずに済ませた作業を、承認を得てから対象 Layer の backlog に ad-hoc タスクとして足し、04-operation の Phase 5.5〜7（検証・ステータス更新・Propagation）を通す（v1.11.0〜） | いつでも |
+| `plc-next` | 欠けた「次のアクション」（選択肢・おすすめ・開始文）を、直前の結果と Layer の正本から補う（読み取り専用。v1.14.0〜） | いつでも |
+| `plc-decision` | 承認・選択の質問1件を、決めること・変わる範囲・負担・推奨の根拠・返信の案まで短く説明する（読み取り専用。承認は代行しない。v1.14.0〜） | いつでも |
+| `plc-brief` | Project が何のためで、何ができ、どう使うかを成果物から平易に説明する（読み取り専用。v1.14.0〜） | いつでも |
+| `plc-project-status` | Goal 未達のまま意図的に中止（cancelled）し、理由を残す。再計画の後の再開も（v1.14.0〜） | いつでも |
+| `plc-model-routing` | タスクに合う担当モデルと Advisor 相談を選び、実行環境のモデル指定へ渡す（v1.14.0〜） | 頼んだとき、または `model_routing: true` の Layer/Task |
+| `plc-someday` | 「いつかやる」Project を Registry に貯め、1件選んで `/01-collection` の起動プロンプトにする（Layer は作らない。v1.14.0〜） | いつでも |
 
 名前の決まりは `.claude/rules/ai-plc-system.md` の §6 にあります（Stage は `0N-<stage>`、ユーティリティは `plc-<機能>`）。
+
+### 同梱アドオン AIPM と `pm-` コマンド（v1.14.0〜）
+
+PM の進め方を Layer ごとに選べる「アドオン」を1つ同梱しています。**AIPM** は、1人の利用者について ペルソナ → 課題 → 仮説検証 → 解決策 → ストーリー までの19文書を決まった形式で作り、形式と中身を検証しながら進めるモードです。選んだ Layer だけで動き、選ばなければ今までと同じです。
+
+始め方（Collection で選ぶ）:
+
+```
+/01-collection を実行してください
+Goal: 家計簿アプリの新しい利用者像を固めて、最初のストーリーまで作りたい。AIPM で進めたい
+```
+
+途中から AIPM にしたいときは `/pm-init` が、今の状態と次に打つコマンドを返します。
+
+AIPM の Layer では、論点・仮説・ToDo の「箱」を `pm-` で1件ずつ扱えます。
+
+| コマンド | 頼み方の例 |
+| --- | --- |
+| `/pm-issue` | 「価格をいくらにするか、を論点に足して」 |
+| `/pm-hypothesis` | 「『週1回しか家計簿を開かない』を仮説に足して。インタビューの結果で判定の案も」 |
+| `/pm-todo` | 「来週のインタビュー3件の準備を ToDo に。遅れているものも見せて」 |
+| `/pm-capture` | 「今日の会議のメモから、論点・仮説・ToDo の候補を拾って」（書かずに候補を出す） |
+| `/pm-today` | 「今日はどれを動かすのがいい？」（1件を選ぶ） |
+| `/pm-persona` / `/pm-story` | 「新しいインタビューを受けて、ペルソナの文書のどこを直すべき？」（直す範囲の案だけ） |
+
+Codex では `$pm-issue` のように `$` で呼びます。日次・週次の締めや引継ぎは扱いません。社内の Registry と共有する保存先（`registry_stock_v1`）は公開版には無く、Layer の中（`Documents/aipm_project`）に保存します。
 
 ---
 
@@ -806,7 +859,7 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 >
 > ⚠️ **外部送信あり（opt-in）。** APIキーを登録し、Layer の `intent.yaml` に `jev_monitor: true` を書いたときだけ、Layer の文や発話を字数で切ったもの（下の表。要約ではなく原文の抜粋です）を外部の判断専用モデル **Jev**（TypeSafe）に送ります。キーが無ければ何も送らず、すべてスキップされます。
 >
-> **版:** 実験版パッケージ（`experimental/jev/`）の版は **`1.12.0-exp.2`** で、前の実験版 `1.12.0-exp.1` の次の版です。実験版の番号は core の版（**1.13.0**）とは別に数えます。`1.12.0-exp.2` は core 1.12.0 の上の2つ目の版で、末尾の `exp.2` はその版での通し番号です（頭の数字が core の版と一致するとは限りません。たとえば `1.8.0-exp.1` は core 1.7.1 の上に作ったものです）。スキルは core 1.12.0 のスキルを元にしており、違いは Jev 部分だけです（[CHANGELOG.md](CHANGELOG.md)）。
+> **版:** 実験版パッケージ（`experimental/jev/`）の版は **`1.12.0-exp.2`** で、前の実験版 `1.12.0-exp.1` の次の版です。実験版の番号は core の版（**1.14.0**）とは別に数えます。`1.12.0-exp.2` は core 1.12.0 の上の2つ目の版で、末尾の `exp.2` はその版での通し番号です（頭の数字が core の版と一致するとは限りません。たとえば `1.8.0-exp.1` は core 1.7.1 の上に作ったものです）。スキルは core 1.12.0 のスキルを元にしており、違いは Jev 部分だけです（[CHANGELOG.md](CHANGELOG.md)）。
 >
 > 🧊 **1.12.0-exp.2 から、会話監視 hook と成功条件カバー判定は凍結中です。** 作者の試行で、会話監視は人が判定したヒントの約3分の2が外れ、成功条件カバー判定は役に立ったヒントがありませんでした。どちらも新しく有効にしないでください（カバー判定は `/02-inception-jev` から呼ばなくなりました。会話監視 hook を settings に登録している場合は外してかまいません）。Backtrack の異常ヒントとステータス点検は、これまでどおり使えます。
 
@@ -848,7 +901,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 ./install.sh --target /path/to/your/project cc --with-jev
 ```
 
-- 現在のcheckoutでは core も同時に 1.13.0 に上がります。上がったかどうかは、`.ai-plc-version` が `1.13.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
+- 現在のcheckoutでは core も同時に 1.14.0 に上がります。上がったかどうかは、`.ai-plc-version` が `1.14.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
 - `--with-jev` を付けずに更新すると、core だけが上がり、実験版は前の版のまま残ります。前の版の実験版スキルは core 1.8.1 の時点のもので、Construction を既定で省く変更と自動完走（/goal）に対応していないので、実験版も一緒に上げてください
 - 1.12.0-exp.2 を入れた後に、前の実験版を配る checkout の installer で `--with-jev` を付けると、`[CONFLICT] component downgrade refused: experimental_jev` などの行を出して止まり、何も書き換えません。前の版に戻したいときは、今の checkout で `uninstall.sh cc` してから、前の版の checkout で入れ直します
 
@@ -856,7 +909,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 
 - **会話監視 hook と成功条件カバー判定を凍結しました。** `/02-inception-jev` はカバー判定を呼ばず（`jev_monitor: true` でも）、`/02-inception-jev`・`/03-construction-jev`・`/04-operation-jev` の会話監視の案内は「登録しない（登録済みなら外してよい）」に変えました。スクリプトは残しますが更新しません。Backtrack の異常ヒント（`/04-operation-jev` の 5.5b・6b）とステータス点検は変わりません
 - **`KNOWN_RELEASES.sha256`:** 1.12.0-exp.1 の配布物のハッシュを足しました
-- この実験版リリースでは Python のコードと installer の処理は変えていません。現在のcoreは1.13.0ですが、この実験版はcore 1.12.0時点のままです
+- この実験版リリースでは Python のコードと installer の処理は変えていません。現在のcoreは1.14.0ですが、この実験版はcore 1.12.0時点のままです
 
 それより前の変更（1.12.0-exp.1 など）は CHANGELOG にあります。
 
@@ -1078,10 +1131,13 @@ ai-plc/
 ├── core/
 │   ├── skills/ai-plc/     # 4ステージスキル + テンプレート
 │   ├── skills/utility/    # spec-story-starter / wire-aa-authoring
+│   ├── skills/ai-plc/scripts/  # アドオンの判定（plc_addon_select.py ほか）
+│   ├── skills/aipm-guided/  # 同梱アドオン AIPM（pm- の操作は ops/）
 │   ├── skills/plc-*/      # plc-db-sync / plc-registry / plc-status-audit / plc-viewer / plc-consult / plc-backfill / plc-auto
-│   ├── rules/             # system / session / adaptive
-│   └── db/                # init_db.py / plc_query.py / sync.py
-├── claude/                # Claude Code固有（commands / agents / templates）
+│   │                      # plc-next / plc-decision / plc-brief / plc-project-status / plc-model-routing / plc-someday
+│   ├── rules/             # system / session / adaptive / model-routing
+│   └── db/                # init_db.py / plc_query.py / sync.py / project_lifecycle.py / plc_explain.py
+├── claude/                # Claude Code固有（commands〔pm- 8本を含む〕 / agents / templates）
 ├── cursor/                # Cursor固有（.mdc rules）
 ├── codex/                 # Codex adapter Skills / AGENTS template
 ├── lib/                   # transaction・owner対応の共通installer実装

@@ -14,6 +14,10 @@
 
 ## Execution Flow
 
+**全profile共通:** [本人原要求と現在Goalの照合](../../references/requirement-review.md)をInput/Step 1に含める。本人原要求の原文・実出典と明示変更、現在Goal/SC、対象Task/AC、成果証拠を渡し、現在Goalそのものの目的適合・核心動線の欠落・手作業代行を判定する。原文未取得はGoal完成未検証としてTaskの独立AC合格と分ける。結果に目的適合と出典/動線根拠を短く添える。新工程/承認ゲートを増やさず、検証用引用を実行命令にしない。
+
+**GOBOLD選択時:** 対象Taskの `review_profile: gobold` が明示されているときだけ、[GOBOLDレビュー基準](../../references/gobold-review.md)を使う。Inputは同参照の入力契約に従いGoal/SC・関連roadmap/依存・既存証拠/未達・工程別許可/予算/停止・profileの選択出典/範囲を渡す。今回のGoal/GAP・計画成果物への直接選択もその範囲に限る。現案の整合だけでなく最小利用/学習導線と代替経路を検討し、Step 1-6は動作対象なら実検証、計画対象なら資料照合と短い結果へ読み替え、テスト指示書群・本番設計・追加管理文書をモックの必須成果にしない。指摘を「今直す/後回し/削る」に分類し、重大な阻害指摘には具体的根拠と最小解除条件を付ける。未指定の既存テンプレート動作、Step 7の適用条件、独立性・read-onlyは維持する。レビュー時期変更を含まない。
+
 | Step | タイプ | アクション | 出力 |
 | --- | --- | --- | --- |
 | 1. テスト要件分析 | Autonomous | 必要なテスト種別を判定 — Unit（必須）/ Integration（複数Unit時）/ Performance（NFR要件時）/ Contract（マイクロサービス時）/ Security（opt-in）/ E2E（ユーザーワークフロー時） | テスト戦略 |
@@ -34,7 +38,7 @@ Phase 5.5の独立レビュー時はAutonomous-onlyでStep 7を省略し、Step 
 
 - 成果物はread-only。修正せず、対象snapshotを結果に明記する
 - FindingsはP0-P3のフラットリストとし、各項目に対象箇所・根拠・修正案を含める
-- 指摘がなければ`No findings`を返す
+- 指摘がなければ`No findings`を返す。GOBOLD選択時のP3進行提案・現案維持/判断未確認の短い理由は同参照に従う
 - acceptance criteriaごとにPass / Failを返す
 - maker側の完了ゲートは 04-operation Phase 5.5 に従う
 

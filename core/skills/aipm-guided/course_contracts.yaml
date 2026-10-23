@@ -1,0 +1,31 @@
+version: 1
+provenance: local AI-PLC extension; not an upstream canonical command revision
+default_course: question_based/single_persona
+format_schema: format_schema.yaml
+logical_documents: 19
+human_decisions:
+  - persona
+  - validation
+courses:
+  question_based/single_persona:
+    generation: sequential
+    stages: [init, persona, problem, validation, solution, story, archive]
+    input: questions_and_actual_evidence
+    legacy_contract_unchanged: true
+  solution_based/single_persona:
+    generation: batch_and_reuse
+    stages: [ingest, init, batch, gaps, archive]
+    input: solution_hypothesis
+    solution_is_verified_fact: false
+  document_based/single_persona:
+    generation: batch_and_reuse
+    stages: [ingest, init, batch, gaps, archive]
+    input: actual_read_documents
+    source_mtime_is_generation_time: false
+manifest_extension:
+  required: [course_contract_version, course_contract_sha256, source_reads, input_packet, gaps, decisions, claims]
+  record_required: [generation_kind, generation_event, source_ids, reused_from]
+  generation_kinds: [generated, reused]
+  decision_states: [not_required, pending, confirmed_actual]
+  not_required_scope: reversible_draft_only
+  completion_claim: 'local_trial_only; new human readability/effectiveness unknown'

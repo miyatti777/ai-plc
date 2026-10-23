@@ -1,0 +1,30 @@
+story_map:
+  persona_ref: {{persona_id | default:"P001"}}
+  problem_refs: [PR1, PR2, PR3]
+  links:
+    - chain: [A101, PR1, SL1, ST1]
+    - chain: [A201, PR2, SL2, ST2]
+    - chain: [A301, PR3, SL3, ST3]
+  stories:
+    - id: ST1
+      summary: {{st1_summary}}
+      acceptance: [{{st1_ac_1}}, {{st1_ac_2}}, {{st1_ac_3}}]
+      release: {{st1_release | default:"MVP"}}
+      links: [PR1, SL1, A101]
+    - id: ST2
+      summary: {{st2_summary}}
+      acceptance: [{{st2_ac_1}}, {{st2_ac_2}}, {{st2_ac_3}}]
+      release: {{st2_release | default:"MVP"}}
+      links: [PR2, SL2, A201]
+    - id: ST3
+      summary: {{st3_summary}}
+      acceptance: [{{st3_ac_1}}, {{st3_ac_2}}, {{st3_ac_3}}]
+      release: {{st3_release | default:"Release1"}}
+      links: [PR3, SL3, A301]
+  releases:
+    - name: MVP
+      includes: [ST1, ST2]
+    - name: Release1
+      includes: [ST3]
+  numbering_policy:
+    - prefix: ST=Story

@@ -1,32 +1,20 @@
 ---
 name: 01-collection
-description: AI-PLC Stage 1 Collection。GoalとModeからExecution Contextを確立し、Context Store、intent.yaml、context.yaml、backlog.yamlを生成する。
+description: AI-PLC Stage 1 Collection。GoalとModeからExecution Contextを確立し、Context Store、intent.yaml、context.yaml、backlog.yamlを生成する。新規Scope、Sub-Agent Scope、Re-Collectionで使用する。
 ---
 
 # Codex adapter: AI-PLC Stage 1
 
-このadapterはCodex固有の入口だけを提供し、処理本文は`.claude`互換runtimeの正本を使う。
+実行前に [Codex実行環境の読み替え](../references/codex-runtime.md)を読む。正本の手順・入力・モードは実行時に読み込み、以下は環境差分として適用する。
 
-## 前提確認（変更前に必須）
-
-repository root基準で、次の4ファイルがregular fileとして存在し読めることを確認する。
-
-- `.claude/skills/ai-plc/01-collection/SKILL.md`
-- `.claude/rules/ai-plc-system.md`
-- `.claude/rules/ai-plc-session.md`
-- `.claude/rules/ai-plc-adaptive.md`
-
-1件でも欠落・読取不能なら、Scope、Flow、DB、Wikiその他のファイルを変更せず、欠落pathを列挙して停止する。
+このアダプターは、Claude Code版とCodex版のAI-PLCを同じ正本で動かす。
 
 ## 実行
 
-1. 必須3 Rulesを上記順で最後まで読む。
-2. 正本`.claude/skills/ai-plc/01-collection/SKILL.md`を最後まで読む。
-3. 正本の手順を実行し、DB、Wiki、Rules、Templatesは`.claude/`配下へ解決する。
-4. Claude Codeのスラッシュ形式は、Codexでは`$01-collection`〜`$04-operation`へ変換する。自動完走モード（/goal で RUL_plc_session §10 を指すとき）は正本と共通。Collection・Inception の最後に出す「自動で進めるなら」の /goal 1行では、開始列を`$02-inception`等へ読み替える。
-5. Claude CodeのAgent toolは、ユーザーまたは適用中の指示が明示的に許可・要求した場合だけCodex sub-agentへ変換する。それ以外はメインエージェントで実行する。
-6. 正本のClaude Code native memory参照を`~/.claude`へ解決してはならない。Codexでは読取・更新とも行わず、該当Propagationは`変更なし — スキップ（Codex adapter: Claude native memory非対象）`と記録する。
+1. リポジトリルートの `.claude/skills/ai-plc/01-collection/SKILL.md` を最後まで読み、その手順を正本として実行する。
+2. 同ファイルが参照する `.claude/rules/ai-plc-system.md`、`.claude/rules/ai-plc-session.md`、`.claude/rules/ai-plc-adaptive.md` を最後まで読む。
+3. パスはリポジトリルート基準で解決する。DB、Wiki、Rules、Templatesは正本に記載された `.claude/` 配下を使用する。
+4. 実行環境固有の表記だけCodexに置き換える。Claude Codeの `/01-collection` 等は、Codexでは `$01-collection` またはスキル名の指定として案内する。自動完走モード（/goal で RUL_plc_session §10 を指すとき）は正本と共通。CollectionのPhase 7の最後に出す「自動で進めるなら」の `/goal` 1行では開始列を `$02-inception` 等へ読み替え、詳細は共通の読み替え文書に従う。
+5. Codexのsub-agentを使う場合は、ユーザーまたは適用中の指示が明示的に許可・要求した場合に限る。許可されない場合はメインエージェントで実行し、独立検証が必要なら正本のフォールバック規定を使う。
 
-## Read-only diagnostics
-
-ユーザーが`AI-PLC prerequisite diagnostics`を明示した場合は正本のStage処理を実行せず、変更0で停止する。正本Skillと必須3 Rulesの4件ごとに`absolute_path`、`sha256`、最初のH1、末尾のversion行を`prerequisite_diagnostics`として返す。4件のいずれかが欠落・読取不能なら`status: blocked`と対象pathを返す。Rules 3件は併せて`rule_diagnostics`として識別できるようにする。
+正本が見つからない場合は新しいScopeや成果物を作らず、欠落パスを報告して停止する。

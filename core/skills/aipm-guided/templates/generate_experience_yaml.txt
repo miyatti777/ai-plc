@@ -1,0 +1,53 @@
+persona:
+  id: {{item.id}}
+  name: "{{item.name}}"
+  profile:
+    age_gender: "{{item.age_gender}}"
+    occupation: "{{item.occupation}}"
+    company_context: "{{item.company_context}}"
+  behaviors: 
+{{#item.daily_activities}}
+    - "{{.}}"
+{{/item.daily_activities}}
+  values:
+{{#item.values}}
+    - "{{.}}"
+{{/item.values}}
+
+experience_map:
+  phases:
+{{#item.phases}}
+    - id: {{id}}
+      name: "{{name}}"
+      description: "{{description}}"
+      actions:
+{{#actions}}
+        - id: {{id}}
+          label: "{{label}}"
+          notes:
+{{#notes}}
+            - "{{.}}"
+{{/notes}}
+{{/actions}}
+{{/item.phases}}
+
+opportunity_hypotheses_mapping:
+{{#if item.opportunity_hypotheses}}
+{{#item.phases}}
+  {{id}}:
+{{#../item.opportunity_hypotheses}}
+    - "{{.}}: {{lookup ../../focus_opportunity_hypotheses .}}"
+{{/../item.opportunity_hypotheses}}
+{{/item.phases}}
+{{else}}
+  # 質問ベースモードで作成されたため、仮説マッピングは未設定
+  # Discovery フェーズで仮説を設定・検証してください
+{{/if}}
+
+numbering_policy:
+  - "prefix: P=Persona, PH=Phase, A=Action"
+  - "以後の課題(PR)/解決策(SL)/ストーリー(ST)と連番で紐付けます"
+  - "{{item.id}}: {{item.type | title}}ペルソナ（{{item.occupation}}）"
+{{#item.phases}}
+  - "{{id}}: {{name}}"
+{{/item.phases}}

@@ -11,7 +11,8 @@ Covered: automatic detection for every legacy group (G1-G6) x CC/Cursor, dry-run
 zero changes, idempotent re-run, edited files (stop + hint, or --backup-modified), ambiguity and the
 below-threshold stop, the superset rule (G3 contains G2) and its cancellation when only G3's db is
 edited, targets upgraded step by step with the old installers, different releases per environment,
---with-jev, ordinary updates from v1.7.0 / v1.7.1 / v1.8.0-exp.1, the manifest-write fault injection
+--with-jev, ordinary updates from v1.7.0 / v1.7.1 / v1.8.0-exp.1 / v1.13.0 (clean, edited, and
+Layers written for v1.13.0), the manifest-write fault injection
 (rollback restores the target; the next run succeeds), legacy uninstall and catalog index errors.
 """
 
@@ -41,7 +42,7 @@ import ai_plc_safe_fs as safe_fs  # noqa: E402
 TMP = "/private/tmp"
 VERSION = (REPO / ".ai-plc-version").read_text().strip()
 MANIFEST = ".ai-plc-install-manifest"
-# Legacy groups: catalog name -> tags whose installed result is that catalog (T002).
+# Legacy groups: catalog name -> tags whose installed result is that catalog.
 GROUPS = {
     "1.1.0": ("v1.1.0",),
     "1.1.1": ("v1.1.1",),
@@ -50,7 +51,7 @@ GROUPS = {
     "1.5.0": ("v1.5.0",),
     "1.6.0": ("v1.6.0",),
 }
-MANIFEST_TAGS = ("v1.7.0", "v1.7.1", "v1.8.0-exp.1")
+MANIFEST_TAGS = ("v1.7.0", "v1.7.1", "v1.8.0-exp.1", "v1.13.0")
 JEV_MARKER_FILE = ".claude/skills/ai-plc-jev/README.md"
 RULE = ".claude/rules/ai-plc-system.md"
 CURSOR_RULE = ".cursor/rules/ai-plc-system.mdc"
@@ -204,7 +205,7 @@ class Base(unittest.TestCase):
         result = install(root, mode, *extra, dist=dist)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         data = manifest(root)
-        self.assertNotIn(".ai-plc-version", data["managed_files"])  # P1-1
+        self.assertNotIn(".ai-plc-version", data["managed_files"])
         self.assertEqual((root / ".ai-plc-version").read_text(), VERSION + "\n")
         rerun = [a for i, a in enumerate(extra) if a != "--migrate-legacy" and (i == 0 or extra[i - 1] != "--migrate-legacy")]
         again = install(root, mode, *rerun, dist=dist)  # --migrate-legacy is only valid without a manifest
@@ -261,7 +262,7 @@ class PristineLegacyGroups(Base):
 
 
 class SupersetRules(Base):
-    """P1-2 (G3 contains G2) and the T001 §9 cancellation when only G3's db is edited."""
+    """G3 contains G2, and the cancellation when only G3's db is edited."""
 
     def test_g3_is_a_strict_superset_of_g2_and_wins(self) -> None:
         for env in ("cc", "cursor"):
@@ -482,7 +483,7 @@ class ManifestReleases(Base):
             append(root / RULE, "\nmy rule\n")
             summary, stderr = self.dry(root, "cc", expect=1)
             self.assertIn(f"user-modified managed file: {RULE}", summary["conflicts"])
-            self.assertNotIn("[HINT]", stderr)  # v1.7.x output is unchanged (T001 §5-3)
+            self.assertNotIn("[HINT]", stderr)  # v1.7.x output is unchanged
             result = self.refused(root, "cc")
             self.assertNotIn("[HINT]", result.stderr)
             self.installed(root, "cc", "--backup-modified")
@@ -534,8 +535,82 @@ class ManifestReleases(Base):
         self.assertEqual(len(expected), 18)
         self.assertEqual(known, expected)
 
+class FromV1130(Base):
+    """v1.13.0 -> the current release: ordinary manifest update, no file dropped, edits stop or go to .bak,
+    and Layers written for v1.13.0 (no addons / construction / recurrence / scheduled_for) still read."""
+
+    LAYER = "Flow/202610/2026-10-01/sample-layer"
+    LEGACY_AIPM_LAYER = "Flow/202610/2026-10-01/sample-aipm-layer"
+
+    def write_v1130_layers(self, root: Path) -> None:
+        for rel, scope, extra in ((self.LAYER, "L-0001", ""), (self.LEGACY_AIPM_LAYER, "L-0002", "work_style: aipm\n")):
+            layer = root / rel
+            layer.mkdir(parents=True)
+            (layer / "intent.yaml").write_text(
+                f"scope_id: {scope}\nscope_name: sample\ngoal: sample goal\nworkflow_depth: standard\n"
+                f"workflow_depth_reason: two tasks\nmode: direct\nrun_mode: auto\n{extra}")
+            (layer / "backlog.yaml").write_text(
+                f"scope_id: {scope}\ntasks:\n"
+                "- id: T001\n  name: first task\n  type: design\n  priority: P0\n  status: completed\n"
+                "  owner: claude\n  estimated_hours: 1\n  command: null\n  origin: inception\n"
+                "- id: T002\n  name: second task\n  type: implementation\n  priority: P1\n  status: pending\n"
+                "  owner: claude\n  estimated_hours: 2\n  dependencies: [T001]\n  command: null\n  origin: inception\n")
+
+    def run_installed(self, root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        return run(sys.executable, *args, cwd=root)
+
+    def test_clean_upgrade_and_v1130_layers_still_read(self) -> None:
+        with fixture(("v1.13.0", "all")) as root:
+            self.assertEqual((root / ".ai-plc-version").read_text(), "1.13.0\n")
+            summary, stderr = self.dry(root, "all")
+            self.assertEqual(summary["conflicts"], [])
+            self.assertEqual([w for w in summary["writes"] if w.startswith("DELETE:")], [])
+            self.assertNotIn("[INFO] legacy", stderr)
+            result = self.installed(root, "all")
+            self.assertNotIn("legacy", result.stderr)
+            self.assertNotIn("user_backups", manifest(root))
+            self.assertTrue(all(v["version"] == VERSION for v in manifest(root)["environments"].values()))
+            for path in (".claude/rules/ai-plc-model-routing.md", ".claude/skills/aipm-guided/SKILL.md",
+                         ".claude/commands/pm-issue.md", ".agents/skills/ai-plc/plc-next/SKILL.md",
+                         ".claude/db/project_lifecycle.py", ".cursor/db/plc_explain.py"):
+                self.assertTrue((root / path).is_file(), path)
+            # Layers written for v1.13.0 are read by the new scripts without any rewrite.
+            self.write_v1130_layers(root)
+            select = ".claude/skills/ai-plc/scripts/plc_addon_select.py"
+            plain = self.run_installed(root, select, "--layer", self.LAYER)
+            self.assertEqual(plain.returncode, 0, plain.stdout + plain.stderr)
+            self.assertEqual(json.loads(plain.stdout)["route"], "unselected")
+            legacy = self.run_installed(root, select, "--layer", self.LEGACY_AIPM_LAYER)
+            self.assertEqual(legacy.returncode, 0, legacy.stdout + legacy.stderr)
+            data = json.loads(legacy.stdout)
+            self.assertEqual((data["route"], [s["addon_id"] for s in data["selected"]]), ("selected", ["aipm"]))
+            self.assertEqual(data["selected"][0]["via"], "legacy_alias")
+            tasks = self.run_installed(root, ".claude/db/plc_query.py", "tasks")
+            self.assertEqual(tasks.returncode, 0, tasks.stdout + tasks.stderr)
+            for needle in ("L-0001", "L-0002", "T001", "T002"):
+                self.assertIn(needle, tasks.stdout)
+            for rel in (self.LAYER, self.LEGACY_AIPM_LAYER):  # nothing rewrote the Layer files
+                self.assertNotIn("addons", (root / rel / "intent.yaml").read_text())
+                self.assertNotIn("construction", (root / rel / "backlog.yaml").read_text())
+
+    def test_edited_rule_stops_then_backup_modified(self) -> None:
+        with fixture(("v1.13.0", "cc")) as root:
+            append(root / RULE, "\nmy rule\n")
+            summary, _ = self.dry(root, "cc", expect=1)
+            self.assertEqual(summary["conflicts"], [f"user-modified managed file: {RULE}"])
+            result = self.refused(root, "cc")
+            self.assertEqual(result.returncode, 2)
+            self.assertIn(f"[CONFLICT] user-modified managed file: {RULE}", result.stdout + result.stderr)
+            done = self.installed(root, "cc", "--backup-modified")
+            self.assertIn(f"[BACKUP] {RULE} -> ", done.stdout + done.stderr)
+            backups = manifest(root)["user_backups"]
+            self.assertEqual([r["path"] for r in backups], [RULE])
+            self.assertTrue((root / backups[0]["backup"]).read_text().endswith("\nmy rule\n"))
+            self.assertNotIn("my rule", (root / RULE).read_text())
+
+
 class FaultInjection(Base):
-    """P1-1: a failure while adopting a legacy release rolls back completely; the next run succeeds."""
+    """A failure while adopting a legacy release rolls back completely; the next run succeeds."""
 
     ANCHOR = "        changed += int(root.write_atomic(safe.MANIFEST, manifest, tx))\n"
 
@@ -570,7 +645,7 @@ class FaultInjection(Base):
 
 
 class LegacyUninstall(Base):
-    """P2-6 / §9: uninstall adopts a legacy release only when every detected environment matches exactly."""
+    """Uninstall adopts a legacy release only when every detected environment matches exactly."""
 
     def test_uninstall(self) -> None:
         with fixture(("v1.3.3", "cc"), ("v1.3.3", "cursor")) as root:

@@ -1,0 +1,9 @@
+# アプリ MVPストーリーマップ
+
+## 優先度順ユーザーストーリー（PR連動）
+1. {{st1_summary}}（受け入れ基準: {{st1_ac_1}} / {{st1_ac_2}} / {{st1_ac_3}}、リリース: {{st1_release | default:"MVP"}}）
+2. {{st2_summary}}（受け入れ基準: {{st2_ac_1}} / {{st2_ac_2}} / {{st2_ac_3}}、リリース: {{st2_release | default:"MVP"}}）
+3. {{st3_summary}}（受け入れ基準: {{st3_ac_1}} / {{st3_ac_2}} / {{st3_ac_3}}、リリース: {{st3_release | default:"Release1"}}）
+
+## 実装順序
+{{impl_order | default:"ST1→ST2→ST3"}}

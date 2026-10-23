@@ -1,0 +1,10 @@
+```mermaid
+flowchart LR
+  A101:::action --> PR1:::problem --> SL1:::solution --> ST1[ST1]:::story
+  A201:::action --> PR2:::problem --> SL2:::solution --> ST2[ST2]:::story
+  A301:::action --> PR3:::problem --> SL3:::solution --> ST3[ST3]:::story
+  classDef action fill:#fff3e0
+  classDef problem fill:#ffebee
+  classDef solution fill:#e8f5e8
+  classDef story fill:#e3f2fd
+```

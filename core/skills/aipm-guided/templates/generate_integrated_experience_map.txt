@@ -1,0 +1,51 @@
+integrated_experience_map:
+  meta:
+    created_date: "{{today}}"
+    project: "{{project_name | default: 'Product'}}"
+    phase: "Discovery - ペルソナ作成"
+    description: "{{detected_personas.personas | size}}層ペルソナの統合エクスペリエンスマップ"
+  
+  personas:
+{{#detected_personas.personas}}
+    {{type}}:
+      id: {{id}}
+      name: "{{name}}"
+      role: "{{occupation}}"
+      focus: "{{pain_points.0}}"
+{{/detected_personas.personas}}
+
+  integrated_phases:
+{{#detected_personas.personas.0.phases}}
+    - id: IPH{{@index_plus_1}}
+      name: "{{name}}"
+      description: "{{description}}"
+      persona_mapping:
+{{#../../detected_personas.personas}}
+        {{id}}: "{{lookup phases ../../../@index 'id'}}: {{lookup phases ../../../@index 'name'}}"
+{{/../../detected_personas.personas}}
+      opportunity_hypotheses:
+{{#../../detected_personas.personas}}
+{{#opportunity_hypotheses}}
+        - "{{.}}"
+{{/opportunity_hypotheses}}
+{{/../../detected_personas.personas}}
+{{/detected_personas.personas.0.phases}}
+
+  validation_priorities:
+    critical:
+{{#detected_personas.personas}}
+{{#opportunity_hypotheses}}
+{{#if (eq . 'FH001' 'FH002' 'FH003' 'FH004')}}
+      - "{{.}}: {{lookup ../../focus_opportunity_hypotheses .}}"
+{{/if}}
+{{/opportunity_hypotheses}}
+{{/detected_personas.personas}}
+    
+    high:
+{{#detected_personas.personas}}
+{{#opportunity_hypotheses}}
+{{#if (eq . 'FH005' 'FH006' 'FH007')}}
+      - "{{.}}: {{lookup ../../focus_opportunity_hypotheses .}}"
+{{/if}}
+{{/opportunity_hypotheses}}
+{{/detected_personas.personas}}

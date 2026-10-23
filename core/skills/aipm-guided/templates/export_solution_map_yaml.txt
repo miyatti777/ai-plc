@@ -1,0 +1,24 @@
+solution_map:
+  persona_ref: P001
+  problems: [PR1, PR2, PR3]
+  phases:
+    - id: PH1
+      name: 利用前
+      solutions:
+        - id: SL1
+          label: {{sl1_label_final | default:sl1_label | default:pr1_solution}}
+          links: [{{sl1_links_final | default:"PR1,A101"}}]
+    - id: PH2
+      name: 利用中
+      solutions:
+        - id: SL2
+          label: {{sl2_label_final | default:sl2_label | default:pr2_solution}}
+          links: [{{sl2_links_final | default:"PR2,A201"}}]
+    - id: PH3
+      name: 利用後
+      solutions:
+        - id: SL3
+          label: {{sl3_label_final | default:sl3_label | default:pr3_solution}}
+          links: [{{sl3_links_final | default:"PR3,A301"}}]
+  numbering_policy:
+    - prefix: SL=Solution, PH=Phase

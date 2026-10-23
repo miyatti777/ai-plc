@@ -13,6 +13,65 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-10-23
+
+実験版パッケージ（`experimental/jev/`）は **1.12.0-exp.2 のまま**です（この版では変えていません）。
+
+### 変更: rules を v3.0 に軽量化
+
+- `core/rules/` の system・session・adaptive を v3.0 にしました。細かい手順（自動完走の予算・`/plc-auto force` の契約・自己完結版 /goal・質問UIの細則・アドオンの前置き）は各スキルの `references/` に移し、rules には要点だけを残しています。挙動の変更ではなく、置き場所の整理です
+- `core/rules/ai-plc-model-routing.md` を足しました（タスクの曖昧さ・複雑さ・影響から担当モデルと Advisor 相談を選ぶ共通の決まり。本人が頼んだとき、または Layer/Task に `model_routing: true` を書いたときだけ使います）
+- 説明の詳しさ（session §7.0）: Layer の `intent.explanation.level` に `brief` / `reasoned`（既定）/ `guided` を保存できます（`python3 .claude/db/plc_explain.py show|set`）。ID はその応答で最初に出すときに名前を添えます
+- Project の終了状態（system §21）: `planned / active / paused / completed / cancelled`。`completed` は元の Goal の全 AC を検証で確かめたときだけで、Goal 未達の意図的な終了は `cancelled` として別に数えます（入口は `/plc-project-status`）
+
+### 追加: 繰り返す運用タスクと実行時期
+
+- **運用タスク:** backlog の Task に `recurrence`（毎日・毎週など）を書くと、一度きりのタスクとは分けて「次に回す運用タスク」として示します。1回ごとの実行は `runs` に追記し、完了率や全完了の判定（BT-B・BT-C）には数えません。Layer を閉じるときは `retired_at`・`retired_reason` を付けます（status の値は増やしていません）
+- **実行時期:** 通常の Task に `scheduled_for`（`YYYY-MM-DD` か `YYYY-Www`）を書くと、その日より前は実行可能な一覧から外し「待ち（実行時期 ○月○日）」と示します
+- 自動完走（session §10）では、運用タスクは回さず、実行時期の来ていないタスクは選びません。それだけが残ったら停止の理由として報告します
+
+### 追加: 同梱アドオン AIPM（`aipm-guided`）と `pm-` コマンド8本
+
+- PM の進め方を Layer ごとに選べる「アドオン」の受け口を足しました（目録 `core/skills/ai-plc/references/addon-catalog.yaml`・継ぎ目の契約 `addon-seam-contract_v0.5.yaml`・判定スクリプト `core/skills/ai-plc/scripts/plc_addon_select.py` ほか）。選んでいない Layer の動きは変わりません
+- 同梱のアドオン **AIPM**（`core/skills/aipm-guided/`）: 1人の利用者について、ペルソナ → 課題 → 仮説検証 → 解決策 → ストーリーまでの19文書を決まった形式で作り、検証します。コースは3つ（質問から・解決策から・既存の文書から）。Collection で「AIPM で進めたい」と選んだ Layer だけで動き、`intent.yaml` の `addons` に1件を書きます（旧い欄 `work_style: aipm` も同じに読みます）
+- 元にした公開の原文（コマンド5件・雛形19件）は再配布の許可を得て同梱し、例の人名・社名・製品名などを一般の語に置き換えた適応版です。出典の commit と、元の hash・公開版の hash を分けて `source/source_manifest.json` に記録しています
+- 箱の中の操作 `pm-` 8本（Claude Code は `/pm-…`、Codex は `$pm-…`）: `pm-issue`（論点）・`pm-hypothesis`（仮説）・`pm-todo`（ToDo と WBS）・`pm-capture`（会議・インタビューのメモから候補を拾う。書かない）・`pm-today`（今日動かす1件）・`pm-persona`・`pm-story`（文書の改訂の範囲の案。書かない）・`pm-init`（途中から AIPM にするときの案内）
+- 開発方式（`dev_style: <your_style>`）を併用する Layer では、完成の判定をその開発方式の規約（チェックポイント・PR・レビュー）に委ねます
+- 公開版に無いもの: 社内の Registry と共有する Stock（`aipm.storage: registry_stock_v1`）。選ぶと分かりやすいエラーで止まり、既定の Layer 内の保存（`Documents/aipm_project`）で動きます
+
+### 追加: ユーティリティ（`plc-<機能>`）
+
+- `/plc-next` — 欠けた Next Action（選択肢・おすすめ・開始文）を、直前の結果と案件の正本から補う（読み取りのみ）
+- `/plc-decision` — 承認・選択の質問1件を、決めること・変わる範囲・負担・推奨の根拠・返信の案まで短く説明する（読み取りのみ。承認は代行しない）
+- `/plc-brief` — Project が何のためで、何ができ、どう使うかを成果物から平易に説明する（読み取りのみ。テキストの説明だけ）
+- `/plc-project-status` — Goal 未達のまま意図的に中止（cancelled）し理由を残す。再計画の後の再開も扱う
+- `/plc-model-routing` — タスクに合う担当モデルと Advisor 相談を選び、実行環境のモデル指定へ渡す
+- `/plc-someday` — 「いつかやる」Project を Registry に貯め、1件選んで Collection の起動プロンプトにする。`plc_query.py` に `someday-add` / `someday` / `someday-start` / `someday-revert` を足しました（`-` で始まる引数は使い方を出して書きません）
+- `/plc-db-sync` に、タスク同期の凍結（`sync.py tasks-sync --status|--freeze|--unfreeze`）と、読み取り確認として実行してよい範囲・状態を変えるコマンドの区別を書きました
+
+### 変更: Codex の入口
+
+- 新しい plc- 6本と pm- 8本の入口を `codex/skills/ai-plc/` に足しました（入口は 11 → 25）
+- 各入口の「前提確認（4ファイル）」の節と、読み取り専用の診断モード（`AI-PLC prerequisite diagnostics`）を廃止しました。各入口は共通の `references/codex-runtime.md` を先に読み、正本や必要な参照が欠けていれば、欠けたパスを報告して止まります。診断モードを使っていた人は、この欠落の報告で代えてください
+- plc-registry・plc-someday・plc-status-audit・plc-viewer の入口の参照パスを、実在の場所に直しました（Registry は `.claude/db/`、ステータス点検は実験版の `.claude/ai-plc-jev/scripts/`、ビューアは `experimental/registry-viewer` を手でコピーしたときの `.claude/db/registry_viewer`）
+
+### この版に入れていないもの
+
+- **ステータス点検（`plc-status-audit`）** は今までどおり実験版（`--with-jev`）にだけ入ります。core の本文は「無ければスキップ」のままです
+- ライブの進捗表示・`plc-brief` の HTML モード・Project の分類（`classify.py`。`experimental/registry-viewer` には同梱）・社内向けの共有 Stock と、Program・業務 Project への割り当ては、この版には入れていません。本文には「公開版には無い（あれば使う）」と書いてあり、無くても Stage は止まりません。業務 Project への割り当ては後の版で検討します
+- 本人専用の情報の保存先（プロフィール・好み）は公開版にはありません。共有の Context・wiki・memory に写さない、という決まりだけを rules に残しています
+
+### 既存の利用者へ
+
+- 既存の Layer の `intent.yaml`・`backlog.yaml` は書き換えずにそのまま読めます（`construction` 欄の無い backlog は従来どおりのみなし、`work_style: aipm` は同梱の AIPM として、`recurrence`・`scheduled_for` の無い Task は今までどおり）
+- installer が配らなくなったファイルはありません（`--dry-run` に `DELETE:` は出ません）。上げ方は README の「v1.13.x から v1.14.0 へ」
+- 凍結の契約ファイル（`registers_contract.v1.yaml` など）は、コメントを公開向けに直したため、ほかで配られている版と hash が違います（公開版の中では一貫しています）
+- テスト: 01-collection と extensions のテストは、ソース（`core/skills`）と導入先（`.claude/skills`）のどちらでも動くようにしました。受け入れテストの Codex の入口の数を 25 にしました。`test_with_jev.py` の「`--with-jev` なしの挙動は前と同じ」の比較は、この版で配り始めた3ファイルを比べる元の installer にも足してから比べます
+
+### 版
+
+- rules: `ai-plc-system.md`・`ai-plc-session.md`・`ai-plc-adaptive.md` 3.0、`ai-plc-model-routing.md` 新規
+
 ## [1.13.0] - 2026-10-02
 
 ### 追加: `plc-auto`（固定Goalで自動完走）

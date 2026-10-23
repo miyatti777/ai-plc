@@ -784,9 +784,9 @@ def source_files(root: Path) -> tuple[dict[str, dict[str, Any]], dict[str, bytes
     try:
         for source in source_root.walk_regular_files("core/skills"):
             add(source, f".claude/{source.removeprefix('core/')}", "shared_claude_runtime")
-        for name in ("ai-plc-system.md", "ai-plc-session.md", "ai-plc-adaptive.md"):
+        for name in ("ai-plc-system.md", "ai-plc-session.md", "ai-plc-adaptive.md", "ai-plc-model-routing.md"):
             add(f"core/rules/{name}", f".claude/rules/{name}", "shared_claude_runtime")
-        for name in ("init_db.py", "plc_query.py", "sync.py", "README.md"):
+        for name in ("init_db.py", "plc_query.py", "sync.py", "README.md", "project_lifecycle.py", "plc_explain.py"):
             add(f"core/db/{name}", f".claude/db/{name}", "shared_claude_runtime")
         for source in source_root.walk_regular_files("codex/skills/ai-plc"):
             add(source, f".agents/skills/ai-plc/{source.removeprefix('codex/skills/ai-plc/')}", "codex_adapter")
