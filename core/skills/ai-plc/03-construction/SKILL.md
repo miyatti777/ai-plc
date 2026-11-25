@@ -9,7 +9,7 @@ Backlogの各タスクに対して実行可能なAgent定義を生成するス�
 
 **共通規約:** 命名は RUL_plc_system §6 / 完了報告は RUL_plc_session §7（説明の詳しさは §7.0）/ Phase遷移通知は §8 / Mob CP出力と質問UIは §9・§9.1 に従う。
 
-**ライブ表示:** 公開版にはライブ表示（BacklogLive）は無い。手元に `tools/BacklogLive/server.py` があるときだけ使える（無ければ何もしない）。
+**ライブ表示:** ライブ表示（BacklogLive）は任意。`tools/BacklogLive/server.py`（公開版では `experimental/backlog-live` を手でコピーしたもの）があるときだけ、対象 Layer の scope_id が決まった時点で `http://localhost:8770/?layer=<scope_id>` を開く（サーバが動いていなければ `python3 tools/BacklogLive/server.py --no-browser` をバックグラウンドで起動する。Claude Code デスクトップで `.claude/launch.json` に `backlog-live` があればそのプレビューで開く。本人が「開かないで」と言ったとき・サブエージェントとして実行中は開かない）。無いとき・起動や表示ができないとき（ポート 8770 が使用中など）は何もせずに続ける（止めない）。
 
 **呼ぶ条件:** RUL_plc_adaptive §6 の条件に当たるときだけ通す。生成するのは backlog の `construction.tasks` のタスクだけ（Layer 単位の条件＝complex・platform_builder・`construction_mode: always` のときは、Inception が command のある全タスクをそこに書いている）。
 
