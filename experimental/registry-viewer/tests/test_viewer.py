@@ -5,7 +5,8 @@
     python3 -m unittest discover -s .claude/db/registry_viewer/tests        # プロジェクトに置いたとき
 
 スキーマ（トリガ含む）は、上のフォルダにプロジェクトの ai_plc.db があればそこから読み取り専用で写し、無ければ内蔵の最小スキーマを使う。
-公開版 init_db.py（英語語彙）が見つかれば、そのスキーマでも書き込みテストを回す。
+v1.8.1〜v1.14.0 の公開版 init_db.py（英語語彙。tests/db/fixtures/init_db_v1_14_0.py）が見つかれば、そのスキーマでも書き込みテストを回す
+（v2.0.0 からの init_db.py は日本語語彙。英語語彙の DB は v1.14.0 までに作られたもの）。
 """
 import contextlib
 import http.client
@@ -42,8 +43,8 @@ AUDIT_PATH = _first("AIPLC_STATUS_AUDIT", [_deps[0], PUBLIC_REPO / "experimental
 PLC_PATH = _first("AIPLC_PLC_QUERY", [_deps[1], PUBLIC_REPO / "core" / "db" / "plc_query.py"])
 _MISSING_DEPS = None if AUDIT_PATH and PLC_PATH else "aiplc_status_audit.py / plc_query.py が見つかりません（AIPLC_STATUS_AUDIT・AIPLC_PLC_QUERY で指定できます）"
 FULL = {"audit_path": AUDIT_PATH, "plc_path": PLC_PATH}
-# 公開版 init_db.py（英語語彙のスキーマ）。公開リポでは core/db/init_db.py を自動で使う
-INIT_DB = _first("AIPLC_INIT_DB", [PUBLIC_REPO / "core" / "db" / "init_db.py"])
+# v1.14.0 までの公開版 init_db.py（英語語彙のスキーマ）。公開リポでは tests/db/fixtures の控えを自動で使う
+INIT_DB = _first("AIPLC_INIT_DB", [PUBLIC_REPO / "tests" / "db" / "fixtures" / "init_db_v1_14_0.py"])
 JA = {"todo": "未着手", "wip": "進行中", "done": "完了"}
 EN = {"todo": "planned", "wip": "active", "done": "completed"}
 FALLBACK_SCHEMA = [

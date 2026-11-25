@@ -15,7 +15,7 @@ backlog（Agent定義があればそれ）に従い各タスクを実行する�
 
 **ゲートは2点＋回数上限（RUL_plc_adaptive §0）:** 開始ゲートは Inception Phase 4 の OK（実装・検証まで一括許可。Task 指定で /04-operation を呼ばれたことも同じ）。完成ゲートは Phase 5.5（AC の ○×＋standard 以上は独立レビュー1回）。途中の保存可否・版一致は git（branch/worktree と diff）に委ね、Layer の作業は branch で始めて完成ゲートで diff を見せる。回数の上限は「修正→再検証は2回まで」、独立レビューは初回1回＋最初の修正後に再レビュー1回、stopped 1回で人へ戻す。分単位の予算・時計の締切・版 hash 照合・同版承認の再提示は行わない。
 
-**選択した方式だけ読む（発動条件は3つ）:** 同梱の PM アドオン（目録 [addon-catalog.yaml](../references/addon-catalog.yaml) の aipm。旧い欄 `work_style: aipm` も同じ）が選ばれた Layer は [aipm-guided](../../aipm-guided/SKILL.md) の工程順を守る。`dev_style: <your_style>`（本人が選んだ開発方式）の Layer は完成ゲートだけをその開発方式の規約（チェックポイント・PR の作り方・レビュー）に委ね、AI-PLC 側に binding・予算・版照合を持たない。持ち込みのアドオン（`intent.addons` の case の件）がある Layer は [addon-seam.md](../references/addon-seam.md) の型を Phase 4 で読む。どれが選ばれているかは、intent の `work_style` が null 以外か `addons` が空でないときだけ、判定関数 `python3 -B .claude/skills/ai-plc/scripts/plc_addon_select.py --layer <Layer>`（目録を読む・書き込まない。持ち込みの件があるときは `--read-root <実許可root>`、scope: common なら `--common-root <root>` も付ける。plc_addon.py と同じ）で確かめる（`route` が `held` なら `hold_reasons` を出して止める。同梱は `selected[].addon_id`、持ち込みは `has_case_addons`）。どれも無い Layer（既定）は判定関数も呼ばず、本 SKILL と rules だけで実行する。
+**選択した方式だけ読む（発動条件は3つ）:** 同梱の PM アドオン（目録 [addon-catalog.yaml](../references/addon-catalog.yaml) の aipm。旧い欄 `work_style: aipm` も同じ）が選ばれた Layer は [aipm-guided](../../aipm-guided/SKILL.md) の工程順を守る。`dev_style: <your_style>`（本人が選んだ開発方式）の Layer は完成ゲートだけをその開発方式の規約（チェックポイント・PR の作り方・レビュー）に委ね、AI-PLC 側に binding・予算・版照合を持たない。持ち込みのアドオン（`intent.addons` の case の件）がある Layer は [addon-seam.md](../references/addon-seam.md) の型を Phase 4 で読む。どれが選ばれているかは、intent の `work_style` が null 以外か `addons` が空でないときだけ、判定関数 `python3 -B .claude/skills/ai-plc/scripts/plc_addon_select.py --layer <Layer>`（目録を読む・書き込まない。持ち込みの件があるときは `--read-root <実許可root>`、scope: common なら `--common-root <root>` も付ける。plc_addon.py と同じ）で確かめる（`route` が `held` なら `hold_reasons` を出して止める。同梱は `selected[].addon_id`、持ち込みは `has_case_addons`）。方式のほかに選んだものが無い Layer（既定）は、本 SKILL と rules だけで実行する（契約・binding・予算の文書を読まない）。方式（目録の work_method）が記録されていない Layer は止める: `python3 -B .claude/skills/ai-plc/scripts/plc_addon_select.py --layer <Layer> --require-method`（持ち込みの件があるときは上と同じ `--read-root`・`--common-root` を付ける）の `hold_reasons` に `method_required` があれば、01-collection の Phase 7 の手順5（方式の記録）へ案内して止まる。ほかの理由で `held` のときも `hold_reasons` を出して止まる。方式は自動では書かない（自動完走中だけ、手順5と同じく `python3 .claude/skills/ai-plc/01-collection/recommendation.py default --layer <Layer> --apply` で既定を記録してログに残す）。
 
 ## 入力
 
@@ -28,7 +28,7 @@ backlog（Agent定義があればそれ）に従い各タスクを実行する�
 
 ### Phase 1: 現在成果・未達・実行可能Taskの確認
 
-backlog.yamlを読み込み、依存関係を解決し、実行可能タスク（依存解決済み・未着手）を特定する。`construction.tasks` に入っていて command があるのに Agents/ に定義が無いタスクは、実行可能タスクに含めず /03-construction（そのタスク指定）を案内する（command の無いタスクは外さない。`construction` 欄の無い既存 backlog は RUL_plc_adaptive §6 のみなし規定に従う）。intent.status が cancelled なら RUL_plc_system §21 の再開手順へ案内して止まる。intent に `mode_init` があり state が done でなければ Hold し、/01-collection の Phase 7.5（初期化の段）へ案内する（`mode_init` の無い Layer は今までどおり）。止まった Task を続けるときは [outcome-delivery.md](../references/outcome-delivery.md) の「止まった後に続ける」に従い、Task の result / refactoring_log にある成立済み証拠・未達・次操作から再開する（新セッションを理由に調査をやり直さない）。
+backlog.yamlを読み込み、依存関係を解決し、実行可能タスク（依存解決済み・未着手）を特定する。`construction.tasks` に入っていて command があるのに Agents/ に定義が無いタスクは、実行可能タスクに含めず /03-construction（そのタスク指定）を案内する（command の無いタスクは外さない。`construction` 欄の無い既存 backlog は RUL_plc_adaptive §6 のみなし規定に従う）。intent.status が cancelled なら RUL_plc_system §21 の再開手順へ案内して止まる。intent に `mode_init` があり state が done でなければ Hold し、/01-collection の Phase 7.5（初期化の段）へ案内する（`mode_init` の無い Layer は今までどおり）。方式が記録されていない Layer も Phase 1 で Hold する（冒頭の「選択した方式だけ読む」の判定）。止まった Task を続けるときは [outcome-delivery.md](../references/outcome-delivery.md) の「止まった後に続ける」に従い、Task の result / refactoring_log にある成立済み証拠・未達・次操作から再開する（新セッションを理由に調査をやり直さない）。
 
 **繰り返す運用タスク（`recurrence` のある Task）:** 依存が解決していて `retired_at` の無いものは、通常の実行可能タスクとは分けて「次に回す運用タスク」として示し、最後の `runs` の日付から回す日か（daily は前回が昨日以前・weekly は7日以上前で、`runs` がまだ無ければ回す日とする。per_meeting は会議の後に本人が呼んだとき〔初回も同じ〕）を添える。実行したら、その回の結果を Task の AC で L1 確認して `runs` に1行（date・summary・output・checked_ac）足し、status は `in_progress` のまま completed にしない。Phase 5.5 の独立レビューと P0〜P2 の完成ゲートは run ごとには掛けない（日次・週次の運用が回らないため。運用タスクを足した Inception の承認と、その成果を使う側の Task の Phase 5.5 で受ける）。運用タスクの `scheduled_for` は回し始める日で、その日まで『次に回す運用タスク』に出さない。
 
@@ -95,9 +95,9 @@ backlog.yamlの`type`値が表にない場合は最近縁の行を適用する�
 
 ### Phase 6: Status Update
 
-全AC達成とPhase 5.5の完了ゲートを満たすことをAC表で確認してから、backlog.yamlを更新（status → completed + 成果物リンク）し、context.yamlに成果物エントリを追加し、進捗ダッシュボードと次の実行可能タスクを表示する。運用タスクの1回はこの更新をせず、Phase 1 の `runs` への追記で代える（context.yaml には output の置き場を初回に1行だけ）。SubLayer内のTaskが親ScopeBacklogのTaskに対応する場合、親側のステータスも連動更新する。
+全AC達成とPhase 5.5の完了ゲートを満たすことをAC表で確認してから、backlog.yamlを更新（status → completed + 成果物リンク）し、context.yamlに成果物エントリを追加し、進捗ダッシュボードと次の実行可能タスクを表示する。運用タスクの1回は backlog の completed 化と context.yaml への成果物エントリの追加をせず、Phase 1 の `runs` への追記で代える（context.yaml には output の置き場を初回に1行だけ。進捗ダッシュボードと次の実行可能タスクの表示はそのまま行う）。SubLayer内のTaskが親ScopeBacklogのTaskに対応する場合、親側のステータスも連動更新する。
 同梱の PM アドオン（旧い欄 `work_style: aipm` も同じ）が選ばれ `aipm.registers: true` の Layer では、完了した Task に wbs_id があれば `python3 .claude/skills/aipm-guided/package.py wbs-candidate --layer <Layer> --task <ID>` で WBS の該当行に output を証拠として足し、同じ wbs_id の Task が全部 completed なら pending_acceptance にして完了報告で「accepted の候補」として出す（accepted にするのは人。残りの Task があれば候補にせず〔既に候補の行は戻さない〕、返却の pending_tasks を完了報告に書く）。output が Layer の外にあるなどで失敗したら候補化を見送り、その旨を完了報告に書く。`scheduled_for` のある Task、または同じ wbs_id のどれかに `scheduled_for` がある Task を completed にするときは `completed_at: YYYY-MM-DD` も書く。wbs-candidate の返却に `schedule_actual_candidate` があれば、完了報告に『WBS <wbs_id> の実績日の候補: <日付>（根拠 <Task>。schedule.actual に書くかは人）』と1行添え、wbs.yaml の schedule は書かない。返却に `schedule_actual_missing` があれば、完了報告に『WBS <wbs_id> の実績日の候補を出せない（completed_at の無い Task: <ID>）』と1行添える。
-実行したタスクには `executed_by: <実行環境>`（claude-code / codex / cursor）を書き、`python3 .claude/db/classify.py sync --layer <Layer> --yes` で Registry の分類の表に写す（無い環境ではスキップ）。plc-backfill から通すときは**実際に作業した環境**を書く。Phase 5.5 を通した成果が案件の目的の説明を変える節目に限り、表示名の判断は [plc-registry の命名判断](../../plc-registry/SKILL.md#命名の判断と表示名の限定更新) に従う（全 Task 完了ごとの改名処理は作らない）。
+実行したタスクには `executed_by: <実行環境>`（claude-code / codex / cursor）を書く。plc-backfill から通すときは**実際に作業した環境**を書く。Phase 5.5 を通した成果が案件の目的の説明を変える節目に限り、表示名の判断は [ppm-registry の命名判断](../../ppm-registry/SKILL.md#命名の判断と表示名の限定更新) に従う（全 Task 完了ごとの改名処理は作らない）。
 
 ### Phase 6b: Backtrack判定（パイプライン単位）
 
@@ -106,7 +106,7 @@ BT-B（節目再評価: 完了率50% / ゴールドリフト）と BT-C（全完
 
 ### Phase 7: Propagation（省略禁止）
 
-RUL_plc_system §8 のチェックリスト8項目を「確認→判断→結果出力」で処理し、必ず出力する。**ステータス点検**は Registry DB 更新の後に `python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --brief --layer <Layer>`（読み取り専用。SubLayer は `--layer` を重ねる）を実行し、候補があれば1行ずつ提示して承認を求める。反映は承認後に `--quiet --approval-template` で雛形 → 承認行だけ `approve` → `--apply <承認ファイル>`（dry-run）→ `--apply <承認ファイル> --yes`。終了コードは 0=食い違いなし／10=あり。スクリプトが無い／終了コード2なら理由1行でスキップ。Wiki波及はここが唯一の発動ポイント（RUL_plc_system §11）。本人専用情報の差分保存は §22 の発動条件に当たる Layer だけ。
+RUL_plc_system §8 のチェックリストの全項目を「確認→判断→結果出力」で処理し、必ず出力する。**ステータス点検**は Registry DB 更新の後に `python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --brief --layer <Layer>`（読み取り専用。SubLayer は `--layer` を重ねる）を実行し、候補があれば1行ずつ提示して承認を求める。反映は承認後に `--quiet --approval-template` で雛形 → 承認行だけ `approve` → `--apply <承認ファイル>`（dry-run）→ `--apply <承認ファイル> --yes`。終了コードは 0=食い違いなし／10=あり。スクリプトが無い／終了コード2なら理由1行でスキップ。Wiki波及はここが唯一の発動ポイント（RUL_plc_system §11）。本人専用情報の差分保存は §22 の発動条件に当たる Layer だけ。
 
 **native memory:** PJ の状態・進捗は書かない（backlog・Registry が正）。この Layer から得た、PJ をまたぐ判断パターン・好みは feedback 型、閉じた後も使う参照は reference 型に書く（既存ファイルへの追記を先に考える）。オーナーの残作業が残るときは、あなたの TODO 管理（AI-PLC の範囲外）へ書く提案行を出す。**Wiki波及** の中で、今月の軽量Lint が未実施なら knowledge-lint.md の手順で実行して log に1行残す。**log** は表の行だけ（RUL_plc_system §11⑥）。
 
@@ -127,4 +127,4 @@ RUL_plc_session §7 の4パート（📍現在位置 / ✅完了サマリ / 📊
 Documents/（成果物） / Context Store・context.yaml（更新） / backlog.yaml（更新） / Production Skills（platform_builder時のみ）。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-10-22 ｜ **バージョン:** 3.0（方式の判定を目録と判定関数へ（読み方は同じ）／軽量化: 10/1 版（v2.12）を土台に、DevStyle binding・AIPM 併用の開発呼出し・本人専用情報・命名節目の本文を外し、発動条件3つと1行参照、ゲート2点＋回数上限、再開・中断の要点、requirement-review の要点を残す。以前の版履歴は git）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-11-25 ｜ **バージョン:** 3.1（方式の記録が無い Layer を Phase 1 で止める）／3.0（方式の判定を目録と判定関数へ（読み方は同じ）／軽量化: 10/1 版（v2.12）を土台に、DevStyle binding・AIPM 併用の開発呼出し・本人専用情報・命名節目の本文を外し、発動条件3つと1行参照、ゲート2点＋回数上限、再開・中断の要点、requirement-review の要点を残す。以前の版履歴は git）

@@ -34,6 +34,11 @@ def approval_scope_sha256(contract, budget):
     scope["limits"] = {k: budget.get(k) for k in (
         "budget_id", "started_at", "deadline", "recording_reserved_from",
         "repairs_limit", "additional_spend_limit_yen")}
+    # Do not change the fingerprint of legacy v2 records. New time semantics
+    # require explicit opt-in and bind their roles, provenance and total ceiling.
+    if "time_policy" in budget:
+        scope["limits"]["time_policy"] = {k: budget.get(k) for k in (
+            "time_policy", "deadline_kind", "deadline_source", "work_limit_minutes")}
     return hashlib.sha256(json.dumps(scope, ensure_ascii=False, sort_keys=True,
                                     separators=(",", ":")).encode()).hexdigest()
 
@@ -43,6 +48,136 @@ def timestamp(value):
     if parsed.tzinfo is None:
         raise ValueError("timezone required")
     return parsed
+
+
+def finite_minutes(value, *, positive=False):
+    if (type(value) not in (int, float) or not math.isfinite(value)
+            or value < 0 or (positive and value == 0)):
+        raise ValueError("invalid cumulative work accounting")
+    return value
+
+
+def work_minutes(budget, at):
+    """Consumed work plus the current active segment; never charge a logged pause.
+
+    The caller records active boundaries. This is cooperative accounting, not an
+    OS timer or an authorization mechanism. Pauses carry the consumed lower bound.
+    Consumption is never below (end - started_at) - logged break - logged answer
+    wait, where end is the open pause or ``at``. started_at is bound by the
+    approval fingerprint, so erasing or rewinding the mutable history cannot
+    lower consumption below that elapsed bound.
+    """
+    if budget.get("time_policy") != "work_budget_v1":
+        raise ValueError("unknown work time policy")
+    finite_minutes(budget["work_limit_minutes"], positive=True)
+    used = finite_minutes(budget["work_used_minutes"])
+    started = timestamp(budget["started_at"])
+    if at < started:
+        raise ValueError("work clock precedes start")
+    pauses = budget["pause_history"]
+    if not isinstance(pauses, list):
+        raise ValueError("invalid pause history")
+    totals = {"break": 0, "answer_wait": 0}
+    previous_end, previous_used = started, 0
+    for index, pause in enumerate(pauses):
+        kind = pause["kind"]
+        if kind not in totals:
+            raise ValueError("unknown pause kind")
+        paused = timestamp(pause["paused_at"])
+        carried = finite_minutes(pause["work_used_minutes"])
+        if paused < previous_end or paused > at or carried < previous_used:
+            raise ValueError("pause chronology or carried work was reset")
+        if "resumed_at" in pause:
+            resumed = timestamp(pause["resumed_at"])
+            if not paused <= resumed <= at:
+                raise ValueError("invalid pause interval")
+            totals[kind] += (resumed - paused).total_seconds() / 60
+            previous_end = resumed
+        else:
+            if index != len(pauses) - 1 or budget.get("active_since") is not None:
+                raise ValueError("open pause cannot run active work")
+            previous_end = paused
+        previous_used = carried
+    for kind, total in totals.items():
+        recorded = finite_minutes(budget[kind + "_minutes"])
+        if not math.isclose(recorded, total, abs_tol=1e-6):
+            raise ValueError("pause totals disagree with history")
+    if pauses and used < previous_used - 1e-6:
+        # pause_work settles work_used_minutes and resume_work keeps it. A larger
+        # (over-counted) settlement is conservative; a smaller one hides work.
+        raise ValueError("settled work is below the last pause carry")
+    active = budget["active_since"]
+    open_pause = bool(pauses) and "resumed_at" not in pauses[-1]
+    if active is not None:
+        active = timestamp(active)
+        # The active segment starts exactly at the last boundary: the last
+        # resumed_at, or started_at when nothing was paused.
+        if active != previous_end or active > at:
+            raise ValueError("active work does not start at the last boundary")
+        used += (at - active).total_seconds() / 60
+    elif budget.get("status") == "running":
+        raise ValueError("running work lacks an active interval")
+    end = previous_end if open_pause else at
+    floor = (end - started).total_seconds() / 60 - totals["break"] - totals["answer_wait"]
+    if used < floor - 1e-6:
+        # An unlogged interval is never treated as a pause (execution-record.md).
+        raise ValueError("work consumption is below elapsed time minus logged pauses")
+    return max(used, floor)
+
+
+def work_budget_verdict(budget, current):
+    """Time window of a work_budget_v1 budget: None if work may continue, else (decision, reason).
+
+    Shared by evaluate() and plc_addon.py so the deadline role, the cumulative ceiling and the
+    accounting checks exist once. Invalid accounting raises ValueError/KeyError/TypeError,
+    which callers treat as hold. Contract, approval and runtime checks stay with the caller.
+    """
+    started = timestamp(budget["started_at"])
+    if "recording_reserved_from" in budget:
+        return ("hold", "legacy clock reserve requires explicit time-policy reconciliation")
+    kind, source = budget.get("deadline_kind"), budget.get("deadline_source")
+    if kind == "none" and source == "none" and "deadline" not in budget:
+        pass
+    elif kind == "hard_stop" and source in {"user", "service"}:
+        deadline = timestamp(budget["deadline"])
+        if deadline <= started or current < started:
+            return ("hold", "invalid mandatory deadline")
+        if current >= deadline:
+            return ("stop", "user/service deadline ended; do not reset")
+    else:
+        return ("hold", "unknown or contradictory deadline role/provenance")
+    consumed = work_minutes(budget, current)
+    if consumed >= budget["work_limit_minutes"]:
+        return ("stop", "cumulative work ceiling reached; pauses do not reset consumption")
+    if budget.get("status") != "running":
+        return ("stop", "work budget is paused or ended; current resume must be checked")
+    return None
+
+
+def pause_work(budget, kind, *, at):
+    """Settle a pause in an existing budget; caller must check current permission."""
+    if kind not in {"break", "answer_wait"} or budget.get("status") != "running":
+        raise ValueError("invalid pause transition")
+    used = work_minutes(budget, at)
+    budget["work_used_minutes"] = used
+    budget["active_since"] = None
+    budget["status"] = "paused"
+    budget["pause_history"].append({"kind": kind, "paused_at": at.isoformat(),
+                                    "work_used_minutes": used})
+
+
+def resume_work(budget, *, at):
+    """Only time accounting. This neither resumes a contract nor grants authority."""
+    if budget.get("status") != "paused" or not budget.get("pause_history"):
+        raise ValueError("invalid resume transition")
+    work_minutes(budget, at)
+    pause = budget["pause_history"][-1]
+    if "resumed_at" in pause:
+        raise ValueError("pause already closed")
+    budget[pause["kind"] + "_minutes"] += (at - timestamp(pause["paused_at"])).total_seconds() / 60
+    pause["resumed_at"] = at.isoformat()
+    budget["active_since"] = at.isoformat()
+    budget["status"] = "running"
 
 
 def load_layer(layer):
@@ -118,11 +253,20 @@ def evaluate(layer, action, runtime, *, at=None):
         if not budget.get("budget_id") or contract.get("budget_id") != budget["budget_id"]:
             return result("hold", "budget does not belong to this execution")
         current = at or dt.datetime.now(dt.timezone.utc)
-        started, deadline = timestamp(budget["started_at"]), timestamp(budget["deadline"])
-        if deadline <= started or current < started:
-            return result("hold", "invalid finite time window")
-        if current >= deadline or budget.get("status") in {"blocked", "expired", "completed"}:
-            return result("stop", "finite deadline/budget ended; do not reset")
+        started = timestamp(budget["started_at"])
+        if "time_policy" not in budget:
+            # Existing v2/unknown-provenance deadlines remain mandatory.
+            deadline = timestamp(budget["deadline"])
+            if deadline <= started or current < started:
+                return result("hold", "invalid finite time window")
+            if current >= deadline or budget.get("status") in {"blocked", "expired", "completed"}:
+                return result("stop", "finite deadline/budget ended; do not reset")
+        elif budget.get("time_policy") == "work_budget_v1":
+            verdict = work_budget_verdict(budget, current)
+            if verdict is not None:
+                return result(*verdict)
+        else:
+            return result("hold", "unknown time policy; preserve mandatory legacy deadline")
         limit, used = budget["repairs_limit"], budget["repairs_used"]
         if type(limit) is not int or type(used) is not int or limit < 0 or used < 0:
             return result("hold", "invalid repair accounting")

@@ -13,6 +13,71 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-26
+
+名前が変わり、旧名では呼べなくなるので、版を 2.0.0 に上げました。実験版パッケージ（`experimental/jev/`）は **1.12.0-exp.2 のまま**です。
+
+### 破壊的な変更: 名前替え（旧名は残りません）
+
+| 旧名（v1.14.0 まで） | 新しい名前 | 層 |
+| --- | --- | --- |
+| `plc-registry` | `ppm-registry` | ポートフォリオ層 |
+| `plc-status-audit` | `ppm-audit` | ポートフォリオ層 |
+| `plc-viewer` | `ppm-viewer` | ポートフォリオ層 |
+| `plc-someday` | `ppm-someday` | ポートフォリオ層 |
+| `plc-project-status` | `plc-lifecycle` | プロジェクト層 |
+| `pm-capture` | `pm-suggest` | ワークパッケージ層 |
+
+- 案件をまたいで全体を見るスキルを `ppm-<機能>`（AI-PLC の PPM スキル。PPM はプロジェクトポートフォリオマネジメント）、1つの案件の中を見る・直すスキルを `plc-<機能>`、AIPM の箱の操作を `pm-<機能>` にそろえました。`ppm-` と `pm-` は1文字違いです
+- installer で更新すると、旧名のファイルは消え、新しい名前のファイルが入ります（`--dry-run` に `DELETE:` が出ます）。旧名のファイルを自分で編集していた場合は `[CONFLICT]` で止まるので、`--backup-modified` で退避してください
+- Codex の入口も同じ名前に変わります（`$ppm-registry`・`$plc-lifecycle`・`$pm-suggest` など）。入口の数は 25 のままです
+
+### 破壊的な変更: 進め方（方式）の記録が必須に
+
+- Layer ごとに進め方（方式）を1つ記録するようにしました。選べるのは同梱の2つ、**AIPM**（19文書を作る）と **AIPM ライトモード**（`aipm-light`。WBS と ToDo の表だけ）です。Collection で答えが無ければ、既定の `aipm-light` を記録します
+- 方式が記録されていない Layer は、Inception・Construction・Operation・plc-backfill の最初で止まります。**v1.14.0 までに作った Layer は、続きを実行する前に次を1回実行してください**（既にある方式は変えません）
+
+  ```bash
+  python3 .claude/skills/ai-plc/01-collection/recommendation.py default --layer <Layer のパス> --apply
+  ```
+
+- `aipm-light` を記録した Layer では、Inception が人の ToDo を backlog の Task ではなく `Sheets/todo.yaml` に入れるようになります。既存の Layer でこの表を使うなら、続けて `python3 .claude/skills/aipm-guided/package.py init --layer <Layer のパス> --light` で箱（`Sheets/todo.yaml`・`Sheets/wbs.yaml`）を作ってください
+- 記録されたかは `python3 .claude/skills/ai-plc/scripts/plc_addon_select.py --layer <Layer のパス> --require-method` で確かめられます
+- 継ぎ目の契約は v0.6（`core/skills/ai-plc/references/addon-seam-contract_v0.6.yaml`）、目録（`addon-catalog.yaml`）は `aipm` と `aipm-light` の2行になりました
+
+### 追加: 3層の定義
+
+- `core/skills/ai-plc/references/three-tiers.md` を足しました。ポートフォリオ層（`ppm-`）・プロジェクト層（AI-PLC の Stage と `plc-`）・ワークパッケージ層（`pm-`。AIPM の箱）の役割、正本の置き場、層の間の受け渡し、語の書き分けを定義しています
+- rules（system・session・model-routing）をこの定義に合わせました。公開版のポートフォリオ層のスキルは上の4つで、日次の計画や振り返りの入口は含みません
+
+### 変更: AIPM の箱の作り直し
+
+- **箱の形:** 箱の一覧（論点・仮説・ToDo・WBS など）を Layer の `Sheets/` の直下に置く形（sheets_v1）を既定にしました。v1.14.0 の形（`Documents/aipm_project/registers/`）の箱もそのまま読めます。移すときは `package.py migrate-layout`・`migrate-sheets` を使います（`core/skills/aipm-guided/SKILL.md` の「古い形の箱を移す」）
+- **AIPM ライトモード:** `package.py init --layer <Layer> --light` で、`Sheets/todo.yaml`・`Sheets/wbs.yaml` だけの軽い箱を作ります
+- **保存先の設定:** 完成した箱の保存先を `.ai-plc/config.yaml` の `aipm_archive`（`where: auto | stock | layer`、`business: registry | none`）で決められます。設定が無く `Stock/programs/` も無いリポジトリでは、Layer の中（`Documents/aipm_archive/`）に保存します
+- **箱の版と改訂:** 保存した箱を次の版として取り出し、変更を1件ずつ判定して反映する操作（`register`・`clone`・`change`・`judge-change`・`apply`・`snapshot-sources`）を足しました
+- **一覧の契約:** v2〜v4（ToDo の行に、ほかの表の行との結びつきと確認日の列）。v1.14.0 で作った箱は v2 の契約のまま読めます
+- **業務プロジェクトの表と共有 Stock（任意・既定では使いません）:** 複数の案件を業務プロジェクトの下に束ねて保存先を決める表（`core/db/business_registry.py`）と、案件どうしで共有する保存先（`core/db/shared_stock.py`、`core/skills/aipm-guided/shared-stock.md`）を入れました。検証済みの範囲と未検証の範囲は shared-stock.md に書いてあります
+- 操作は 11 種から 28 種に増えました
+
+### 変更: DB の道具
+
+- `core/db/` の `sync.py`・`init_db.py` を新しい版にし、`aiplc_paths.py`・`business_registry.py`・`shared_stock.py` を配るようにしました
+- **`init_db.py` は、既定の DB（`.claude/db/ai_plc.db`）に書くとき `--allow-production` が要ります**（付けないと DB を開く前に終了コード 3 で止まります）。試すときは `--db <パス>` で別の DB を指定します。installer が最初に DB を作る動きは変わりません
+- v1.14.0 の DB は、ローカルの Registry（`plc_query.py` の projects・dashboard・someday、`tasks-sync --status`）としてそのまま使えます
+- **破壊的な変更（Notion と同期している人だけ）:** `sync.py` の `pull`・`push`・`sync` は、実行の前に Notion の DB の列を検査するようになり、次の列が無いと `SCHEMA_MISMATCH`（終了コード 3）で止まります。Projects の DB に `Sync UID`（テキスト）・`Workspace ID`（テキスト）・`Ownership Epoch`（数値）・`Identity Version`（数値）、Tasks の DB（タスク同期を凍結していなければ）に `Project Sync UID`（テキスト）・`Workspace ID`（テキスト）・`Project Ownership Epoch`（数値）・`Identity Version`（数値）を足してください。ローカルの DB は `python3 .claude/db/sync.py adopt-existing --dry-run …` → `--plan …` で新しい識別子の形に移します（使い方は `sync.py` の冒頭と `python3 .claude/db/sync.py preflight`）。この移行は合成の DB の試験で確かめたもので、実際の Notion のワークスペースでの確認はしていません。Notion と同期している人は、先に `--dry-run` と `preflight` で確かめてください
+- 新しく作る DB では、`tasks.status` の値が英語（planned など）から日本語（未着手・進行中・完了）に変わりました（タスク同期は v1.12.0 から凍結されているので、通常は使いません）。既存の DB の値は変わらず、`plc_query.py dashboard` はどちらも数えます。既存の DB に `init_db.py --allow-production` を流すと、行はそのままで、分類の表（`project_classification`・`task_execution`）が足されます
+
+### 追加: 汎用の改善
+
+- plc-auto: 重い工程の作業量の上限（`work_budget_v1`）を `references/execution-record.md` に足しました
+- Codex: 入口が正本を指しているかを確かめる `codex/skills/ai-plc/scripts/check_adapters.py`
+
+### この版に入れていないもの
+
+- 日次の計画・振り返りなどポートフォリオ層の日常運用の入口、会議の取り込み、軽い頼みごとの置き場（quick）、Project の分類と ID の自動採番。ステータス点検のスクリプトは今までどおり実験版（`--with-jev`）にだけ入ります
+- Cursor の rules（`cursor/rules/*.mdc`）は v1.14.0 のままです
+
 ## [1.14.0] - 2026-10-23
 
 実験版パッケージ（`experimental/jev/`）は **1.12.0-exp.2 のまま**です（この版では変えていません）。

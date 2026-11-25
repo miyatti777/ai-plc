@@ -1,8 +1,10 @@
 """Which addons are selected in a Layer (bundled catalog + legacy work_style alias + case bindings).
 
 Stage 1. Read-only: never writes intent, never selects, never authenticates.
-Contract: .claude/skills/ai-plc/references/addon-seam-contract_v0.5.yaml (BundledAddonSelection,
-AddonCatalog [v0.5 adds the row operations], AddonProfileDeclaration, LegacyAlias, AddonSelectionResult).
+Contract: .claude/skills/ai-plc/references/addon-seam-contract_v0.6.yaml (BundledAddonSelection,
+AddonCatalog [v0.5 adds the row operations; v0.6 adds default_addon and the meaning of none_allowed],
+AddonProfileDeclaration, LegacyAlias, AddonSelectionResult [v0.6 adds method_required / method_missing /
+default_method; Hold method_required only when the caller asks with require_method]).
 Catalog:  .claude/skills/ai-plc/references/addon-catalog.yaml
 """
 import argparse
@@ -22,10 +24,11 @@ BUNDLED_REQUIRED = {"addon_id", "source", "addon_version"}
 BUNDLED_FIELDS = BUNDLED_REQUIRED | {"selection_ref"}
 CATALOG_TOP = {"specification", "schema_version", "contract", "exclusive_groups", "addons"}
 GROUP_FIELDS = {"meaning", "max_selected", "none_allowed", "case_declaration", "undeclared_case_with_member"}
+GROUP_OPTIONAL = {"default_addon"}   # catalog schema 0.3 only (contract v0.6)
 ROW_REQUIRED = {"addon_id", "source", "display_name", "addon_version", "exclusive_group", "hash_pinned",
                 "entry", "init", "stage_reads"}
 ROW_FIELDS = ROW_REQUIRED | {"settings_key", "legacy_alias", "operations"}   # operations: catalog schema 0.2 only (contract v0.5)
-CATALOG_SCHEMAS = ("0.1", "0.2")
+CATALOG_SCHEMAS = ("0.1", "0.2", "0.3")
 OPERATION_FIELDS = {"name", "entry", "writes", "before_selection"}
 OPERATION_NAME = re.compile(r"[a-z][a-z0-9]*(-[a-z0-9]+)+")
 ALIAS_FIELDS = {"intent_field", "value", "selection_source_field"}
@@ -53,8 +56,15 @@ def load_catalog(path=None):
         if not isinstance(groups, dict) or not groups:
             raise ValueError("exclusive_groups must be a nonempty mapping")
         for name, group in groups.items():
-            if name == NONE_GROUP or not isinstance(group, dict) or set(group) != GROUP_FIELDS:
+            if name == NONE_GROUP or not isinstance(group, dict) or not GROUP_FIELDS <= set(group) \
+                    or set(group) - GROUP_FIELDS - GROUP_OPTIONAL:
                 raise ValueError("invalid exclusive group: " + str(name))
+            if type(group["none_allowed"]) is not bool:
+                raise ValueError("none_allowed must be true or false")
+            if "default_addon" in group and (data["schema_version"] != "0.3" or group["none_allowed"]):
+                raise ValueError("default_addon needs catalog schema 0.3 and none_allowed false")
+            if data["schema_version"] == "0.3" and not group["none_allowed"] and "default_addon" not in group:
+                raise ValueError("a group with none_allowed false needs default_addon: " + name)
             if type(group["max_selected"]) is not int or group["max_selected"] < 1:
                 raise ValueError("max_selected must be a positive integer")
             if group["undeclared_case_with_member"] not in ("hold", "allow"):
@@ -87,6 +97,10 @@ def load_catalog(path=None):
                     raise ValueError("duplicate legacy_alias")
                 aliases[key] = addon_id
             by_id[addon_id] = row
+        for name, group in groups.items():
+            default = group.get("default_addon")
+            if default is not None and (default not in by_id or by_id[default]["exclusive_group"] != name):
+                raise ValueError("default_addon must be a row of the same group: " + str(default))
     except (KeyError, TypeError, ValueError, base.Held) as exc:
         raise Hold("invalid_catalog", str(exc))
     return {"groups": groups, "rows": by_id, "aliases": aliases}
@@ -95,8 +109,8 @@ def load_catalog(path=None):
 def _check_operations(ops, schema):
     """The operations of one catalog row (contract v0.5): the method's operations on items inside its boxes.
     A list, never a permission. Raises ValueError (-> invalid_catalog)."""
-    if schema != "0.2":
-        raise ValueError("operations need catalog schema 0.2")
+    if schema not in ("0.2", "0.3"):
+        raise ValueError("operations need catalog schema 0.2 or later")
     if not isinstance(ops, list) or not ops:
         raise ValueError("operations must be a nonempty list")
     names = set()
@@ -133,7 +147,9 @@ def _verify_selection(case, ref, addon_id):
     except ValueError:
         record = None
     if isinstance(record, dict) and "choice" in record:
-        ok = record.get("kind") == "user_reported" and record.get("choice") == addon_id
+        choice = record.get("choice")
+        # v0.6: the old answer 通常方式で進める (choice standard) declines AIPM and records AIPM ライトモード
+        ok = record.get("kind") == "user_reported" and (choice == addon_id or (addon_id, choice) == ("aipm-light", "standard"))
         return ok, "受領記録の choice が一致" if ok else "受領記録の choice が一致しない"
     if "selection" not in relative.name:
         return False, "選択の出典の名前に selection を含まない"
@@ -221,13 +237,17 @@ def split_addons(bindings, rows, check_case=None):
 
 def _result(**fields):
     out = {"route": "unselected", "method": None, "work_style_value": None, "selected": [], "case_addons": [],
-           "has_case_addons": False, "notes": [], "hold_reasons": [], "writes": False}
+           "has_case_addons": False, "method_required": False, "method_missing": False, "default_method": None,
+           "notes": [], "hold_reasons": [], "writes": False}
     out.update(fields)
     return out
 
 
-def selected_addons(layer, *, read_roots=None, common_root=None, catalog_path=None):
-    """Return the AddonSelectionResult (contract v0.4) for one Layer. Never writes."""
+def selected_addons(layer, *, read_roots=None, common_root=None, catalog_path=None, require_method=False):
+    """Return the AddonSelectionResult (contract v0.6) for one Layer. Never writes.
+
+    require_method: Hold method_required when work_method has none_allowed false and the Layer has no method.
+    Off by default so that Layers made before the method became required keep their Stages (contract v0.6)."""
     try:
         catalog = load_catalog(catalog_path)
         rows, groups, aliases = catalog["rows"], catalog["groups"], catalog["aliases"]
@@ -317,9 +337,16 @@ def selected_addons(layer, *, read_roots=None, common_root=None, catalog_path=No
             alias = rows[s["addon_id"]].get("legacy_alias") or {}
             if alias.get("intent_field") == "work_style":
                 work_style_value = alias["value"]
+        method_group = groups.get("work_method") or {}
+        method_required = method_group.get("none_allowed") is False
+        method_missing = method_required and method is None
+        default_method = method_group.get("default_addon")
+        if method_missing and require_method:
+            raise Hold("method_required", "work_method has no selection; default is " + str(default_method))
         route = "selected" if selected or case_out else "unselected"
         return _result(route=route, method=method, work_style_value=work_style_value, selected=selected,
-                       case_addons=case_out, has_case_addons=bool(case_out), notes=notes)
+                       case_addons=case_out, has_case_addons=bool(case_out), method_required=method_required,
+                       method_missing=method_missing, default_method=default_method, notes=notes)
     except Hold as exc:
         return _result(route="held", hold_reasons=[exc.code], detail=exc.detail)
     except (OSError, TypeError, ValueError, KeyError, AttributeError, UnicodeDecodeError, yaml.YAMLError) as exc:
@@ -333,8 +360,11 @@ def main(argv=None):
     parser.add_argument("--layer", required=True)
     parser.add_argument("--read-root", action="append", default=[])
     parser.add_argument("--common-root")
+    parser.add_argument("--require-method", action="store_true",
+                        help="Hold method_required when the Layer has no work_method (after Collection records it)")
     args = parser.parse_args(argv)
-    result = selected_addons(args.layer, read_roots=args.read_root or None, common_root=args.common_root)
+    result = selected_addons(args.layer, read_roots=args.read_root or None, common_root=args.common_root,
+                             require_method=args.require_method)
     print(json.dumps(result, ensure_ascii=False))
     return 1 if result["route"] == "held" else 0
 

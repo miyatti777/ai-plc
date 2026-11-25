@@ -1,7 +1,7 @@
 """pm- operations on single items inside the AIPM boxes.
 
 The AI-PLC Stages are the outer commands (they build the boxes); pm-issue / pm-hypothesis / pm-todo act on one item
-inside registers/. Every write is tried in place: the target file's bytes and times are kept, the registers check of
+inside the registers (registers/ of box_root_v1 / nested_v1, directly in Sheets/ for sheets_v1). Every write is tried in place: the target file's bytes and times are kept, the registers check of
 validate (E_REGISTERS) is taken before and after as a set of (code, path, message), and the file is put back when a new
 item appears or apply is not given (so the trial sees the same repo root and sources as the real Layer). Human decisions (resolved, owner/decider judgements, acceptance) are never made here:
 resolve/close need a receipt or decision record given by the caller, and owner/decider judgements stay with judge.
@@ -11,17 +11,21 @@ from datetime import date, datetime
 from pathlib import Path
 import yaml
 from package import build_contract, load, registers_contract, safe_path, select
-from package import addon_selector as _addon_selector, LEGACY_COURSE
+from package import addon_selector as _addon_selector, LEGACY_COURSE, FLAT_LAYOUTS
+import light   # imported at load time (another tool may load ops with this folder on sys.path only while loading)
 
 READS={'init.status','issue.map','hypothesis.impact','todo.overdue','capture.context','capture.check','persona.revise','story.revise','today.pick'}   # capture/persona/story/today never write
+STOP_IN_SAVED={'issue.add','issue.split','issue.propose','hypothesis.add','hypothesis.propose','todo.add','todo.link'}   # (resolve, close, todo.move stay)
 WRITES={'issue.add','issue.split','issue.propose','issue.close','issue.resolve','hypothesis.add','hypothesis.propose','todo.add','todo.move','todo.link'}
 UNKNOWN='[unknown]'
 
 def check(layer):
     """Whether pm- may act on this Layer. selected / unselected (no write, reason) / held (selection held or broken)."""
     layer=Path(layer).absolute()
-    try:chosen=select(layer)
+    try:chosen=select(layer);kind=_light_kind(layer)
     except ValueError as ex:return {'route':'held','pass':False,'reason':str(ex)}
+    if kind is not None and (not chosen or 'registers_contract_version' not in build_contract(layer)):
+        return _light_check(layer,kind)   # AIPM ライトモード, or the two sheets added to an aipm Layer
     if not chosen:return {'route':'unselected','reason':'AIPM is not selected in this Layer (pm- acts only on Layers that selected AIPM; to switch midway see pm-init)'}
     c=build_contract(layer)
     if 'registers_contract_version' not in c:return {'route':'unselected','reason':'aipm.registers is not selected'}
@@ -29,6 +33,26 @@ def check(layer):
     missing=[s['path'] for s in rc['files'].values() if not safe_path(root,s['path']).is_file()]
     if missing:return {'route':'held','pass':False,'reason':'registers files missing (run package.py init first): '+', '.join(missing)}
     return {'route':'selected','scope_id':c.get('scope_id')}
+
+LIGHT_OPS={'check','todo.add','todo.move','todo.link','todo.overdue'}   # the light sheets hold todo and wbs only
+
+def _light_kind(layer):
+    """kind of the light sheets in the Layer (light.LIGHT_KIND / light.SHEETS_KIND) or None. A held selection raises."""
+    try:kind=light.record(layer)[0]
+    except (OSError,yaml.YAMLError) as ex:raise ValueError('light box record unreadable: '+str(ex)) from ex   # review P3: held, not a traceback
+    m=light.method(layer)[0]
+    if kind is None:return light.LIGHT_KIND+'_missing' if m==light.LIGHT else None
+    if kind==light.LIGHT_KIND and m!=light.LIGHT:return None   # review P2-1: a leftover record does not make a Layer light
+    if kind==light.SHEETS_KIND and m!='aipm':return None
+    return kind
+
+def _light_check(layer,kind):
+    if kind.endswith('_missing'):return {'route':'held','pass':False,'reason':'AIPM ライトモード is selected but its box is missing (run package.py init --light)'}
+    try:_,rc,files=light.contract(layer)
+    except ValueError as ex:return {'route':'held','pass':False,'reason':str(ex)}
+    missing=[str(q.relative_to(layer)) for q in files.values() if not q.is_file()]
+    if missing:return {'route':'held','pass':False,'reason':'light sheets missing: '+', '.join(missing)}
+    return {'route':'selected','scope_id':load(safe_path(layer,'intent.yaml')).get('scope_id'),'light':kind}
 
 def _text(v):
     if isinstance(v,(date,datetime)):return v.isoformat()
@@ -58,10 +82,17 @@ def _row(rows,rid,kind):
 
 def _registers_problems(layer):
     from validate_package import validate
-    c=build_contract(layer);r=validate(safe_path(layer,c['package_root']),phase='prearchive',layer=layer)
-    return {(e['code'],e['path'],e['message']) for e in r['errors'] if e['code']=='E_REGISTERS'}
+    if _light_kind(layer)==light.LIGHT_KIND and not select(layer):r=light.validate(layer)
+    else:
+        c=build_contract(layer);r=validate(safe_path(layer,c['package_root']),phase='prearchive',layer=layer)
+        if _light_kind(layer)==light.SHEETS_KIND and 'registers_contract_version' not in c:
+            return {(e['code'],e['path'],e['message']) for e in r['errors'] if e['code'] in ('E_REGISTERS','E_LIGHT')}
+    return {(e['code'],e['path'],e['message']) for e in r['errors'] if e['code'] in ('E_REGISTERS','E_LIGHT')}
 
 def _files(layer):
+    kind=_light_kind(layer)
+    if kind in (light.LIGHT_KIND,light.SHEETS_KIND) and (not select(layer) or 'registers_contract_version' not in build_contract(layer)):
+        return light.contract(layer)
     c=build_contract(layer);root=safe_path(layer,c['package_root']);rc=registers_contract(c)
     return c,rc,{k:safe_path(root,s['path']) for k,s in rc['files'].items()}
 
@@ -186,9 +217,10 @@ def hypothesis_impact(layer,files,data,inp):
     targets=[h['id'] for h in rows if (h.get('id') in want if want else (h.get('status')=='not_supported' or _latest(h).get('verdict')=='not_supported'))]
     by={h['id']:h for h in rows if h.get('id') in targets}
     issues=load(files['issues']).get('issues') or [];todo=load(files['todo']).get('todo') or []
-    root=files['issues'].parent.parent;docs={}
+    root=safe_path(layer,build_contract(layer)['package_root']);docs={}   # the package (not the Layer): Sheets/ or Documents/aipm_project/
+    lists={Path(q).absolute() for q in files.values()}   # the registers themselves are not documents (sheets_v1 has no registers/ folder)
     for p in sorted(root.rglob('*')):
-        if p.is_file() and p.suffix in ('.md','.yaml','.yml','.mmd') and 'registers' not in p.relative_to(root).parts:
+        if p.is_file() and p.suffix in ('.md','.yaml','.yml','.mmd') and p.absolute() not in lists and 'registers' not in p.relative_to(root).parts:
             text=p.read_text(errors='ignore')
             for t in targets:
                 if re.search(r'(?<![A-Za-z0-9])'+re.escape(t)+r'(?![0-9])',text):docs.setdefault(t,[]).append(str(p.relative_to(root)))
@@ -203,6 +235,49 @@ def hypothesis_impact(layer,files,data,inp):
 
 # ---- todo --------------------------------------------------------------------------------------------------------------
 TODO_NEW=('title','owner','source','wbs_id','due','priority','note')
+TODO_KNOT=('done_when','updated_on','blocked_by')   # contract v3 only (optional)
+
+def _knot_check(spec,vals):
+    if not vals:return
+    if 'done_when' not in spec.get('optional',[]):raise ValueError('この箱の一覧は結び目の列（'+', '.join(TODO_KNOT)+'）に対応しない古い版です。列を除いて頼んでください（何も書いていません）')
+    from validate_package import knot_problems
+    bad=knot_problems(spec,vals)[0]
+    if bad:raise ValueError('; '.join(bad)+'（何も書いていません）')
+
+CONFIRMATIONS='Context/todo_confirmations.yaml'   # the owner's answers behind confirmed_on (contract v4). A reader should trust confirmed_on only with a record here
+
+def _confirm_check(layer,spec,row_id,inp):
+    """confirmed_on needs the owner's answer for this Layer, this row and this day. An AI never fills it in by itself."""
+    if 'confirmed_on' not in spec.get('optional',[]):raise ValueError('この箱の一覧は確認日の列（confirmed_on）に対応しない古い版です（何も書いていません）')
+    _knot_check(spec,{'confirmed_on':inp['confirmed_on']})
+    rec=inp.get('receipt')
+    if not isinstance(rec,dict) or rec.get('kind')!='user_reported' or rec.get('actor')!='actual_user':raise ValueError('receipt must be kind user_reported / actor actual_user（何も書いていません）')
+    if rec.get('decision')!='confirm_todo_row' or not str(rec.get('quote') or '').strip() or not rec.get('received_at'):raise ValueError('receipt needs decision confirm_todo_row, quote and received_at（何も書いていません）')
+    if rec.get('scope_ids')!=[(load(safe_path(layer,'intent.yaml')) or {}).get('scope_id')]:raise ValueError('receipt scope_ids must be exactly this Layer（何も書いていません）')
+    if rec.get('rows')!=[row_id]:raise ValueError('receipt rows must be exactly this row（何も書いていません）')
+    if str(rec['received_at'])[:10]!=str(inp['confirmed_on']):raise ValueError('confirmed_on must be the day of received_at（何も書いていません）')
+    if str(inp['confirmed_on'])>date.today().isoformat():raise ValueError('confirmed_on must not be in the future（何も書いていません）')
+    q=safe_path(layer,CONFIRMATIONS)
+    old=load(q) if q.is_file() else {'confirmations':[]}
+    if not isinstance(old,dict) or not isinstance(old.get('confirmations'),list):raise ValueError(CONFIRMATIONS+' の形が違うので書きません（何も書いていません）')
+
+def _record_confirmation(layer,row_id,inp):
+    q=safe_path(layer,CONFIRMATIONS)
+    data=load(q) if q.is_file() else {'confirmations':[]}
+    rec=inp['receipt']
+    data['confirmations'].append({'row':row_id,'confirmed_on':str(inp['confirmed_on']),'kind':rec['kind'],'actor':rec['actor'],'decision':rec['decision'],'quote':rec['quote'],'received_at':str(rec['received_at'])})
+    q.parent.mkdir(parents=True,exist_ok=True);_dump(q,data)
+
+NOTE_ADD_LIMIT=300
+
+def _note_add(v):
+    """todo.move note_add: one line appended to the row's note. Empty means nothing."""
+    if v in (None,''):return ''
+    if not isinstance(v,str):raise ValueError('note_add must be one line of text（何も書いていません）')
+    v=v.strip()
+    if not v or '\n' in v or '\r' in v:raise ValueError('note_add must be one line of text（何も書いていません）')
+    if len(v)>NOTE_ADD_LIMIT:raise ValueError('note_add must be at most '+str(NOTE_ADD_LIMIT)+' characters（何も書いていません）')
+    return v
 
 def todo_write(verb,layer,data,inp,c,rc,hyps):
     rows=data['todo'];spec=rc['files']['todo']
@@ -210,18 +285,33 @@ def todo_write(verb,layer,data,inp,c,rc,hyps):
         row={'id':_next_id(rows,'D'),'title':str(inp['title']).strip(),'status':'todo','owner':inp.get('owner') or UNKNOWN}
         for k in TODO_NEW[2:]:
             if inp.get(k) not in (None,''):row[k]=inp[k]
+        knot={k:inp[k] for k in TODO_KNOT if inp.get(k) not in (None,'')};_knot_check(spec,knot);row.update(knot)
         rows.append(row);return [row['id']]
     r=_row(rows,inp['id'],'todo')
     if verb=='move':
         if inp['status'] not in spec['status']:raise ValueError('status must be one of '+'/'.join(spec['status']))
+        add=_note_add(inp.get('note_add'))
+        if inp.get('updated_on') not in (None,''):   # the day the row was closed, written with the status
+            _knot_check(spec,{'updated_on':inp['updated_on']})
+            if str(inp['updated_on'])>date.today().isoformat():raise ValueError('updated_on must not be in the future（何も書いていません）')
+            r['updated_on']=inp['updated_on']
+        if add and add not in str(r.get('note') or ''):   # one sentence of where the decision came from; the old note is kept, a repeat is not added twice
+            r['note']=(str(r['note']).rstrip()+' '+add) if str(r.get('note') or '').strip() else add
         r['status']=inp['status']
     elif verb=='link':
-        if not ({'wbs_id','source'}&set(inp)):raise ValueError('wbs_id or source is required')
+        knot={k:inp[k] for k in TODO_KNOT if inp.get(k) not in (None,'')}
+        confirmed=inp.get('confirmed_on') not in (None,'')
+        if not knot and not confirmed and not ({'wbs_id','source'}&set(inp)):raise ValueError('wbs_id, source or a knot column is required')
+        _knot_check(spec,knot)
+        if confirmed:_confirm_check(layer,spec,r['id'],inp)
+        elif 'receipt' in inp:raise ValueError('receipt is only for confirmed_on（何も書いていません）')
         for k in ('wbs_id','source'):
             if k in inp:r[k]=inp[k]
+        r.update(knot)
+        if confirmed:r['confirmed_on']=inp['confirmed_on']
     return [r['id']]
 
-TODO_INPUT={'add':(TODO_NEW,('title',)),'move':(('id','status'),('id','status')),'link':(('id','wbs_id','source'),('id',))}
+TODO_INPUT={'add':(TODO_NEW+TODO_KNOT,('title',)),'move':(('id','status','updated_on','note_add'),('id','status')),'link':(('id','wbs_id','source','confirmed_on','receipt')+TODO_KNOT,('id',))}
 
 def todo_overdue(data,inp):
     today=str(inp.get('today') or date.today().isoformat())
@@ -274,7 +364,7 @@ def _day(v):
 def today_pick(files,inp):
     if inp.get('today') is not None and _day(inp['today']) is None:raise ValueError('today must be YYYY-MM-DD')
     today=_day(inp.get('today')) or date.today()
-    rows=lambda f,k:[r for r in load(files[f]).get(k) or [] if isinstance(r,dict) and r.get('id')]   # rows without an id are left to validate
+    rows=lambda f,k:[r for r in load(files[f]).get(k) or [] if isinstance(r,dict) and r.get('id')] if f in files else []   # rows without an id are left to validate; AIPM ライトモード has no issues/hypotheses
     iss=rows('issues','issues');hyp=rows('hypotheses','hypotheses');todo=rows('todo','todo');wbs=rows('wbs','wbs')
     live=[r for r in todo if r.get('status') not in ('done','cancelled')]
     buckets=[
@@ -305,7 +395,8 @@ def revise(layer,kind,inp):
     def doc(r):return {'path':r.get('path'),'stage':r.get('stage'),'status':r.get('status'),'saved':r.get('status')=='archived_local_final' or bool(r.get('archive_path'))}
     targets=[doc(r) for r in recs if r.get('stage') in own]
     saved=[t['path'] for t in targets if t['saved']]
-    if saved:return {'route':'held','pass':False,'reason':'保存済み（archived）の文書はその場で改訂しない。改訂は Stage で工程をやり直す','saved':saved}
+    versioned=isinstance(m.get('applies'),list) and bool(m['applies'])   # a box with versions is revised by apply
+    if saved and not versioned:return {'route':'held','pass':False,'reason':'保存済み（archived）の文書はその場で改訂しない。改訂は Stage で工程をやり直す（版の登録〔package.py register〕をした箱は、変更案〔package.py change〕から apply で改訂できる）','saved':saved}
     ids=inp.get('hypothesis_ids') or []
     mentions=[]
     for r in recs:
@@ -321,7 +412,8 @@ def revise(layer,kind,inp):
     checks+=[{'stage':s.get('name'),'checkpoint_actor':s.get('checkpoint_actor'),'checkpoint_status':s.get('checkpoint_status')} for s in m.get('stages') or [] if isinstance(s,dict) and s.get('name') in scope and s.get('name') not in seen and s.get('checkpoint_actor')=='actual_user']
     return {'kind':kind,'targets':targets,'downstream':[doc(r) for r in recs if r.get('stage') in down],'mentions':mentions,'human_checks_to_redo':checks,
             'reason_given':inp.get('reason'),
-            'how_to_revise':'19文書はその場で書き換えない（manifest の hash・工程の時刻・本人の確認の対象が壊れる）。改訂は Re-Inception で改訂の Task を足し、/04-operation でその工程をやり直す。この一覧は改訂の範囲の案で、直すかは本人が決める'}
+            'how_to_revise':('19文書はその場で書き換えない。この箱は版を持つので、改訂は変更案から: package.py clone → change（候補の YAML。dry-run で影響の一覧を見てから --apply）→ change-list で番号つきの一覧を本人に見せる → 本人の返事を judge-change で記録 → apply（反映は本人が採用した変更案だけ）。この一覧は改訂の範囲の案で、直すかは本人が決める' if saved else
+                             '19文書はその場で書き換えない（manifest の hash・工程の時刻・本人の確認の対象が壊れる）。改訂は Re-Inception で改訂の Task を足し、/04-operation でその工程をやり直す。この一覧は改訂の範囲の案で、直すかは本人が決める')}
 
 # ---- init: switching a midway Layer to AIPM -----------------------------------------------------------------
 # Only a guide: it reads where the Layer stands and returns the next command. Choosing (recommendation + receipt), building the
@@ -358,6 +450,8 @@ def init_status(layer):
     blocking=[c for c in sel.get('case_addons') or [] if c.get('exclusive_group')!='none']
     if blocking and not chosen:
         return {'state':'other_addon','reason':'持ち込みのアドオン（'+', '.join(str(c.get('addon_id'))+'：'+str(c.get('exclusive_group') or '宣言なし') for c in blocking)+'）があり、AIPM と一緒には選べない（方式どうしは重ねない・宣言の無いものは方式と並べない）','next':'方式の組み合わせを確かめる：'+recollect}
+    if not chosen and any(x.get('addon_id')=='aipm-light' for x in sel.get('selected') or []):
+        return {'state':'light','next':'AIPM ライトモード（WBS と TODO のシートだけ）で動いている。AIPM に切り替えるなら '+recollect,'note':'方式は答えが無いと AIPM ライトモードが記録される（Collection Phase 7）。AIPM への切り替えでは2つのシートを registers の一部として引き継ぐ'}
     if not chosen:
         try:
             mod=_recommendation();rec=mod.status(layer)
@@ -368,8 +462,8 @@ def init_status(layer):
         if rec.get('status')=='pending' and isinstance(q,dict):
             return {'state':'question_pending','question':q.get('text'),'next':'保存してある推薦の質問に本人が答える（回答の受領記録で intent が変わる。Collection Phase 4.5 の手順）'}
         if rec.get('route')=='legacy_declined' or rec.get('status')=='declined':
-            return {'state':'declined','next':'前に通常方式を選んでいる。考えを変えるなら '+recollect}
-        return {'state':'unselected','next':recollect,'note':'方式の選択は本人の回答（受領記録）でだけ intent に書かれる。pm-init は書かない'}
+            return {'state':'declined','next':'前に AIPM を選ばなかった。考えを変えるなら '+recollect}
+        return {'state':'unselected','next':recollect,'note':'方式は本人の回答（受領記録）か、答えが無いときの既定（AIPM ライトモード）で intent に書かれる。pm-init は書かない'}
     c=build_contract(layer);root=safe_path(layer,c['package_root'])
     if not (root/'format_contract.yaml').is_file():
         return {'state':'selected_not_initialized','next':recollect+'（AIPM は選択済み。Phase 7.5 の初期化の段から）'}
@@ -405,6 +499,7 @@ def run(layer,name,input_path=None,apply=False):
     if name=='init.status':return {'route':'pm','op':name,**init_status(layer)}   # works before AIPM is chosen; writes nothing
     st=check_docs(layer) if item in REVISE else check(layer)
     if name=='check' or st['route']!='selected':return st
+    if st.get('light') and name not in LIGHT_OPS:return {'route':'held','pass':False,'op':name,'reason':'AIPM ライトモードのシートは todo と wbs だけ。使える操作: '+', '.join(sorted(LIGHT_OPS))}
     if name not in READS|WRITES:raise ValueError('unknown op: '+str(name)+' (reads: '+', '.join(sorted(READS))+'; writes: '+', '.join(sorted(WRITES))+')')
     verb=name.split('.')[1]
     if item in REVISE:
@@ -417,8 +512,27 @@ def run(layer,name,input_path=None,apply=False):
     if name=='today.pick':return {'route':'pm','op':name,**today_pick(files,_input(layer,input_path,('today',)))}
     if name=='capture.context':return {'route':'pm','op':name,**capture_context(layer,files,_input(layer,input_path,('notes',)))}
     if name=='capture.check':return {'route':'pm','op':name,**capture_check(layer,_input(layer,input_path,('judgements','issues','todo')),c,rc,files)}
+    if name in STOP_IN_SAVED:   # a saved box that can carry versions is edited through redit
+        import register_edits
+        if register_edits.saved_versionable(layer):
+            head='保存済み（archive 済み）の箱の registers は、記録なしでは書かない。'
+            tail='（判定・状態の操作 issue.resolve・issue.close・todo.move・package.py judge は今までどおり使える）'
+            how={'issue.propose':'答えの案・検証の仮説の案は一覧に書かない。案は redit の変更案の reason か、redit-extract の判定の下書き（judge_draft）の備考に残し、本人の判定は pm-issue の resolve・close で行う',
+                 'hypothesis.propose':'AI の判定の案は一覧に書かない。案は redit の変更案の reason か、redit-extract の判定の下書き（judge_draft）の備考に残し、本人・判断者の判定は package.py judge で行う',
+                 'todo.link':'wbs_id が空の ToDo は redit の fill（op: fill・field: wbs_id）で WBS につなぐ。付いている wbs_id の直しと source の付け直し、確認日 confirmed_on は、今は redit で足せない（要るかは本人に確かめる）',
+                 'issue.split':'子の論点は redit の add_row（row_data に parent）で足す: package.py redit → redit-list → 本人の返事を redit-judge → redit-apply'
+                 }.get(name,'変更案から書く: package.py redit → redit-list → 本人の返事を redit-judge → redit-apply')
+            return {'route':'held','pass':False,'op':name,'reason':head+how+tail}
     allowed,required=KIND[item][2][verb]
-    return _write(layer,name,_input(layer,input_path,allowed,required),apply,c,rc,files)
+    inp=_input(layer,input_path,allowed,required)
+    if name=='todo.move' and ({'updated_on','note_add'}&{k for k,v in inp.items() if v not in (None,'')}):
+        import register_edits
+        if register_edits.saved_versionable(layer):return {'route':'held','pass':False,'op':name,'reason':'保存済み（archive 済み）の箱では todo.move は status だけを書く。updated_on・note_add を外して頼むか、redit の変更案から書く（何も書いていません）'}
+    res=_write(layer,name,inp,apply,c,rc,files)
+    if name in STOP_IN_SAVED and c.get('layout') not in FLAT_LAYOUTS and c.get('storage')!='registry_stock_v1':
+        import register_edits
+        if register_edits.state(layer)[4]:res['hint']='保存済みの nested_v1 の箱は記録なしで書いた。版と承認の出典を残すなら、先に migrate-sheets で sheets_v1 に移し、register の後に redit を使う'
+    return res
 
 def _write(layer,name,inp,apply,c,rc,files):
     item,verb=name.split('.');key,writer,table=KIND[item]
@@ -441,4 +555,5 @@ def _write(layer,name,inp,apply,c,rc,files):
         return {'route':'pm','op':name,'applied':False,'tried':True,'changed_ids':changed,
                 'new_problems':[{'code':a,'path':b,'message':m} for a,b,m in new],
                 'note':('新しい問題が出るので書いていない（Layer は元のまま）' if new else '試しただけ（Layer は元のまま）。書くなら同じ入力で --apply')}
+    if name=='todo.link' and inp.get('confirmed_on') not in (None,''):_record_confirmation(layer,changed[0],inp)   # after the row: a failure here leaves a confirmed_on without a record (not to be trusted)
     return {'route':'pm','op':name,'applied':True,'changed_ids':changed,'file':str(target.relative_to(layer)),'new_problems':[]}

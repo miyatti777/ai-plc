@@ -10,24 +10,26 @@ package=base.package;validate_package=base.validate_package;METHOD=base.METHOD
 HYP=[{'id':'H1','kind':'validation','claim':'synthetic structure','status':'unknown'},
      {'id':'H2','kind':'opportunity','claim':'[hypothesis] synthetic opportunity','status':'unknown'}]
 
-def registers_fixture(layer,rows=None):
+DEFAULT_LAYOUT='nested_v1'   # the layout registers_fixture makes when none is given (test_sheets_layout runs the classes on sheets_v1)
+def registers_fixture(layer,rows=None,**kw):
     """Reuse the integration fixture; inject aipm.registers and the registers file."""
+    kw.setdefault('layout',DEFAULT_LAYOUT)
     original=base.write_yaml
     def patched(p,d):
         if p.name=='intent.yaml':d=dict(d);d['aipm']=dict(d['aipm'],registers=True)
         original(p,d)
         if p.name=='validation_record.yaml':
-            q=p.parent/'registers/hypotheses.yaml';q.parent.mkdir(exist_ok=True)
+            q=base.reg(p.parent,'hypotheses');q.parent.mkdir(exist_ok=True)   # where the contract puts it (sheets_v1: no registers/ folder)
             original(q,{'hypotheses':rows if rows is not None else HYP})
     base.write_yaml=patched
-    try:return base.fixture(layer)
+    try:return base.fixture(layer,**kw)
     finally:base.write_yaml=original
 
 class Registers(unittest.TestCase):
     def setUp(self):self.temp=tempfile.TemporaryDirectory();self.base=Path(self.temp.name)
     def tearDown(self):self.temp.cleanup()
     def errors(self,root,layer):return [e for e in validate_package.validate(root,layer=layer)['errors'] if e['code']=='E_REGISTERS']
-    def rewrite(self,root,rows):base.write_yaml(root/'registers/hypotheses.yaml',{'hypotheses':rows})
+    def rewrite(self,root,rows):base.write_yaml(base.reg(root,'hypotheses'),{'hypotheses':rows})
     def receipt(self,layer,name='receipt_meeting1.yaml',**over):
         r={'kind':'user_reported','actor':'actual_user','origin':'actual_user_reply','scope_id':'L-SYN-1','question_id':'Q1','received_at':'2026-10-19T10:00:00+09:00','answer':'synthetic'};r.update(over)
         base.write_yaml(layer/'Context'/name,r);return 'Context/'+name
@@ -39,16 +41,16 @@ class Registers(unittest.TestCase):
 
     def test_opt_in_suffix_and_hash(self):
         layer=self.base/'on';root,c=registers_fixture(layer)
-        self.assertTrue(c['version'].endswith('+registers.2'));self.assertEqual(c['registers_contract_sha256'],base.sha(METHOD/'registers_contract.yaml'))
+        self.assertTrue(c['version'].endswith('+registers.4'+{'nested_v1':'','box_root_v1':'+box_root.1','sheets_v1':'+sheets.1'}[c.get('layout','nested_v1')]));self.assertEqual(c['registers_contract_sha256'],base.sha(METHOD/'registers_contract.yaml'))   # the layout suffix comes last (exactly one per layout)
         check=validate_package.validate(root,layer=layer);self.assertTrue(check['pass'],check)
 
     def test_non_bool_opt_in_rejected(self):
-        layer=self.base/'bad';layer.mkdir();base.write_yaml(layer/'intent.yaml',{'scope_id':'X','scope_name':'x','work_style':'aipm','aipm':{'date':'2026-10-19','registers':'yes'}})
+        layer=self.base/'bad';layer.mkdir();base.write_yaml(layer/'intent.yaml',{'scope_id':'X','scope_name':'x','work_style':'aipm','aipm':{'layout':'nested_v1','date':'2026-10-19','registers':'yes'}})
         with self.assertRaises(ValueError):package.build_contract(layer)
 
     def test_missing_file_and_collision_and_mismatch(self):
         layer=self.base/'chk';root,c=registers_fixture(layer)
-        (root/'registers/hypotheses.yaml').unlink();self.assertTrue(any('missing' in e['message'] for e in self.errors(root,layer)))
+        (base.reg(root,'hypotheses')).unlink();self.assertTrue(any('missing' in e['message'] for e in self.errors(root,layer)))
         self.rewrite(root,[{'id':'H1','kind':'opportunity','claim':'collides','status':'unknown'}])
         self.assertTrue(any('collides' in e['message'] for e in self.errors(root,layer)))
         self.rewrite(root,[{'id':'H1','kind':'validation','claim':'x','status':'not_supported'}])
@@ -94,8 +96,8 @@ class Registers(unittest.TestCase):
         self.assertTrue(any('must be a string' in e['message'] for e in self.errors(root,layer)))
 
     def test_courses_and_registers_compose(self):
-        layer=self.base/'both';layer.mkdir();base.write_yaml(layer/'intent.yaml',{'scope_id':'L-BOTH','scope_name':'both','work_style':'aipm','aipm':{'date':'2026-10-19','course':'document_based/single_persona','registers':True}})
-        c=package.build_contract(layer);self.assertTrue(c['version'].endswith('+courses.1+registers.2'));self.assertIn('course_contract_sha256',c);self.assertIn('registers_contract_sha256',c)
+        layer=self.base/'both';layer.mkdir();base.write_yaml(layer/'intent.yaml',{'scope_id':'L-BOTH','scope_name':'both','work_style':'aipm','aipm':{'layout':'nested_v1','date':'2026-10-19','course':'document_based/single_persona','registers':True}})
+        c=package.build_contract(layer);self.assertTrue(c['version'].endswith('+courses.1+registers.4'));self.assertIn('course_contract_sha256',c);self.assertIn('registers_contract_sha256',c)
 
     def test_shape_errors(self):
         layer=self.base/'shape';root,c=registers_fixture(layer)
@@ -105,37 +107,37 @@ class Registers(unittest.TestCase):
 
     def test_init_writes_five_minimal_drafts_once(self):
         layer=self.base/'init';layer.mkdir();(layer/'Context').mkdir()
-        base.write_yaml(layer/'intent.yaml',{'scope_id':'L-INIT','scope_name':'init','work_style':'aipm','aipm':{'date':'2026-10-19','registers':True},'goal':{'description':'synthetic'}})
+        base.write_yaml(layer/'intent.yaml',{'scope_id':'L-INIT','scope_name':'init','work_style':'aipm','aipm':{'layout':'nested_v1','date':'2026-10-19','registers':True},'goal':{'description':'synthetic'}})
         r=package.init(layer);root=Path(r['package'])
         self.assertEqual(sorted(r['registers']),sorted('registers/'+n+'.yaml' for n in ['issues','hypotheses','todo','wbs','roadmap']))
         self.assertEqual(len(r['outputs']),8);self.assertTrue(all(o['path'].startswith('Documents/aipm_project/') and len(o['sha256'])==64 for o in r['outputs']))
-        wbs=yaml.safe_load((root/'registers/wbs.yaml').read_text())['wbs'];self.assertEqual([w['id'] for w in wbs],['W1','W2','W3','W4','W5']);self.assertTrue(all(w['status']=='draft' for w in wbs))
-        hyp=yaml.safe_load((root/'registers/hypotheses.yaml').read_text())['hypotheses'];self.assertEqual((hyp[0]['id'],hyp[0]['kind']),('H1','opportunity'))
+        wbs=yaml.safe_load((base.reg(root,'wbs')).read_text())['wbs'];self.assertEqual([w['id'] for w in wbs],['W1','W2','W3','W4','W5']);self.assertTrue(all(w['status']=='draft' for w in wbs))
+        hyp=yaml.safe_load((base.reg(root,'hypotheses')).read_text())['hypotheses'];self.assertEqual((hyp[0]['id'],hyp[0]['kind']),('H1','opportunity'))
         before={q.name:q.read_bytes() for q in (root/'registers').iterdir()}
         again=package.init(layer);self.assertFalse(again['created']);self.assertEqual(before,{q.name:q.read_bytes() for q in (root/'registers').iterdir()})
         self.assertEqual(sorted(o['path'] for o in again['outputs']),sorted(o['path'] for o in r['outputs']))
 
     def test_init_without_registers_writes_no_registers(self):
         layer=self.base/'noreg';layer.mkdir();(layer/'Context').mkdir()
-        base.write_yaml(layer/'intent.yaml',{'scope_id':'L-NOREG','scope_name':'noreg','work_style':'aipm','aipm':{'date':'2026-10-19'},'goal':{'description':'synthetic'}})
+        base.write_yaml(layer/'intent.yaml',{'scope_id':'L-NOREG','scope_name':'noreg','work_style':'aipm','aipm':{'layout':'nested_v1','date':'2026-10-19'},'goal':{'description':'synthetic'}})
         r=package.init(layer);self.assertEqual(r['registers'],[]);self.assertFalse((Path(r['package'])/'registers').exists())
 
     def test_minimal_list_checks(self):
         layer=self.base/'lists';root,c=registers_fixture(layer);self.assertEqual(self.errors(root,layer),[])
-        base.write_yaml(root/'registers/issues.yaml',{'issues':[{'id':'I1','question':'q','status':'open','priority':'medium','owner':'x','due':'undecided'}]})
+        base.write_yaml(base.reg(root,'issues'),{'issues':[{'id':'I1','question':'q','status':'open','priority':'medium','owner':'x','due':'undecided'}]})
         self.assertTrue(any('charter' in e['message'] for e in self.errors(root,layer)))
-        base.write_yaml(root/'registers/wbs.yaml',{'wbs':[{'id':'W1','deliverable':'d','exit_criteria':'e','owner':'o','status':'done'},{'id':'W1','deliverable':'d','exit_criteria':'e','owner':'o','status':'draft'}]})
+        base.write_yaml(base.reg(root,'wbs'),{'wbs':[{'id':'W1','deliverable':'d','exit_criteria':'e','owner':'o','status':'done'},{'id':'W1','deliverable':'d','exit_criteria':'e','owner':'o','status':'draft'}]})
         msgs=' '.join(e['message'] for e in self.errors(root,layer));self.assertIn('unknown status',msgs);self.assertIn('duplicate id',msgs)
-        (root/'registers/roadmap.yaml').unlink();self.assertTrue(any(e['path']=='registers/roadmap.yaml' and 'missing' in e['message'] for e in self.errors(root,layer)))
-        base.write_yaml(root/'registers/todo.yaml',{'todo':[{'id':'T1','title':'t','status':'todo','owner':'o'}]})
+        (base.reg(root,'roadmap')).unlink();self.assertTrue(any(e['path']==base.reg_label(root,'roadmap') and 'missing' in e['message'] for e in self.errors(root,layer)))
+        base.write_yaml(base.reg(root,'todo'),{'todo':[{'id':'T1','title':'t','status':'todo','owner':'o'}]})
         self.assertTrue(any('todo.yaml' in e['path'] and 'id must match' in e['message'] for e in self.errors(root,layer)))
-        base.write_yaml(root/'registers/issues.yaml',{'charter':{'change_conditions':['c'],'exit_conditions':['e']},'issues':[{'id':'I1','question':'q','status':'cancelled','priority':'medium','owner':'x'},{'id':'I2','question':'  ','status':'open','priority':'medium','owner':'x','due':'undecided'}]})
+        base.write_yaml(base.reg(root,'issues'),{'charter':{'change_conditions':['c'],'exit_conditions':['e']},'issues':[{'id':'I1','question':'q','status':'cancelled','priority':'medium','owner':'x'},{'id':'I2','question':'  ','status':'open','priority':'medium','owner':'x','due':'undecided'}]})
         iss=[e for e in self.errors(root,layer) if 'issues.yaml' in e['path']]
         self.assertFalse(any('#0' in e['path'] for e in iss));self.assertTrue(any('#1' in e['path'] and 'question' in e['message'] for e in iss))
         self.assertTrue(any('todo.yaml' in e['path'] and 'id must match' in e['message'] for e in self.errors(root,layer)))
 
     def issues(self,root,rows,charter=None):
-        base.write_yaml(root/'registers/issues.yaml',{'charter':charter or {'change_conditions':['c'],'exit_conditions':['e']},'issues':rows})
+        base.write_yaml(base.reg(root,'issues'),{'charter':charter or {'change_conditions':['c'],'exit_conditions':['e']},'issues':rows})
     def warnings(self,root,layer):return [w for w in validate_package.validate(root,layer=layer)['warnings'] if w['code']=='W_REGISTERS']
 
     def test_issue_map_completion_and_warnings(self):
@@ -166,7 +168,7 @@ class Registers(unittest.TestCase):
 
     def test_issue_map_review_fixes(self):
         layer=self.base/'ifix';root,c=registers_fixture(layer)
-        q=root/'registers/issues.yaml'
+        q=base.reg(root,'issues')
         q.write_text('charter: {change_conditions: [c], exit_conditions: [e]}\nissues:\n- {id: I1, question: q, status: open, priority: medium, owner: o, due: 2026-11-01}\n')
         self.assertEqual(self.errors(root,layer),[])
         row={'question':'q','status':'open','priority':'medium'}
@@ -194,21 +196,21 @@ class Registers(unittest.TestCase):
                    {'id':'I4','question':'q4','status':'open','priority':'medium',**own},
                    {'id':'I5','question':'q5','status':'open','priority':'medium',**own}]
         self.issues(root,base_rows)
-        base.write_yaml(root/'registers/todo.yaml',{'todo':[{'id':'D1','title':'t1','status':'done','owner':'o','source':'I4'},{'id':'D2','title':'t2','status':'done','owner':'o','source':['I4']},{'id':'D3','title':'t3','status':'todo','owner':'o','source':'I5'}]})
+        base.write_yaml(base.reg(root,'todo'),{'todo':[{'id':'D1','title':'t1','status':'done','owner':'o','source':'I4'},{'id':'D2','title':'t2','status':'done','owner':'o','source':['I4']},{'id':'D3','title':'t3','status':'todo','owner':'o','source':'I5'}]})
         r=validate_package.validate(root,layer=layer)
         self.assertEqual([e for e in r['errors'] if e['code']=='E_REGISTERS'],[])
         left=[w['path'] for w in r['warnings'] if 'work done but issue still open' in w['message']]
-        self.assertEqual(left,['registers/issues.yaml#I4'])
+        self.assertEqual(left,[base.reg_label(root,'issues')+'#I4'])
         sm=r['issues_summary'];self.assertEqual((sm['resolved'],sm['open'],sm['countable']),(1,2,3));self.assertAlmostEqual(sm['resolved_ratio'],1/3)
         # backlog task issue_id also counts as linked work
         base.write_yaml(layer/'backlog.yaml',{'tasks':[{'id':'T001','status':'completed','issue_id':'I5'}]})
-        base.write_yaml(root/'registers/todo.yaml',{'todo':[]})
+        base.write_yaml(base.reg(root,'todo'),{'todo':[]})
         left=[w['path'] for w in validate_package.validate(root,layer=layer)['warnings'] if 'work done' in w['message']]
-        self.assertEqual(left,['registers/issues.yaml#I5'])
-        # An operation task (recurrence, in_progress) with issue_id is not work, so the done normal task still warns
+        self.assertEqual(left,[base.reg_label(root,'issues')+'#I5'])
+        # an operation task (recurrence, in_progress) with issue_id is not work, so the done normal task still warns
         base.write_yaml(layer/'backlog.yaml',{'tasks':[{'id':'T001','status':'completed','issue_id':'I5'},{'id':'T002','status':'in_progress','recurrence':'weekly','issue_id':'I5'}]})
         left=[w['path'] for w in validate_package.validate(root,layer=layer)['warnings'] if 'work done' in w['message']]
-        self.assertEqual(left,['registers/issues.yaml#I5'])
+        self.assertEqual(left,[base.reg_label(root,'issues')+'#I5'])
         (layer/'backlog.yaml').unlink()  # later checks use other issue lists
         bad=[dict(base_rows[0],evidence_refs=['H3']),dict(base_rows[0],id='I6',evidence_refs=['Context/missing.md']),dict(base_rows[0],id='I7',decided_by='ai_proxy'),
              {'id':'I8','question':'q','status':'resolved','priority':'medium',**own},dict(base_rows[1],id='I9',reason=None),dict(base_rows[2],id='I10',review_at=None)]
@@ -230,15 +232,15 @@ class Registers(unittest.TestCase):
     def test_malformed_registers_do_not_crash(self):
         layer=self.base/'crash';root,c=registers_fixture(layer)
         for name,data in [('todo.yaml',['x']),('hypotheses.yaml',['x'])]:
-            p=root/'registers'/name;keep=p.read_text();p.write_text(yaml.safe_dump(data))
+            p=base.reg(root,name[:-len('.yaml')]);keep=p.read_text();p.write_text(yaml.safe_dump(data))
             r=validate_package.validate(root,layer=layer);self.assertFalse(r['pass']);self.assertTrue(any(e['code']=='E_REGISTERS' for e in r['errors']));p.write_text(keep)
         self.rewrite(root,[{'id':'H1','kind':'validation','claim':'x','status':'unknown','judgements':5}]);self.assertTrue(any(e['code']=='E_REGISTERS' for e in validate_package.validate(root,layer=layer)['errors']))
         self.rewrite(root,HYP);(layer/'backlog.yaml').write_text(yaml.safe_dump(['x']));self.assertIn('pass',validate_package.validate(root,layer=layer))
 
-    def wbsrows(self,root,rows):base.write_yaml(root/'registers/wbs.yaml',{'wbs':rows})
+    def wbsrows(self,root,rows):base.write_yaml(base.reg(root,'wbs'),{'wbs':rows})
     def test_plan_lists(self):
         layer=self.base/'plan';root,c=registers_fixture(layer)
-        wbs=yaml.safe_load((root/'registers/wbs.yaml').read_text())['wbs'];self.assertTrue(all('schedule' in w and w['source_of_truth']=='local' for w in wbs))
+        wbs=yaml.safe_load((base.reg(root,'wbs')).read_text())['wbs'];self.assertTrue(all('schedule' in w and w['source_of_truth']=='local' for w in wbs))
         self.assertEqual(self.errors(root,layer),[])
         w={'id':'W1','deliverable':'d','exit_criteria':'e','owner':'o','status':'draft'}
         (layer/'Documents/out1.md').write_text('x')
@@ -251,18 +253,18 @@ class Registers(unittest.TestCase):
         ws=' '.join(x['message'] for x in self.warnings(root,layer));self.assertIn('no agreement record',ws);self.assertIn('history is empty',ws)
         self.wbsrows(root,[dict(w,source_of_truth='external')]);self.assertTrue(any('not supported' in e['message'] for e in self.errors(root,layer)))
         self.wbsrows(root,[dict(w,milestone_id='MS1'),dict(w,id='W2')])
-        base.write_yaml(root/'registers/roadmap.yaml',{'roadmap':[{'id':'MS1','milestone':'m','period':'undecided','status':'draft','wbs_ids':['W2']}]})
+        base.write_yaml(base.reg(root,'roadmap'),{'roadmap':[{'id':'MS1','milestone':'m','period':'undecided','status':'draft','wbs_ids':['W2']}]})
         msgs=' '.join(e['message'] for e in self.errors(root,layer));self.assertIn('does not list this WBS',msgs)
-        base.write_yaml(root/'registers/roadmap.yaml',{'roadmap':[{'id':'MS1','milestone':'m','period':'undecided','status':'draft','wbs_ids':['W1']}]});self.assertEqual(self.errors(root,layer),[])
+        base.write_yaml(base.reg(root,'roadmap'),{'roadmap':[{'id':'MS1','milestone':'m','period':'undecided','status':'draft','wbs_ids':['W1']}]});self.assertEqual(self.errors(root,layer),[])
         self.wbsrows(root,[dict(w),dict(w,id='W2')]);self.assertTrue(any('but its milestone_id is None' in e['message'] for e in self.errors(root,layer)))   # roadmap lists W1, W1 has no milestone_id
-        self.wbsrows(root,[dict(w,milestone_id='MS1'),dict(w,id='W2')]);base.write_yaml(root/'registers/roadmap.yaml',{'roadmap':[{'id':'MS1','milestone':'m','period':'undecided','status':'draft'}]})
+        self.wbsrows(root,[dict(w,milestone_id='MS1'),dict(w,id='W2')]);base.write_yaml(base.reg(root,'roadmap'),{'roadmap':[{'id':'MS1','milestone':'m','period':'undecided','status':'draft'}]})
         self.assertTrue(any('does not list this WBS' in e['message'] for e in self.errors(root,layer)))   # milestone without wbs_ids
-        base.write_yaml(root/'registers/roadmap.yaml',{'roadmap':[{'id':'MS1','milestone':'m','period':'undecided','status':'draft'}]})
+        base.write_yaml(base.reg(root,'roadmap'),{'roadmap':[{'id':'MS1','milestone':'m','period':'undecided','status':'draft'}]})
         self.wbsrows(root,[dict(w,depends=['W2']),dict(w,id='W2',depends=['W2'])]);cyc=[e['path'] for e in self.errors(root,layer) if 'cycle' in e['message']]
-        self.assertNotIn('registers/wbs.yaml#W1',cyc)
-        q=root/'registers/wbs.yaml';q.write_text("wbs:\n- {id: W1, deliverable: d, exit_criteria: e, owner: o, status: draft, schedule: {baseline: {start: 2026-11-01, end: 2026-12-01}, forecast: {start: '2026-11-01', end: '2026-12-01'}, history: []}}\n")
+        self.assertNotIn(base.reg_label(root,'wbs')+'#W1',cyc)
+        q=base.reg(root,'wbs');q.write_text("wbs:\n- {id: W1, deliverable: d, exit_criteria: e, owner: o, status: draft, schedule: {baseline: {start: 2026-11-01, end: 2026-12-01}, forecast: {start: '2026-11-01', end: '2026-12-01'}, history: []}}\n")
         self.assertFalse(any('history is empty' in x['message'] for x in self.warnings(root,layer)))
-        base.write_yaml(root/'registers/todo.yaml',{'todo':[{'id':'D1','title':'t','status':'todo','owner':'o','source':'H9'},{'id':'D2','title':'t','status':'todo','owner':'o','wbs_id':'W7'},{'id':'D3','title':'t','status':'todo','owner':'o','source':'会議 10/20'}]})
+        base.write_yaml(base.reg(root,'todo'),{'todo':[{'id':'D1','title':'t','status':'todo','owner':'o','source':'H9'},{'id':'D2','title':'t','status':'todo','owner':'o','wbs_id':'W7'},{'id':'D3','title':'t','status':'todo','owner':'o','source':'会議 10/20'}]})
         msgs=' '.join(e['message'] for e in self.errors(root,layer));self.assertIn('unknown id H9',msgs);self.assertIn('unknown id W7',msgs)
         self.assertTrue(any('no WBS number' in x['message'] and '#D3' in x['path'] for x in self.warnings(root,layer)))
         sm=validate_package.validate(root,layer=layer)['wbs_summary'];self.assertEqual((sm['draft'],sm['total']),(1,1))
@@ -271,15 +273,15 @@ class Registers(unittest.TestCase):
         layer=self.base/'allwbs';root,c=registers_fixture(layer)
         for n in (1,2,3):(layer/f'Documents/o{n}.md').write_text('x')
         def tasks(s1,s2,s3):base.write_yaml(layer/'backlog.yaml',{'tasks':[{'id':'T1','status':s1,'output':'Documents/o1.md','wbs_id':'W1'},{'id':'T2','status':s2,'output':'Documents/o2.md','wbs_id':'W1'},{'id':'T3','status':s3,'output':'Documents/o3.md','wbs_id':'W1.1'}]})
-        def row():return [w for w in yaml.safe_load((root/'registers/wbs.yaml').read_text())['wbs'] if w['id']=='W1'][0]
+        def row():return [w for w in yaml.safe_load((base.reg(root,'wbs')).read_text())['wbs'] if w['id']=='W1'][0]
         tasks('completed','pending','completed')
         r=package.wbs_candidate(layer,'T1');self.assertEqual(r['status'],'draft');self.assertEqual(r['pending_tasks'],[{'id':'T2','status':'pending'}])
         self.assertEqual((row()['status'],row()['evidence_refs']),('draft',['Documents/o1.md']))   # W1.1 (T3) is a different row
         def set_row(status):
-            d=yaml.safe_load((root/'registers/wbs.yaml').read_text())
+            d=yaml.safe_load((base.reg(root,'wbs')).read_text())
             for w in d['wbs']:
                 if w['id']=='W1':w['status']=status;w['evidence_refs']=['Documents/o3.md'] if status in ('partially_accepted','accepted') else []
-            base.write_yaml(root/'registers/wbs.yaml',d)
+            base.write_yaml(base.reg(root,'wbs'),d)
         for st in ('deferred','blocked'):
             tasks('completed',st,'completed');r=package.wbs_candidate(layer,'T1');self.assertEqual((r['status'],r['pending_tasks']),('draft',[{'id':'T2','status':st}]))
         tasks('completed','cancelled','pending');r=package.wbs_candidate(layer,'T1');self.assertEqual((r['status'],r['pending_tasks']),('pending_acceptance',[]))
@@ -295,7 +297,7 @@ class Registers(unittest.TestCase):
         """package.py judge appends owner/decider judgements backed by a receipt and sets status."""
         layer=self.base/'judge';root,c=registers_fixture(layer);ref=self.receipt(layer)
         rows=[{'id':'H1','kind':'validation','claim':'x','status':'unknown'},{'id':'H2','kind':'opportunity','claim':'y','status':'unknown','judgements':[{'date':'2026-10-19','event':'meeting','verdict':'supported','judged_by':'ai_proxy'}]}]
-        self.rewrite(root,rows);q=root/'registers/hypotheses.yaml'
+        self.rewrite(root,rows);q=base.reg(root,'hypotheses')
         def inp(**over):
             d={'date':'2026-10-20','event':'meeting 2','judged_by':'owner','evidence_ref':ref,'judgements':[{'hypothesis_id':'H2','verdict':'supported'},{'hypothesis_id':'H1','verdict':'undetermined','note':'not enough evidence'}]};d.update(over)
             base.write_yaml(layer/'Context/judge.yaml',d);return 'Context/judge.yaml'
@@ -322,9 +324,9 @@ class Registers(unittest.TestCase):
         (the only task here is completed); a remaining task keeps it back. wbs.yaml schedule is untouched."""
         layer=self.base/'sched';root,c=registers_fixture(layer);(layer/'Documents/o1.md').write_text('x')
         base.write_yaml(layer/'backlog.yaml',{'tasks':[{'id':'T1','status':'completed','output':'Documents/o1.md','wbs_id':'W1','scheduled_for':'2026-10-20','completed_at':'2026-10-21'}]})
-        before=yaml.safe_load((root/'registers/wbs.yaml').read_text())['wbs'][0]['schedule']
+        before=yaml.safe_load((base.reg(root,'wbs')).read_text())['wbs'][0]['schedule']
         r=package.wbs_candidate(layer,'T1');self.assertEqual((r['schedule_actual_candidate'],r['schedule_actual_basis']),('2026-10-21',['T1']))
-        self.assertEqual(yaml.safe_load((root/'registers/wbs.yaml').read_text())['wbs'][0]['schedule'],before)
+        self.assertEqual(yaml.safe_load((base.reg(root,'wbs')).read_text())['wbs'][0]['schedule'],before)
         base.write_yaml(layer/'backlog.yaml',{'tasks':[{'id':'T1','status':'completed','output':'Documents/o1.md','wbs_id':'W1','scheduled_for':'2026-10-20','completed_at':'2026-10-21'},{'id':'T2','status':'pending','wbs_id':'W1'}]})
         self.assertNotIn('schedule_actual_candidate',package.wbs_candidate(layer,'T1'))   # a remaining task: no candidate
         base.write_yaml(layer/'backlog.yaml',{'tasks':[{'id':'T1','status':'completed','output':'Documents/o1.md','wbs_id':'W1','completed_at':'2026-10-21'}]})
@@ -345,7 +347,7 @@ class Registers(unittest.TestCase):
         of the row is enough. wbs.yaml schedule is never written."""
         layer=self.base/'sched_all';root,c=registers_fixture(layer)
         for n in (1,2):(layer/f'Documents/o{n}.md').write_text('x')
-        sched=lambda:yaml.safe_load((root/'registers/wbs.yaml').read_text())['wbs'][0]['schedule'];before=sched()
+        sched=lambda:yaml.safe_load((base.reg(root,'wbs')).read_text())['wbs'][0]['schedule'];before=sched()
         t1={'id':'T1','status':'completed','output':'Documents/o1.md','wbs_id':'W1','scheduled_for':'2026-10-20','completed_at':'2026-10-21'}
         def tasks(t2):base.write_yaml(layer/'backlog.yaml',{'tasks':[t1,{'id':'T2','output':'Documents/o2.md','wbs_id':'W1',**t2}]})
         tasks({'status':'pending'});r=package.wbs_candidate(layer,'T1')
@@ -365,7 +367,7 @@ class Registers(unittest.TestCase):
         self.issues(root,[{'id':'I1','question':'q','status':'open','priority':'[unknown]','owner':'[unknown]','due':'undecided'}])
         self.assertEqual(self.errors(root,layer),[])
         init=self.base/'prio-init';init.mkdir();(init/'Context').mkdir()
-        base.write_yaml(init/'intent.yaml',{'scope_id':'L-PRIO','scope_name':'prio','work_style':'aipm','aipm':{'date':'2026-10-21','registers':True},'goal':{'description':'synthetic'}})
+        base.write_yaml(init/'intent.yaml',{'scope_id':'L-PRIO','scope_name':'prio','work_style':'aipm','aipm':{'layout':'nested_v1','date':'2026-10-21','registers':True},'goal':{'description':'synthetic'}})
         r=package.init(init);iss=yaml.safe_load((Path(r['package'])/'registers/issues.yaml').read_text())['issues']
         self.assertEqual((iss[0]['priority'],iss[0]['owner']),('[unknown]','[unknown]'))
 
@@ -381,13 +383,13 @@ class Registers(unittest.TestCase):
         with self.assertRaises(ValueError):package.wbs_candidate(layer,'T001')   # not completed yet
         bl=yaml.safe_load((layer/'backlog.yaml').read_text());bl['tasks'][0]['status']='completed';base.write_yaml(layer/'backlog.yaml',bl)
         r=package.wbs_candidate(layer,'T001');self.assertTrue(r['changed']);self.assertEqual(r['status'],'pending_acceptance')
-        row=[w for w in yaml.safe_load((root/'registers/wbs.yaml').read_text())['wbs'] if w['id']=='W1'][0]
+        row=[w for w in yaml.safe_load((base.reg(root,'wbs')).read_text())['wbs'] if w['id']=='W1'][0]
         self.assertEqual((row['status'],row['evidence_refs']),('pending_acceptance',['Documents/out1.md']))
         self.assertEqual(package.wbs_candidate(layer,'T001')['evidence_refs'],['Documents/out1.md'])   # idempotent
-        row['status']='accepted';d=yaml.safe_load((root/'registers/wbs.yaml').read_text())
+        row['status']='accepted';d=yaml.safe_load((base.reg(root,'wbs')).read_text())
         for w in d['wbs']:
             if w['id']=='W1':w['status']='accepted'
-        base.write_yaml(root/'registers/wbs.yaml',d);self.assertFalse(package.wbs_candidate(layer,'T001')['changed'])
+        base.write_yaml(base.reg(root,'wbs'),d);self.assertFalse(package.wbs_candidate(layer,'T001')['changed'])
         self.assertEqual(package.wbs_candidate(layer,'T004')['changed'],False)
 
     def test_warnings_do_not_change_pass_for_legacy(self):

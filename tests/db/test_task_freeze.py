@@ -55,7 +55,9 @@ class TaskFreeze(unittest.TestCase):
             return conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
 
     def test_new_db_is_frozen(self) -> None:
-        result = self.run_py("init_db.py")
+        self.assertEqual(self.run_py("init_db.py").returncode, 3)  # default DB needs --allow-production
+        self.assertFalse(self.db.exists())
+        result = self.run_py("init_db.py", "--allow-production")
         self.assertEqual(result.returncode, 0, result.stderr)
         record = self.freeze_record()
         self.assertIsNotNone(record)
@@ -64,21 +66,23 @@ class TaskFreeze(unittest.TestCase):
 
     def test_existing_db_is_not_frozen_by_init(self) -> None:
         # An older DB (made before the freeze existed): full schema, no freeze record.
+        self.run_py("init_db.py", "--allow-production")
         with sqlite3.connect(self.db) as conn:
-            self.run_py("init_db.py")
             conn.execute("DELETE FROM _metadata WHERE key=?", (FREEZE_KEY,))
-        self.assertEqual(self.run_py("init_db.py").returncode, 0)
+        # The default DB is written only with --allow-production (exit 3 without it).
+        self.assertEqual(self.run_py("init_db.py").returncode, 3)
+        self.assertEqual(self.run_py("init_db.py", "--allow-production").returncode, 0)
         self.assertIsNone(self.freeze_record())
 
     def test_add_task_is_skipped_while_frozen(self) -> None:
-        self.run_py("init_db.py")
+        self.run_py("init_db.py", "--allow-production")
         result = self.run_py("plc_query.py", "add-task", "T001", "T-SCOPE-1", "name")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("[SKIP]", result.stdout)
         self.assertEqual(self.task_count(), 0)
 
     def test_tasks_view_reads_backlog_while_frozen(self) -> None:
-        self.run_py("init_db.py")
+        self.run_py("init_db.py", "--allow-production")
         layer = self.root / "work" / "layer1"
         layer.mkdir(parents=True)
         (layer / "intent.yaml").write_text('scope_id: "T-SCOPE-1"\n', encoding="utf-8")
@@ -91,12 +95,12 @@ class TaskFreeze(unittest.TestCase):
         self.assertIn("from-backlog", result.stdout)
 
     def test_tasks_sync_status_freeze_unfreeze(self) -> None:
-        self.run_py("init_db.py")
+        self.run_py("init_db.py", "--allow-production")
         status = self.run_py("sync.py", "tasks-sync", "--status")
         self.assertEqual(status.returncode, 0, status.stderr)
         self.assertIn("FROZEN", status.stdout)
 
-        self.assertEqual(self.run_py("sync.py", "tasks-sync", "--unfreeze").returncode, 2)
+        self.assertEqual(self.run_py("sync.py", "tasks-sync", "--unfreeze").returncode, 64)  # usage error
         unfreeze = self.run_py("sync.py", "tasks-sync", "--unfreeze", "--approved-by", "owner")
         self.assertEqual(unfreeze.returncode, 0, unfreeze.stdout + unfreeze.stderr)
         self.assertIsNone(self.freeze_record())
@@ -119,16 +123,17 @@ class TaskFreeze(unittest.TestCase):
         self.assertEqual(self.task_count(), 1)  # the frozen copy is left as it is
 
     def test_tasks_sync_rejects_bad_options(self) -> None:
-        self.run_py("init_db.py")
-        self.assertEqual(self.run_py("sync.py", "tasks-sync").returncode, 2)
-        self.assertEqual(self.run_py("sync.py", "tasks-sync", "--status", "--freeze").returncode, 2)
-        self.assertEqual(self.run_py("sync.py", "tasks-sync", "--freeze").returncode, 2)
+        self.run_py("init_db.py", "--allow-production")
+        # usage errors exit 64 (the CLI parser's code, as in the other sync.py commands)
+        self.assertEqual(self.run_py("sync.py", "tasks-sync").returncode, 64)
+        self.assertEqual(self.run_py("sync.py", "tasks-sync", "--status", "--freeze").returncode, 64)
+        self.assertEqual(self.run_py("sync.py", "tasks-sync", "--freeze").returncode, 64)
         self.assertEqual(self.run_py("sync.py", "tasks-sync", "--status", "--approved-by", "x")
-                         .returncode, 2)
+                         .returncode, 64)
 
 
     def test_malformed_record_can_be_cleared_from_the_cli(self) -> None:
-        self.run_py("init_db.py")
+        self.run_py("init_db.py", "--allow-production")
         with sqlite3.connect(self.db) as conn:
             conn.execute("UPDATE _metadata SET value='not json' WHERE key=?", (FREEZE_KEY,))
         status = self.run_py("sync.py", "tasks-sync", "--status")
@@ -152,7 +157,7 @@ class TaskFreeze(unittest.TestCase):
                          .returncode, 0)
 
     def test_unfreeze_history_keys_are_unique(self) -> None:
-        self.run_py("init_db.py")
+        self.run_py("init_db.py", "--allow-production")
         for _ in range(3):
             self.assertEqual(self.run_py("sync.py", "tasks-sync", "--unfreeze", "--approved-by", "o")
                              .returncode, 0)

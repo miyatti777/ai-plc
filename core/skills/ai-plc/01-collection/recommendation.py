@@ -23,7 +23,7 @@ sys.dont_write_bytecode = True
 BASE = 'Context/aipm_recommendation'
 COURSE = 'question_based/single_persona'
 CONDITIONS = ('discovery_needed', 'course_supported', 'document_value')
-OPTIONS = ['AIPM方式で進める', '通常方式で進める']
+OPTIONS = ['AIPM方式で進める', 'AIPM ライトモードで進める']   # 2つ目は既定の方式（旧い答え「通常方式で進める」も同じ扱い）
 QUESTION = ('{reason}のため、AIPM方式をおすすめします。現在対応する1人の利用者の課題から'
             'ストーリーまで、19の指定形式文書を段階的に残して進めますか？')
 
@@ -102,6 +102,9 @@ def atomic(path, raw):
 
 
 PM_ADDON = 'aipm'
+LIGHT_ADDON = 'aipm-light'   # AIPM ライトモード: the default method when the person gives no answer
+METHOD_ADDONS = (PM_ADDON, LIGHT_ADDON)
+DEFAULT_RECORD = 'default_method.json'
 _SELECTOR = None
 
 
@@ -131,6 +134,29 @@ def is_pm_entry(item):
     return isinstance(item, dict) and item.get('source') == 'bundled' and item.get('addon_id') == PM_ADDON
 
 
+def is_method_entry(item):
+    """A bundled entry this recommendation may write: AIPM or AIPM ライトモード (replaced on a new answer)."""
+    return isinstance(item, dict) and item.get('source') == 'bundled' and item.get('addon_id') in METHOD_ADDONS
+
+
+def blocks_default(root):
+    """True when writing AIPM ライトモード would make the selector hold: a case addon without an exclusive_group
+    declaration (undeclared_case_with_method), or a selection that is already held. A case addon declared
+    `exclusive_group: none` does not block."""
+    current = selector().selected_addons(root, read_roots=[str(root)])
+    if current['route'] == 'held':
+        return True
+    return any(c.get('exclusive_group') is None for c in current.get('case_addons') or [])
+
+
+def catalog_version(addon_id):
+    module = selector()
+    try:
+        return module.load_catalog()['rows'][addon_id]['addon_version']
+    except (module.Hold, KeyError) as exc:
+        raise ValueError('bundled addon catalog unreadable: ' + str(exc)) from exc
+
+
 def pm_selected(intent):
     """The bundled PM addon in intent.addons, or the legacy work_style: aipm. Not the Stage judgement (that is the
     selector, which also holds on case declarations); this only reads what this recommendation wrote."""
@@ -146,7 +172,7 @@ def without_pm(intent):
     # Same shape as respond(): addons None/[] or only the PM entry -> no addons key.
     addons = obj.get('addons', None)
     if addons is None or isinstance(addons, list):
-        rest = [x for x in (addons or []) if not is_pm_entry(x)]
+        rest = [x for x in (addons or []) if not is_method_entry(x)]
         if rest:
             obj['addons'] = rest
         else:
@@ -470,6 +496,8 @@ def answer_choice(answer):
     value = answer.strip()
     if value in ('AIPM方式で進める', 'AIPM方式', 'aipm', 'AIPMで進める'):
         return 'aipm'
+    if value in ('AIPMライトモードで進める', 'AIPM ライトモードで進める', 'ライトモードで進める', 'aipm-light'):
+        return LIGHT_ADDON
     if value in ('通常方式で進める', '通常方式', 'standard', '通常方式にする'):
         return 'standard'
     return 'pending'
@@ -513,8 +541,9 @@ def respond(layer, receipt, direct=False, apply=False):
     if choice == 'aipm' and not course_supported(store):
         raise ValueError('unsupported course; request Re-Collection')
     state.setdefault('history', []).append({key: state.get(key) for key in ('status', 'selection', 'snapshot', 'question')})
-    state['selection'] = 'selected' if choice == 'aipm' else 'declined' if choice == 'standard' else state.get('selection', 'unselected')
-    state['status'] = 'selected' if choice == 'aipm' else 'declined' if choice == 'standard' else state.get('status', 'pending')
+    declined = choice in ('standard', LIGHT_ADDON)   # not AIPM; the method becomes AIPM ライトモード
+    state['selection'] = 'selected' if choice == 'aipm' else 'declined' if declined else state.get('selection', 'unselected')
+    state['status'] = 'selected' if choice == 'aipm' else 'declined' if declined else state.get('status', 'pending')
     receipt_raw = encoded(receipt)
     receipt_path = BASE + '/receipts/' + digest(receipt_raw) + '.json'
     changes = {receipt_path: receipt_raw}
@@ -524,23 +553,24 @@ def respond(layer, receipt, direct=False, apply=False):
     changes[BASE + '/state.json'] = encoded(state)
     if choice != 'pending':
         # Stage 2: the choice is written only as the bundled entry in intent.addons; the legacy
-        # work_style / work_style_source are not written. A decline removes the PM from both fields. Both legacy
-        # fields are PM fields (as in without_pm) and are removed on a decline and on a new selection.
+        # work_style / work_style_source are not written. Both legacy fields are PM fields (as in without_pm) and
+        # are removed on a decline and on a new selection. The method is required, so a decline of AIPM
+        # (通常方式 or AIPM ライトモード) writes AIPM ライトモード instead of no method.
         intent = copy.deepcopy(store.intent)
         addons = intent.get('addons')
         if addons is not None and not isinstance(addons, list):
             raise ValueError('intent.addons must be a list; do not silently change intent')
-        rest = [x for x in (addons or []) if not is_pm_entry(x)]
+        rest = [x for x in (addons or []) if not is_method_entry(x)]
         intent.pop('work_style', None)
         intent.pop('work_style_source', None)
-        if choice == 'aipm':
-            module = selector()
-            try:
-                version = module.load_catalog()['rows'][PM_ADDON]['addon_version']
-            except (module.Hold, KeyError) as exc:
-                raise ValueError('bundled addon catalog unreadable: ' + str(exc)) from exc
-            intent['addons'] = rest + [{'addon_id': PM_ADDON, 'source': 'bundled', 'addon_version': version,
-                                        'selection_ref': receipt_path}]
+        method = PM_ADDON if choice == 'aipm' else LIGHT_ADDON
+        if method == LIGHT_ADDON and blocks_default(store.root):
+            # A case addon without a work_method declaration next to a method is held by the selector
+            # (undeclared_case_with_method). Leave the method unset and say so; the case declaration decides.
+            method = None
+        if method is not None:
+            intent['addons'] = rest + [{'addon_id': method, 'source': 'bundled',
+                                        'addon_version': catalog_version(method), 'selection_ref': receipt_path}]
         elif rest:
             intent['addons'] = rest
         else:
@@ -548,7 +578,48 @@ def respond(layer, receipt, direct=False, apply=False):
         changes['intent.yaml'] = yaml.safe_dump(intent, allow_unicode=True, sort_keys=False).encode()
     if apply:
         store.commit(changes)
-    return result('aipm' if choice == 'aipm' else 'legacy_declined' if choice == 'standard' else 'pending', state)
+    output = result('aipm' if choice == 'aipm' else 'legacy_declined' if declined else 'pending', state)
+    output['method'] = (method if choice != 'pending' else None)
+    if declined and output['method'] is None:
+        output['note'] = 'case addon present: AIPM ライトモード not written (declare its exclusive_group first)'
+    return output
+
+
+def default_method(layer, apply=False):
+    """Record AIPM ライトモード when the Layer has no method and the person gave no answer.
+
+    Collection Phase 7 calls this after the question (if any) went unanswered. It never overrides a method that
+    is already there (AIPM, AIPM ライトモード, AIPMO or a case addon declaring work_method). The record says this
+    was a default, not the person's choice, so the selector reports selection_verified false."""
+    store = Store(layer)
+    current = selector().selected_addons(store.root, read_roots=[str(store.root)])
+    if current['route'] == 'held':
+        raise ValueError('addon selection held: ' + ', '.join(current.get('hold_reasons') or []))
+    if current.get('method') is not None:
+        return {'route': 'method_exists', 'method': current['method'], 'writes': False}
+    if any(c.get('exclusive_group') is None for c in current.get('case_addons') or []):
+        raise ValueError('case addon without a work_method declaration; declare its exclusive_group before a default')
+    default = current.get('default_method')
+    if default != LIGHT_ADDON:
+        raise ValueError('catalog default method is not ' + LIGHT_ADDON + ': ' + str(default))
+    addons = store.intent.get('addons')
+    if addons is not None and not isinstance(addons, list):
+        raise ValueError('intent.addons must be a list; do not silently change intent')
+    record_rel = BASE + '/' + DEFAULT_RECORD
+    if store.read(record_rel, optional=True) is not None:
+        raise ValueError('default record exists but intent has no method; inspect before writing again')
+    record = {'kind': 'default_on_no_answer', 'choice': LIGHT_ADDON, 'scope_id': store.scope,
+              'recorded_at': timestamp(), 'question_status': store.state.get('status'),
+              'reason': 'work_method has none_allowed false; no answer, so the catalog default_addon was recorded'}
+    intent = copy.deepcopy(store.intent)
+    intent['addons'] = [x for x in (addons or []) if not is_method_entry(x)] + [
+        {'addon_id': LIGHT_ADDON, 'source': 'bundled', 'addon_version': catalog_version(LIGHT_ADDON),
+         'selection_ref': record_rel}]
+    if apply:
+        store.commit({record_rel: encoded(record),
+                      'intent.yaml': yaml.safe_dump(intent, allow_unicode=True, sort_keys=False).encode()})
+    return {'route': 'default_recorded' if apply else 'default_planned', 'method': LIGHT_ADDON,
+            'record': record_rel, 'writes': bool(apply)}
 
 
 def cancel(layer, apply=False):
@@ -580,7 +651,7 @@ def status(layer):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('assess', 'respond', 'cancel', 'status'))
+    parser.add_argument('action', choices=('assess', 'respond', 'cancel', 'status', 'default'))
     parser.add_argument('--layer', required=True)
     parser.add_argument('--assessment')
     parser.add_argument('--receipt')
@@ -599,6 +670,8 @@ def main(argv=None):
             output = respond(args.layer, args.receipt, args.direct, args.apply)
         elif args.action == 'cancel':
             output = cancel(args.layer, args.apply)
+        elif args.action == 'default':
+            output = default_method(args.layer, args.apply)
         else:
             output = status(args.layer)
         print(json.dumps(output, ensure_ascii=False, indent=2))

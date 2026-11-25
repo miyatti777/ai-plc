@@ -58,14 +58,14 @@ LLM Wiki方式（Karpathy Second Brain系）の構造化知識ベース。規約
 | TPL_* | Templates | TPL_role_developer |
 | AGT_plc_* | Agents | AGT_plc_linter |
 
-上は論理名。Claude Code で打つ名前は、パイプライン Stage が `/01-collection`〜`/04-operation`（Jev 実験版の `-jev` は凍結中 — RUL_plc_adaptive §5 ルール6）、ユーティリティが `/plc-<機能>`（`.claude/skills/plc-<機能>/SKILL.md`。この `ai-plc/` の下ではなく `.claude/skills/` 直下に置く）。定義は RUL_plc_system §6。
+上は論理名。Claude Code で打つ名前は、パイプライン Stage が `/01-collection`〜`/04-operation`（Jev 実験版の `-jev` は凍結中 — RUL_plc_adaptive §5 ルール6）、ユーティリティが `/plc-<機能>`（`.claude/skills/plc-<機能>/SKILL.md`。この `ai-plc/` の下ではなく `.claude/skills/` 直下に置く）、Registry を見る・点検するもの（AI-PLC の PPM スキル）が `/ppm-<機能>`（同じく直下）。定義は RUL_plc_system §6、3層の区別は references/three-tiers.md。
 
 | ユーティリティ | 用途 |
 |---|---|
-| `/plc-someday` | いつかやるPJストック（登録・一覧・着手・取り消し） |
-| `/plc-registry` | Project Registry の照会・追加 |
-| `/plc-status-audit` | ステータス点検（食い違いの洗い出しと承認後の反映） |
-| `/plc-viewer` | Registry ビューアの起動 |
+| `/ppm-someday` | いつかやるPJストック（登録・一覧・着手・取り消し） |
+| `/ppm-registry` | Project Registry の照会・追加 |
+| `/ppm-audit` | ステータス点検（食い違いの洗い出しと承認後の反映） |
+| `/ppm-viewer` | Registry ビューアの起動 |
 | `/plc-jev-monitor` | Jev 判定の回収と記録（Jev 実験版パッケージ `--with-jev` に入っている。無ければ使わない） |
 | `/plc-consult` | アイデア相談（判定と次のコマンドだけ返す・読み取り専用） |
 | `/plc-backfill` | スキルを通さずに済ませた作業の事後記録（承認後に backlog へ ad-hoc で追加し Phase 5.5〜7 を通す） |
@@ -73,7 +73,7 @@ LLM Wiki方式（Karpathy Second Brain系）の構造化知識ベース。規約
 | `/plc-brief` | PJ の目的・できたこと・使い方を成果物と根拠から平易に説明（読み取り専用） |
 | `/plc-next` | 欠けた Next Action の選択肢・おすすめ・開始文を補う（読み取り専用） |
 | `/plc-decision` | 承認・選択の質問1件を背景・変更範囲・推奨根拠つきで解説（読み取り専用・承認は代行しない） |
-| `/plc-project-status` | Project の中止（cancelled）と再計画後の再開（RUL_plc_system §21） |
+| `/plc-lifecycle` | Project の中止（cancelled）と再計画後の再開（RUL_plc_system §21） |
 | `/plc-auto` | 対象 Layer の自動完走の開始・状態確認・停止（RUL_plc_session §10） |
 | `/plc-model-routing` | タスクに合う担当モデルと Advisor 相談の選択（明示依頼か `model_routing` 指定時） |
 
@@ -86,6 +86,6 @@ CC/Cursor/Codex向けの配置は installer（`install.sh`）が行う。
 
 ## AIPM方式の明示選択
 
-本人が対象Layerで明示選択した AIPM 方式（同梱の PM アドオン。目録 references/addon-catalog.yaml の aipm。新しい Layer は intent の addons に同梱の1件で書く。旧い Layer の work_style: aipm も同じに読む）は、既存modeと独立した方式。[共通Skill](../aipm-guided/SKILL.md)に従ってDocuments/aipm_project内の標準Projectと指定形式文書を順に作る。未指定/nullは従来動作。通常Stageから条件付きで参照するためCodex adapterや広域設定を変更しない。コースは質問ベース1ペルソナのInit/Discovery01〜04。
+本人が対象Layerで明示選択した AIPM 方式（同梱の PM アドオン。目録 references/addon-catalog.yaml の aipm。新しい Layer は intent の addons に同梱の1件で書く。旧い Layer の work_style: aipm も同じに読む）は、既存modeと独立した方式。[共通Skill](../aipm-guided/SKILL.md)に従って箱（新しい箱は Layer の直下の `Sheets/`、それより前の形は `Documents/aipm_project/`）の中に標準Projectと指定形式文書を順に作る。方式（目録の work_method）は必須で、本人が選ばない・答えが無いときは Collection が既定の AIPM ライトモード（aipm-light。WBS と TODO のシートだけ）を記録する。通常Stageから条件付きで参照するためCodex adapterや広域設定を変更しない。コースは質問ベース1ペルソナのInit/Discovery01〜04。
 
 <!-- AIPM-OPT-IN:END -->

@@ -19,6 +19,17 @@
 
 本人/サービスの実期限がなければ `deadline_kind: none`、`deadline_source: none` としdeadline欄を置かない。実期限がある場合は `deadline_kind: hard_stop`、`deadline_source: user` 又は `service` とtimezone付きdeadlineを保存し、休憩/回答待ちでも期限到達で止める。見積や進捗見直し時刻はmilestonesへ置き、許可の失効と扱わない。未知/null/矛盾した区分・出典・計時は保留。新区分に旧recording_reserved_fromを混ぜず、終了保存の余地は同じ作業総量内で確保する。time_policyの無い旧v2記録・出典不明の旧deadlineは従来の停止扱いを維持し、黙って移行しない。
 
+### work_budget_v1 の数え方と限界（`.claude/skills/plc-auto/scripts/plc_execution.py` の `work_minutes`・`work_budget_verdict`）
+
+- 書き始め: 最初の作業区間は `active_since` を `started_at` と同じ時刻にし、`work_used_minutes: 0` で始める。`started_at` より前の時間は数えない。2 区間目からの `active_since` は、直前の `resumed_at`（境目）と同じ時刻にする。違えば保留になる。
+- 止めるとき: 作業を止めるのは、かならず `pause_work`（break / answer_wait）を通す。`pause_work` を通さずに放っておいた時間は、作業として数える（記録の無い区間を休憩・待機とみなさない）。`resume_work` は計時だけで、契約の再開や許可にはならない。
+- 下限: 消費は「(終わり − started_at) − 記録した休憩 − 記録した回答待ち」より小さくならない（終わりは開いている pause の paused_at、なければ今）。`started_at` は承認の fingerprint（approved_scope_sha256）に入るので、履歴を消したり巻き戻したりしても下限は下がらない。`work_used_minutes` は最後の pause の持ち越し以上であること（多めは安全側として通す）。fingerprint に消費（work_used・active_since・pause_history）は入らない。
+- 限界 1: pause・回答待ちの記録を後から作る・延ばすと、その分だけ上限から逃げられる（記録は呼び出し側の申告で、OS の時計ではない）。
+- 限界 2: 下限より上に積んだ分（多めに確定した work_used_minutes）は、書き換えで下限まで減らせる。
+- 実際の記録を確かめるときは、今の時刻で判定する。「最後の境目の時刻」で判定すると、そのあとに起きた保留（`running` なのに作業区間が無い、など）が見えなくなる。
+- `deadline_kind: none` には時計の上限が無い。止まるのは作業総量（`work_limit_minutes`）・修正・支出の上限と、本人の指示だけ。
+- アドオン（`.claude/skills/ai-plc/scripts/plc_addon.py`）は、同じ `work_budget_verdict` を呼んで時間を判定する。ただしアドオンの時間の判定は承認の fingerprint を照合しない。実行してよいかを決めるのは `evaluate`（`plc_execution.py`）で、アドオンの判定はその代わりにならない。
+
 operationsは承認範囲にある `plan/register_task/instruct/implement/code_check/test/review/repair/save/management_record/resume` だけ列挙する。Task追加・版変更・工程完了も同じ実行の内部処理にできる範囲へ固定する。scope_tasks外の実装や新しい版へ無断で広げない。旧予算・停止契約は履歴へ同値で保持し、同じ目的の再開で上限をリセットしない。
 
 保存記録は認証証拠でもnative Goalの状態でもない。呼出元は現在の本人指示/ランタイムから `current_authorization` と `runtime_active`、run_id、authorization_ref、scope_revision、Task版、thread/sessionを照合する。runtimeには初期照合時のapproved_scope_sha256も保持する（.claude/skills/plc-auto/scripts/plc_execution.pyのapproval_scope_sha256で生成）。これは承認範囲・版・期限/支出/修正上限・パス、新区分では時間の役割/出典/作業総量上限の同版本人指示への束縛であって本人認証ではない。Resumeで変更後の記録から作り直して承認を捏造しない。JSONにtrueと書いたことを認証と扱わない。inlineのruntime_activeは現在の明示指示を実行する同一assistantターンの事実で、native activeの推定ではない。別threadへのforce伝播はしない。

@@ -8,7 +8,8 @@ from datetime import date, datetime, timezone
 import yaml
 
 METHOD = Path(__file__).resolve().parent
-from package import build_contract, select, safe_path, input_path, source_path, course_registry, LEGACY_COURSE, registers_contract_path, prior_answer_problem
+from package import build_contract, select, safe_path, input_path, source_path, course_registry, LEGACY_COURSE, registers_contract_path, prior_answer_problem, BOX_ROOT_LAYOUT, NESTED_LAYOUT, FLAT_LAYOUTS, SHEETS_LAYOUT, SHEETS_ROOT, LEGACY_ROOT, SHEETS_MIGRATION_BY, registers_layout, pkg_rel, doc_rel, init_roots, stock_root_of, business_folder, APPLY_KINDS, STOCK_PROGRAMS, LAYER_ARCHIVE, archive_base_for, archive_settings
+import light   # loaded with the package, while this folder is on sys.path
 
 class UniqueLoader(yaml.SafeLoader):
     pass
@@ -29,14 +30,25 @@ def load(path):
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
-def validate(package, phase="final", layer=None, stock_runtime=None):
+def validate(package, phase="final", layer=None, stock_runtime=None, stock_root=None):
+    """stock_root: the repository root that holds Stock/ for a box_root_v1 archive (default: the parent of the Flow folder
+    that holds the Layer). nested_v1 packages keep their Stock copy inside the package and ignore it."""
     if layer is None: raise ValueError("explicit layer required")
     LAYER = Path(layer).absolute()
-    if not select(LAYER): return {"pass": True, "route": "legacy", "errors": [], "warnings": [], "checked_documents": 0}
-    wanted = safe_path(LAYER, "Documents/aipm_project")
-    if Path(package).absolute() != wanted: raise ValueError("package must be the selected Layer Documents/aipm_project")
+    # validate learns AIPM ライトモード
+    try: light_kind = light.record(LAYER)[0]
+    except (OSError, ValueError, yaml.YAMLError): light_kind = None   # review P3: an unreadable Sheets/ does not stop a Layer without a method
+    if not select(LAYER):
+        if light.is_light(LAYER):
+            if Path(package).absolute() != safe_path(LAYER, SHEETS_ROOT): raise ValueError("package must be the selected Layer " + SHEETS_ROOT)
+            if light_kind != light.LIGHT_KIND: return {"pass": False, "route": light.LIGHT, "errors": [{"code": "E_LIGHT", "path": SHEETS_ROOT, "message": "AIPM ライトモード is selected but its box is missing (run package.py init --light)"}], "warnings": [], "checked_documents": 0}
+            return light.validate(LAYER)
+        return {"pass": True, "route": "legacy", "errors": [], "warnings": [], "checked_documents": 0}
     if phase not in ("prearchive", "final"): raise ValueError("unknown validation phase")
     contract = build_contract(LAYER)
+    PKG = contract['package_root']   # Sheets (sheets_v1) or Documents/aipm_project (nested_v1, box_root_v1)
+    wanted = safe_path(LAYER, PKG)
+    if Path(package).absolute() != wanted: raise ValueError("package must be the selected Layer "+PKG)
     shared = contract.get('storage') == 'registry_stock_v1'
     branch = contract.get('course_id',LEGACY_COURSE)
     batch = branch != LEGACY_COURSE
@@ -48,6 +60,7 @@ def validate(package, phase="final", layer=None, stock_runtime=None):
     warnings = []
     def warn(code, path, message):
         warnings.append({'code': code, 'path': str(path), 'message': message})
+    mtime_drift = []   # files whose mtime differs from the recorded one: one W_MTIME per package
     def safe(rel):
         q = root / rel
         if Path(rel).is_absolute() or '..' in Path(rel).parts:
@@ -56,6 +69,20 @@ def validate(package, phase="final", layer=None, stock_runtime=None):
             err('E_BOUNDARY', rel, 'symlink not accepted'); return None
         if not q.resolve().is_relative_to(root.resolve()):
             err('E_BOUNDARY', rel, 'outside package'); return None
+        return q
+    def stock_safe(rel):
+        """A box_root_v1 archive copy: repository-relative under the real Stock root (or, where: layer, Layer-relative
+        under Documents/aipm_archive/), no symlinks, never outside it."""
+        in_layer = str(rel).startswith(LAYER_ARCHIVE + '/')
+        base = archive_base_for(LAYER, rel, stock_root)
+        if base is None: err('E_ARCHIVE', rel, 'repository root holding Stock/programs not found; pass stock_root (--stock-root)'); return None
+        q = base / rel
+        if Path(rel).is_absolute() or '..' in Path(rel).parts or not (in_layer or rel.startswith(STOCK_PROGRAMS + '/')):
+            err('E_BOUNDARY', rel, 'Stock copy must be Stock/programs/... under the repository root (or Documents/aipm_archive/... in the Layer)'); return None
+        if any(x.is_symlink() for x in [q, *q.parents] if x == base or base in x.parents):
+            err('E_BOUNDARY', rel, 'symlink not accepted'); return None
+        if not q.resolve().is_relative_to(base.resolve()):
+            err('E_BOUNDARY', rel, 'outside repository root'); return None
         return q
     def schema(data, spec, loc):
         typ = spec['type']
@@ -79,13 +106,15 @@ def validate(package, phase="final", layer=None, stock_runtime=None):
         err('E_MISSING', '.', 'package directory missing')
         return {'pass': False, 'errors': errors, 'warnings': warnings}
     flow, stock = contract['flow_rel'], contract['stock_project_rel']
-    for folder in contract['folders']:
-        for base in ((flow,) if shared else (flow, stock+'/documents')):
-            q=safe(base+'/'+folder)
-            if q and not q.is_dir(): err('E_MISSING', base+'/'+folder, 'required folder missing')
+    box_root = contract.get('layout') in FLAT_LAYOUTS   # box_root_v1 and sheets_v1: the documents sit directly in the package
+    if box_root:   # a box_root_v1 package never holds the nested_v1 inner roots (a package of one layout read as the other)
+        for inner in ('Flow','Stock'):
+            if (root/inner).exists(): err('E_BOUNDARY', inner, contract['layout']+' package must not hold an inner '+inner+'/ folder')
+    # The contract folders are not checked on their own: init makes them, but git keeps no empty folder, and a folder
+    # proves nothing. Each required document below has its own E_MISSING.
     docs = {}; expected = {}; actual = {}
     for e in contract['documents']:
-        rel=(stock if e.get('side')=='stock_project' else flow)+'/'+e['path']
+        rel=doc_rel(contract,e)
         expected[rel]=e; q=safe(rel)
         if q is None: continue
         if not q.is_file(): err('E_MISSING', rel, 'required document missing'); continue
@@ -136,13 +165,77 @@ def validate(package, phase="final", layer=None, stock_runtime=None):
     if manifest.get('completion_claim')!='local_trial_only; new human readability/effectiveness unknown':err('E_MANIFEST','completion_claim','unsupported completion claim')
     responses=manifest.get('human_responses',{})
     if not isinstance(responses,dict): err('E_CHECKPOINT','human_responses','expected map'); responses={}
+    init_rewrites=[]   # (time, Sheets-relative path, sha256 before, sha256 after) of a project_init.yaml rewritten by a recorded nested_v1 move
+    migrations=[]   # (time, nested_v1 or not) of each recorded move to sheets_v1 by migrate-sheets
+    b_=contract.get('bindings') or {}
+    old_flow='Flow/'+str(b_.get('date',''))[:7].replace('-','')+'/'+str(b_.get('date',''))+'/'+str(b_.get('flow_dir',''))   # the nested_v1 flow_rel this contract's bindings give
+    if contract.get('layout')==SHEETS_LAYOUT:
+        for x in manifest.get('layout_migrations') or []:
+            if not (isinstance(x,dict) and x.get('to')==SHEETS_LAYOUT and x.get('by')==SHEETS_MIGRATION_BY and x.get('package')=={'from':LEGACY_ROOT,'to':SHEETS_ROOT}):continue
+            if x.get('from')==BOX_ROOT_LAYOUT:nested=False
+            elif x.get('from')==NESTED_LAYOUT and isinstance(x.get('flow_rel'),dict) and x['flow_rel'].get('from')==old_flow:nested=True
+            else:continue
+            try:at=datetime.fromisoformat(x['at'])
+            except (KeyError,TypeError,ValueError):continue
+            if at.tzinfo is None:continue
+            migrations.append((at,nested))
+            w=x.get('rewritten')   # project_init.yaml rewritten by the nested_v1 move (program_id, roots)
+            if nested and isinstance(w,dict) and all(isinstance(w.get(k),str) for k in ('path','sha256_before','sha256_after')) and isinstance(w.get('fields'),list) and set(w['fields'])<={'program_id','flow_base','stock_base'}:init_rewrites.append((at,w['path'],w['sha256_before'],w['sha256_after']))
+    def moved_receipt(receipt,target_path):
+        """A receipt written before the recorded move names the old place of the same file (the receipt itself is never
+        rewritten): Documents/aipm_project/<rest> for Sheets/<rest> (box_root_v1); for nested_v1, Documents/aipm_project/<name>
+        for a package-level file Sheets/<name>, or Documents/aipm_project/<flow_rel>/<rest> (the flow_rel the bindings give)."""
+        if not migrations or not target_path.startswith(SHEETS_ROOT+'/'):return False
+        try:received=datetime.fromisoformat(receipt['received_at'])
+        except (KeyError,TypeError,ValueError):return False
+        rest=target_path[len(SHEETS_ROOT)+1:];old=receipt.get('target_path')
+        def names(nested):
+            if not nested:return {LEGACY_ROOT+'/'+rest}
+            return {LEGACY_ROOT+'/'+old_flow+'/'+rest}|({LEGACY_ROOT+'/'+rest} if '/' not in rest else set())
+        return received.tzinfo is not None and any(received<at and old in names(nested) for at,nested in migrations)
+    def version_of(target_rel):
+        """The last apply version that changed target_rel (None: no applies, or the document was never changed by apply)."""
+        ap=manifest.get('applies')
+        if not isinstance(ap,list):return None
+        return next((a for a in reversed(ap) if isinstance(a,dict) and a.get('kind')=='apply' and any(isinstance(x,dict) and x.get('path')==target_rel for x in a.get('changed') or [])),None)
+    def confirmed_version(key,r,a,target_rel,target):
+        """the answer to a document an apply version changed is that version's receipt (the person's
+        judgement of the list): ① the receipt file bytes ② received in the apply_v<N> event ③ a user_reported evidence row
+        ④ target = the document now = the version docs ⑤ the list adopted every change of that document in the version."""
+        v=(a.get('receipts') or {}).get(key)
+        if not isinstance(v,dict) or not isinstance(v.get('source'),str) or not v['source'].startswith('Context/') or v.get('target_path')!=r.get('target_path'):return False
+        q=safe_path(LAYER,v['source'])
+        if not q.is_file() or digest(q)!=v.get('source_sha256'):return False
+        receipt=load(q)
+        if not isinstance(receipt,dict) or receipt.get('kind')!='user_reported' or receipt.get('actor')!='actual_user' or receipt.get('origin')!='actual_user_reply':return False
+        for field,value in [('scope_id',contract['scope_id']),('stage',key),('answer',v.get('answer')),('target_sha256',v.get('target_sha256')),('target_path',v.get('target_path')),('question_id',v.get('list_digest')),('received_at',v.get('received_at'))]:
+            if receipt.get(field)!=value:return False
+        if not isinstance(v.get('answer'),str) or not v['answer'].strip() or not isinstance(receipt.get('source_thread_id'),str) or not receipt['source_thread_id'].strip():return False
+        received=datetime.fromisoformat(receipt['received_at'])   # the event is read here: confirmed() is also called while the stages are being checked
+        ev=next(x for x in manifest.get('stages',[]) if isinstance(x,dict) and x.get('name')==a.get('event'))
+        if received.tzinfo is None or not datetime.fromisoformat(ev['started_at'])<=received<=datetime.fromisoformat(ev['finished_at']):return False
+        if not any(e.get('kind')=='user_reported' and e.get('source')==v['source'] and e.get('source_sha256')==v['source_sha256'] for e in manifest.get('evidence',[])):return False
+        if not (digest(target)==v['target_sha256']==a['docs'].get(target_rel)):return False
+        lq=safe_path(LAYER,'Context/aipm_changes/list_'+str(v.get('list_digest'))+'.yaml')
+        if not lq.is_file():return False
+        listed={x.get('id') for x in (load(lq) or {}).get('entries') or [] if isinstance(x,dict)}
+        ids=next(x.get('change_ids') for x in a['changed'] if isinstance(x,dict) and x.get('path')==target_rel)
+        if not ids or not set(ids)<=listed:return False
+        for i in ids:
+            pq=safe_path(LAYER,'Context/aipm_changes/'+str(i)+'.yaml')
+            if not pq.is_file() or ((load(pq) or {}).get('judgment') or {}).get('state')!='adopted':return False
+        return True
     def confirmed(key):
         r=responses.get(key,{})
         if not isinstance(r,dict): return False
         try:
+            a=version_of(r['target_path'][len(PKG)+1:]) if isinstance(r.get('target_path'),str) and r['target_path'].startswith(PKG+'/') else None
+            if a is not None:return confirmed_version(key,r,a,r['target_path'][len(PKG)+1:],safe_path(LAYER,r['target_path']))
+        except (KeyError,TypeError,ValueError,StopIteration,AttributeError): return False
+        try:
             q=safe_path(LAYER,r['source'])
             target=safe_path(LAYER,r['target_path'])
-            prefix='Documents/aipm_project/'
+            prefix=PKG+'/'
             if not r['source'].startswith('Context/') or not r['target_path'].startswith(prefix) or not q.is_file() or not target.is_file():return False
             target_rel=r['target_path'][len(prefix):]
             entry=expected.get(target_rel)
@@ -154,14 +247,25 @@ def validate(package, phase="final", layer=None, stock_runtime=None):
             if target_stage!=key:return False
             receipt=load(q)
             if not isinstance(receipt,dict) or receipt.get('kind')!='user_reported' or receipt.get('actor')!='actual_user' or receipt.get('origin')!='actual_user_reply':return False
-            for field,value in [('scope_id',contract['scope_id']),('stage',key),('answer',r.get('answer')),('target_path',r['target_path']),('target_sha256',r.get('target_sha256'))]:
+            for field,value in [('scope_id',contract['scope_id']),('stage',key),('answer',r.get('answer')),('target_sha256',r.get('target_sha256'))]:
                 if receipt.get(field)!=value:return False
+            if receipt.get('target_path')!=r['target_path'] and not moved_receipt(receipt,r['target_path']):return False
             if not isinstance(receipt.get('question_id'),str) or not receipt['question_id'].strip() or not isinstance(receipt.get('source_thread_id'),str) or not receipt['source_thread_id'].strip():return False
             received=datetime.fromisoformat(receipt['received_at'])
             event=next(s for s in manifest.get('stages',[]) if s.get('name')==('gaps' if batch else key))
-            if received.tzinfo is None or received.timestamp()*1e9<target.stat().st_mtime_ns or received>datetime.fromisoformat(event['finished_at']):return False
+            # the reply must come after the target was written, by the RECORDED write time
+            # (git keeps no mtime): the later of the bind's target_written_ns and the target record's generated_mtime_ns, else only the
+            # stage time and the target_sha256 binding below (older receipts on validation_checkpoint.yaml)
+            rec=next((x for x in manifest.get('records',[]) if isinstance(x,dict) and x.get('path')==target_rel),{})
+            if 'target_written_ns' in r and type(r['target_written_ns']) is not int:return False
+            written=[t for t in (r.get('target_written_ns'),rec.get('generated_mtime_ns')) if type(t) is int]
+            if received.tzinfo is None or (written and received.timestamp()*1e9<max(written)) or received>datetime.fromisoformat(event['finished_at']):return False
             if not any(e.get('kind')=='user_reported' and e.get('source')==r['source'] and e.get('source_sha256')==r.get('source_sha256') for e in manifest.get('evidence',[])):return False
-            return digest(q)==r.get('source_sha256') and isinstance(r.get('answer'),str) and bool(r['answer'].strip()) and digest(target)==r.get('target_sha256') and r.get('target_sha256')==manifest.get('checkpoint_targets',{}).get(key)
+            now_sha=digest(target)
+            # an init reply was given on project_init.yaml before a recorded nested_v1 move rewrote it (program_id, roots);
+            # the receipt, the manifest and checkpoint_targets keep the bytes before, and the file must be exactly the bytes after
+            rewritten=key=='init' and any(received<at and path==target_rel and before==r.get('target_sha256') and after==now_sha for at,path,before,after in init_rewrites)
+            return digest(q)==r.get('source_sha256') and isinstance(r.get('answer'),str) and bool(r['answer'].strip()) and (now_sha==r.get('target_sha256') or rewritten) and r.get('target_sha256')==manifest.get('checkpoint_targets',{}).get(key)
         except (KeyError,TypeError,ValueError,StopIteration,AttributeError): return False
     if validation.get('actual_new_user_response') is not None and (not confirmed('validation') or validation.get('actual_new_user_response')!=responses.get('validation',{}).get('answer')):
         err('E_CHECKPOINT','validation.actual_new_user_response','actual response artifact/target binding missing')
@@ -174,7 +278,13 @@ def validate(package, phase="final", layer=None, stock_runtime=None):
         mi=load(safe_path(LAYER,'intent.yaml')).get('mode_init') or {}
         if not isinstance(mi,dict) or mi.get('state')!='done' or str(mi.get('done_at'))!=str(first.get('finished_at')) or str(first.get('started_at'))!=str(first.get('finished_at')) or first.get('mode_init_outputs')!=mi.get('outputs'):err('E_ORDER','stages.init','origin mode_init does not match intent mode_init (done_at, no invented start time, outputs)')
         want=['init','ingest']+want[2:]
+    applies=manifest.get('applies')   # a box with versions; each apply version adds the event apply_v<N> at the end
+    apply_events=['apply_v'+str(a.get('version')) for a in applies if isinstance(a,dict) and a.get('kind')=='apply'] if isinstance(applies,list) and phase=='final' else []
+    want+=apply_events
     if [s.get('name') for s in stages if isinstance(s,dict)]!=want:err('E_ORDER','stages','incorrect required stage order')
+    for s in stages:
+        if isinstance(s,dict) and s.get('name') in apply_events and (s.get('checkpoint_actor'),s.get('checkpoint_status'))!=('auto_decision','accepted_local'):
+            err('E_APPLY','stages.'+str(s.get('name')),'an apply event is auto_decision / accepted_local (the person\'s answer is bound to the version receipts)')
     intervals={};previous=None
     for event in stages:
         if not isinstance(event,dict):err('E_ORDER','stages','invalid event');continue
@@ -189,12 +299,27 @@ def validate(package, phase="final", layer=None, stock_runtime=None):
         except Exception as ex:err('E_ORDER','stages',str(ex))
     snaps=manifest.get('source_snapshots',{})   # sources inside the package are checked against their copy
     if not isinstance(snaps,dict):err('E_COURSE','source_snapshots','expected map');snaps={}
-    snap_pre='Documents/aipm_project/source_snapshots/'
+    snap_pre=PKG+'/source_snapshots/'
     reads_by_id={r['id']:r for r in (manifest.get('source_reads') or []) if isinstance(r,dict) and isinstance(r.get('id'),str)}
     valid_snaps={}
+    ext_log={x['id']:x for x in (manifest.get('source_snapshot_log') or []) if isinstance(x,dict) and isinstance(x.get('id'),str)}
+    ev_by_id={x['id']:x for x in (manifest.get('evidence') or []) if isinstance(x,dict) and isinstance(x.get('id'),str)}
+    def external_snapshot(sid,rel):
+        """the archive-time bytes of a source outside the package (a layer source read, or the evidence of
+        that id) that changed after archive, placed by snapshot-sources: <PKG>/source_snapshots/external/<path>, recorded in
+        source_snapshot_log with the same path and the recorded sha256. The copy's bytes are checked like the source."""
+        x=ext_log.get(sid)
+        r=reads_by_id.get(sid);e=ev_by_id.get(sid)
+        if r is not None:path,want=(r.get('path') if r.get('domain')=='layer' else None),r.get('sha256')
+        elif e is not None and e.get('kind')!='user_reported':path,want=e.get('source'),e.get('source_sha256')   # receipts are never copied
+        else:return False
+        return (isinstance(x,dict) and isinstance(path,str) and not path.startswith((PKG+'/','method_source:')) and rel==snap_pre+'external/'+path
+                and x.get('path')==path and x.get('sha256')==want and isinstance(want,str))
     for sid,rel in snaps.items():   # a copy is honoured only for a read package-internal source that it mirrors
         r=reads_by_id.get(sid,{});path=str(r.get('path',''))
-        if r.get('domain')=='layer' and path.startswith('Documents/aipm_project/') and rel==snap_pre+path[len('Documents/aipm_project/'):]:valid_snaps[sid]=rel
+        if r.get('domain')=='layer' and path.startswith(PKG+'/') and rel==snap_pre+path[len(PKG+'/'):]:valid_snaps[sid]=rel
+        elif r.get('domain')=='layer' and any(nested for _,nested in migrations) and path.startswith(LEGACY_ROOT+'/') and rel==snap_pre+path[len(LEGACY_ROOT)+1:]:valid_snaps[sid]=rel   # a source read from inside a nested_v1 box keeps its old path (bound by the input packet) and is read from its moved copy
+        elif external_snapshot(sid,rel):valid_snaps[sid]=rel
         else:err('E_COURSE','source_snapshots.'+str(sid),'snapshot does not mirror a package-internal source read')
     def checked(src,sid):
         return valid_snaps.get(sid,src)
@@ -207,10 +332,10 @@ def validate(package, phase="final", layer=None, stock_runtime=None):
         evidence_ids.add(eid)
         if e.get('kind') not in contract['additional_records']['required_evidence_labels'] or not e.get('scope'):err('E_EVIDENCE',str(eid),'missing label/scope')
         src=e.get('source','')
-        try: q=input_path(LAYER,checked(src,eid)) if batch else safe_path(LAYER,src)
+        try: q=input_path(LAYER,checked(src,eid)) if batch else safe_path(LAYER,checked(src,eid))   # the legacy course has only external copies in valid_snaps
         except (TypeError,ValueError): err('E_EVIDENCE',str(eid),'unsafe source'); continue
         if Path(src).is_absolute() or '..' in Path(src).parts or (not batch and not q.resolve().is_relative_to(LAYER.resolve())) or not q.is_file():err('E_EVIDENCE',str(eid),'unresolved allowed source')
-        elif digest(q)!=e.get('source_sha256'):err('E_EVIDENCE',str(eid),'source hash mismatch')
+        elif digest(q)!=e.get('source_sha256') and not (not batch and any(src==PKG+'/'+path and e.get('source_sha256')==before and digest(q)==after for _,path,before,after in init_rewrites)):err('E_EVIDENCE',str(eid),'source hash mismatch')   # an evidence on project_init.yaml rewritten by a recorded nested_v1 move
     def refs(xs,known,loc):
         if not isinstance(xs,list):err('E_REF',loc,'references must be list');return
         for x in xs:
@@ -221,13 +346,37 @@ def validate(package, phase="final", layer=None, stock_runtime=None):
     shared_archive = None
     if shared and phase=='final':
         try:
-            try:
-                from shared_stock import verify_archive
-            except ImportError:
-                raise ValueError('registry_stock_v1 (shared Stock) is not included in this package') from None
+            from shared_stock import verify_archive
             shared_archive=verify_archive(LAYER,stock_runtime)
         except Exception as ex:err('E_ARCHIVE','shared Stock',str(ex))
     if not isinstance(records,list):err('E_MANIFEST','records','not list');records=[]
+    business_target=None   # box_root_v1 archived under a business project: Stock/programs/<program>/projects/<business>/<project>
+    # Offline: archive_target is checked against this package (program, project, folder name), not against the Registry.
+    # Which business project it names is guaranteed by archive (read from the Registry at that time), not by final.
+    if box_root and 'archive_target' in manifest:
+        at=manifest['archive_target'];b=contract['bindings']
+        keys=('scope_id','workspace_id','program_uid','business_uid','business_display_name','business_name','target_rel','resolved_at','source')
+        plain=isinstance(at,dict) and at.get('source')=='config'   # business none / where layer (no Registry, no business fields)
+        if plain:
+            empty=('workspace_id','program_uid','business_uid','business_display_name','business_name')
+            want={LAYER_ARCHIVE+'/'+b['project_id'],STOCK_PROGRAMS+'/'+b['program_id']+'/projects/'+b['project_id']}
+            if set(at)!=set(keys) or any(not isinstance(at[k],str) for k in keys) or any(at[k] for k in empty) or not at['resolved_at'] or at['scope_id']!=str(contract.get('scope_id') or '') or at['target_rel'] not in want:
+                err('E_ARCHIVE','archive_target','archive_target (source config) must name Documents/aipm_archive/<project> or Stock/programs/<program>/projects/<project> of this package, with empty business fields')
+            elif at['target_rel'].startswith(STOCK_PROGRAMS+'/') and archive_settings(LAYER,stock_root)['business']!='none':
+                # a Stock copy without its business project is valid only while aipm_archive.business is none
+                err('E_ARCHIVE','archive_target','archive_target (source config) skips the business project, but aipm_archive.business is registry; set aipm_archive.business back to none for this box (move-archive cannot move a box with versions)')
+            else:business_target=at['target_rel']
+        elif not isinstance(at,dict) or set(at)!=set(keys) or any(not isinstance(at[k],str) or not at[k] for k in keys):err('E_ARCHIVE','archive_target','archive_target must hold exactly '+', '.join(keys))
+        else:
+            try:folder=business_folder(at['business_display_name'])   # the folder name follows from the recorded display name
+            except ValueError as ex:folder=None;err('E_ARCHIVE','archive_target',str(ex))
+            if folder is not None and (folder!=at['business_name'] or at['target_rel']!=STOCK_PROGRAMS+'/'+b['program_id']+'/projects/'+folder+'/'+b['project_id'] or at['scope_id']!=contract['scope_id'] or at['source']!='registry_read_only'):
+                err('E_ARCHIVE','archive_target','archive_target does not name Stock/programs/<program>/projects/<business>/<project> of this package')
+            elif folder is not None:business_target=at['target_rel']
+    ap_=manifest.get('applies') if isinstance(manifest.get('applies'),list) else []
+    unpushed=ap_[-1] if ap_ and isinstance(ap_[-1],dict) and ap_[-1].get('pushed') is False else None
+    pushed_docs=next((a.get('docs') or {} for a in reversed(ap_) if isinstance(a,dict) and a.get('pushed') is True),{})
+    unpushed_diff=[]
     fields=['path','source_step','template_sha256','version','branch','stage','status','requires_human','human_state','inputs','evidence_refs','decision','sha256','generated_mtime_ns','archive_path','archive_sha256']
     for r in records:
         if not isinstance(r,dict):err('E_MANIFEST','records','invalid entry');continue
@@ -256,9 +405,12 @@ def validate(package, phase="final", layer=None, stock_runtime=None):
             err('E_ORDER',rel,'source step not bound to its required stage interval')
         if q and q.is_file() and rel in actual:
             if digest(q)!=r.get('sha256'):err('E_HASH',rel,'content hash mismatch')
-            if q.stat().st_mtime_ns!=r.get('generated_mtime_ns'):err('E_ORDER',rel,'recorded generation mtime mismatch')
-            interval=intervals.get(r.get('stage'))
-            if not batch and interval and not interval[0]<=q.stat().st_mtime_ns<=interval[1]:err('E_ORDER',rel,'file not generated within declared stage')
+            if q.stat().st_mtime_ns!=r.get('applied_mtime_ns' if 'applied_in' in r else 'generated_mtime_ns'):mtime_drift.append(rel)   # git keeps no mtime; the bytes are bound by sha256 (C2)
+        if 'applied_in' in r:   # a document changed by apply version N was written in its apply_v<N> event
+            w=intervals.get('apply_v'+str(r.get('applied_in')))
+            if type(r.get('applied_mtime_ns')) is not int or not w or not w[0]<=r['applied_mtime_ns']<=w[1]:err('E_APPLY',rel,'applied time not in its apply_v event')
+        recorded=r.get('generated_mtime_ns')   # C3: the RECORDED generation time lies in its stage (legacy course); the file mtime is not used
+        if not batch and (type(recorded) is not int or (r.get('stage') in intervals and not intervals[r['stage']][0]<=recorded<=intervals[r['stage']][1])):err('E_ORDER',rel,'file not generated within declared stage')
         archive=r.get('archive_path')
         if e and e.get('side') not in ['flow','stock_project'] and phase=='final':
             if shared:
@@ -266,13 +418,32 @@ def validate(package, phase="final", layer=None, stock_runtime=None):
                     receipt=shared_archive['receipt']
                     if archive!='originals/'+receipt['source_id']+'/'+rel or r.get('archive_sha256')!=shared_archive['original_hashes'].get(rel):err('E_ARCHIVE',rel,'shared original counterpart mismatch')
                 continue
-            expected_archive=stock+'/documents/'+e['path']
-            if archive!=expected_archive:err('E_ARCHIVE',rel,'incorrect Stock counterpart')
-            aq=safe(archive or '')
+            if box_root:
+                target=business_target or contract.get('stock_target_rel')   # a where: layer box has no program, only its archive_target
+                if not target:err('E_ARCHIVE',rel,'no Stock target; give aipm.program_id (an existing Stock/programs folder)');continue
+                if business_target is not None:target=business_target   # archived under its business project (no archive_target = the earlier projects/<project>/ copies)
+                elif 'archive_target' in manifest:continue   # a broken archive_target was already reported once
+                expected_archive=target+'/documents/'+e['path']
+                if archive!=expected_archive:err('E_ARCHIVE',rel,'incorrect Stock counterpart')
+                aq=stock_safe(archive) if archive==expected_archive else None
+            else:
+                expected_archive=stock+'/documents/'+e['path']
+                if archive!=expected_archive:err('E_ARCHIVE',rel,'incorrect Stock counterpart')
+                aq=safe(archive or '')
             if aq and not aq.is_file():err('E_ARCHIVE',rel,'archive missing')
+            elif aq and q and rel in actual and unpushed is not None:   # applied but not pushed: the Stock holds the last pushed version
+                if digest(aq)!=r.get('archive_sha256') or r.get('archive_sha256')!=pushed_docs.get(rel):err('E_ARCHIVE',rel,'Stock differs from the last pushed version')
+                elif aq.read_bytes()!=q.read_bytes():unpushed_diff.append(rel)
             elif aq and q and rel in actual and (aq.read_bytes()!=q.read_bytes() or digest(aq)!=r.get('archive_sha256')):err('E_ARCHIVE',rel,'Stock/Flow bytes or hash mismatch')
         elif archive is not None:err('E_ARCHIVE',rel,'Init/README should not have a second archive')
     if set(expected)!=seen:err('E_MANIFEST','records','required document records missing')
+    if 'applies' in manifest:
+        log_dir=business_target or (contract.get('stock_target_rel') if box_root else None)
+        def read_log():
+            q=stock_safe(log_dir+'/apply_log.yaml') if log_dir else None
+            return load(q) if q is not None and q.is_file() else None
+        check_applies(manifest,records,phase,err,read_log)
+    if unpushed is not None and unpushed_diff:warn('W_UNPUSHED','applies','version '+str(unpushed.get('version'))+' is applied to the box but not pushed to the Stock ('+str(len(unpushed_diff))+' document(s)); push it (apply --push) or revert it (apply --revert-unpushed)')
     if batch:
         try:
             extension=course_registry()['manifest_extension']
@@ -297,8 +468,9 @@ def validate(package, phase="final", layer=None, stock_runtime=None):
                 observed=datetime.fromisoformat(read['read_at']);window=intervals.get('ingest')
                 if observed.tzinfo is None or observed>datetime.now(timezone.utc) or not window or not window[0]<=int(observed.timestamp()*1e9)<=window[1]:
                     err('E_COURSE',read['id'],'read time not in actual ingestion interval')
-                if type(read.get('source_mtime_ns')) is not int or src.stat().st_mtime_ns!=read['source_mtime_ns'] or digest(src)!=read.get('sha256'):
+                if type(read.get('source_mtime_ns')) is not int or digest(src)!=read.get('sha256'):
                     err('E_COURSE',read['id'],'source mtime/hash changed or fabricated')
+                elif src.stat().st_mtime_ns!=read['source_mtime_ns']:mtime_drift.append(read['id'])   # sha256 binds the source (C5)
                 ev=next((e for e in evidence if e.get('id')==read['id']),{})
                 wanted=('method_source:' if read['domain']=='method_source' else '')+read['path']
                 if ev.get('source')!=wanted or ev.get('source_sha256')!=read.get('sha256'):err('E_COURSE',read['id'],'source/evidence binding mismatch')
@@ -316,11 +488,12 @@ def validate(package, phase="final", layer=None, stock_runtime=None):
                 interval=intervals.get(r.get('generation_event'));q=safe(r.get('path',''))
                 if r.get('generation_event')!='batch' or not interval:err('E_COURSE',r.get('path'),'generation event missing')
                 if r.get('generation_kind')=='generated':
-                    if r.get('reused_from') is not None or (q and q.is_file() and interval and not interval[0]<=q.stat().st_mtime_ns<=interval[1]):err('E_COURSE',r.get('path'),'generated time/reuse declaration mismatch')
+                    recorded=r.get('generated_mtime_ns')   # the recorded generation time must lie in the batch (C4); the file mtime is not used
+                    if r.get('reused_from') is not None or (interval and (type(recorded) is not int or not interval[0]<=recorded<=interval[1])):err('E_COURSE',r.get('path'),'generated time/reuse declaration mismatch')
                 elif r.get('generation_kind')=='reused':
                     source=byid.get(r.get('reused_from'))
                     if not source or r.get('source_ids')!=[r.get('reused_from')]:err('E_COURSE',r.get('path'),'reuse needs its actual source binding')
-                    elif q and q.is_file() and (digest(q)!=source['sha256'] or q.stat().st_mtime_ns!=source['source_mtime_ns']):err('E_COURSE',r.get('path'),'reuse bytes/mtime do not match source')
+                    elif q and q.is_file() and ((ap_[0].get('docs') or {}).get(r.get('path')) if 'applied_in' in r and ap_ and isinstance(ap_[0],dict) else digest(q))!=source['sha256']:err('E_COURSE',r.get('path'),'reuse bytes/mtime do not match source')   # the bytes decide reuse (C6); a document changed by apply: its first version's bytes
                 else:err('E_COURSE',r.get('path'),'unknown generation kind')
             decisions=manifest.get('decisions')
             if not isinstance(decisions,dict) or set(decisions)!=set(course_registry()['human_decisions']):raise ValueError('required decisions missing')
@@ -433,11 +606,13 @@ def validate(package, phase="final", layer=None, stock_runtime=None):
         init=docs.get('write_init_yaml',{})
         for field in ['program_id','project_id','participant_name','flow_dir']:
             if init.get(field)!=contract['bindings'][field]:err('E_REF','project_init.'+field,'does not match selected Project binding')
-        if init.get('flow_base')!=flow or init.get('stock_base')!=stock or init.get('share_repo')!='disabled' or init.get('share_local_dir')!='disabled':err('E_BOUNDARY','project_init','wrong roots or enabled sharing')
+        if (init.get('flow_base'),init.get('stock_base'))!=init_roots(contract) or init.get('share_repo')!='disabled' or init.get('share_local_dir')!='disabled':err('E_BOUNDARY','project_init','wrong roots or enabled sharing')
         if not batch and validation.get('before_solution') is not True:err('E_ORDER','validation','must precede solution')
         if batch and validation.get('before_solution') is not False:err('E_ORDER','validation','batch must not fabricate before-solution validation')
         solutions=[q for rel,q in actual.items() if expected[rel]['source'].endswith('03_ソリューションマップ.md')]
-        if not batch and vpath and vpath.is_file() and solutions and vpath.stat().st_mtime_ns>=min(q.stat().st_mtime_ns for q in solutions):err('E_ORDER','validation','written after solution')
+        # C7: the validation stage ends before the first RECORDED solution document (legacy course); the file mtimes are not used
+        solution_times=[x.get('generated_mtime_ns') for x in records if isinstance(x,dict) and x.get('path') in actual and expected.get(x.get('path'),{}).get('source','').endswith('03_ソリューションマップ.md')]
+        if not batch and vpath and vpath.is_file() and solution_times and 'validation' in intervals and (not all(type(s) is int for s in solution_times) or intervals['validation'][1]>=min(solution_times)):err('E_ORDER','validation','written after solution')
         refs(validation.get('evidence_refs'),evidence_ids,'validation evidence')
         if not isinstance(validation.get('hypotheses'),list) or not validation['hypotheses']:err('E_VALIDATION','hypotheses','missing hypotheses')
         else:
@@ -445,9 +620,79 @@ def validate(package, phase="final", layer=None, stock_runtime=None):
                 if any(k not in h for k in ['id','kind','claim','method','success','falsification','result','scope']) or h.get('kind')!='hypothesis' or h.get('result') not in ['unknown','not_supported','structurally_supported']:err('E_VALIDATION','hypotheses','invalid statement/result/scope')
     except (KeyError,TypeError,AttributeError,ValueError) as ex:
         err('E_REF','semantic', 'malformed or incomplete semantic data: '+str(ex))
+    if mtime_drift:warn('W_MTIME','package',str(len(mtime_drift))+' file(s) differ from the recorded mtime (a git checkout keeps none; contents are checked by sha256): '+', '.join(mtime_drift[:5]))
     issues_summary=None;reg_out={}
     if 'registers_contract_version' in contract:issues_summary=check_registers(contract,safe,validation,err,LAYER,warn,reg_out)
+    if 'register_edits' in manifest:check_register_edits(manifest,contract,safe,err,warn)
+    if light_kind == light.SHEETS_KIND and 'registers_contract_version' not in contract:reg_out['light_sheets_summary']=light.check(LAYER,err,warn)   # the two sheets added to an aipm Layer (decision 6)
     return {'pass':not errors,'scope_id':contract['scope_id'],'source_commit':contract['reviewed_commit'],'validation_phase':phase,'checked_documents':len(actual),'errors':errors,'warnings':warnings,**({'issues_summary':issues_summary} if issues_summary is not None else {}),**reg_out,'limits':['Static Markdown/Mermaid structure and references; no Viewer rendering E2E','Human understanding/new usability/general productivity not measured']}
+
+def check_register_edits(manifest,contract,safe,err,warn):
+    """E_REDIT: ① edits 1..N ② each judgement has quote, at, thread, list_digest ③ base_version is a
+    version of applies (or null). W_REDIT: the registers differ from what the last edit wrote (judge / resolve / todo.move or by
+    hand after it); a warning only."""
+    from package import registers_contract
+    edits=manifest.get('register_edits')
+    if not isinstance(edits,list) or not edits:err('E_REDIT','register_edits','expected a non-empty list');return
+    versions={a.get('version') for a in manifest.get('applies') or [] if isinstance(a,dict)}
+    for n,x in enumerate(edits,1):
+        loc='register_edits['+str(n-1)+']'
+        if not isinstance(x,dict):err('E_REDIT',loc,'expected map');continue
+        if x.get('edit')!=n or isinstance(x.get('edit'),bool):err('E_REDIT',loc,'edits must run 1..N without a gap')
+        js=x.get('judgments')
+        if not isinstance(js,list) or not js or any(not isinstance(j,dict) or any(not isinstance(j.get(k),str) or not j[k].strip() for k in ('quote','at','thread','list_digest')) for j in js):err('E_REDIT',loc,'each judgement needs quote, at, thread and list_digest')
+        if not isinstance(x.get('approval_ref'),str) or not x['approval_ref'].strip():err('E_REDIT',loc,'approval_ref missing')
+        if x.get('base_version') is not None and x.get('base_version') not in versions:err('E_REDIT',loc,'base_version is not a version of applies')
+    last=edits[-1]
+    if 'registers_contract_version' in contract and isinstance(last,dict) and isinstance(last.get('registers_sha256'),dict):
+        rc=registers_contract(contract);now={}
+        for k,spec in rc['files'].items():
+            q=safe(spec['path'])
+            now[k]=digest(q) if q is not None and q.is_file() else None
+        diff=[k for k in now if last['registers_sha256'].get(k)!=now[k]]
+        if diff:warn('W_REDIT','register_edits','the registers changed after edit '+str(last.get('edit'))+' outside redit (judge / resolve / todo.move or by hand): '+', '.join(diff))
+
+def check_applies(manifest,records,phase,err,read_log=None):
+    """E_APPLY (①-④) on a box with versions. ① versions 1..N without a gap, v1 register/first
+    and the later ones apply ② each version's docs hold every document with an archive copy ③ the last docs = the records
+    sha256 ④ changed before/after = the previous/this docs, and a document not in changed keeps its previous sha256."""
+    applies=manifest.get('applies')
+    if phase!='final':err('E_APPLY','applies','versions exist only after archive');return
+    if not isinstance(applies,list) or not applies:err('E_APPLY','applies','expected a non-empty list');return
+    archived={r['path']:r.get('sha256') for r in records if isinstance(r,dict) and r.get('archive_path') and isinstance(r.get('path'),str)}
+    hexa=re.compile(r'[0-9a-f]{64}');prev=None
+    for n,a in enumerate(applies,1):
+        loc='applies['+str(n-1)+']'
+        if not isinstance(a,dict):err('E_APPLY',loc,'expected map');prev=None;continue
+        if a.get('version')!=n or isinstance(a.get('version'),bool):err('E_APPLY',loc,'versions must run 1..N without a gap')   # ①
+        if a.get('kind') not in APPLY_KINDS or (n==1)!=(a.get('kind') in ('register','first')):err('E_APPLY',loc,'v1 is register/first, later versions are apply')
+        if not isinstance(a.get('pushed'),bool):err('E_APPLY',loc,'pushed must be true/false')
+        elif a['pushed'] is False and n!=len(applies):err('E_APPLY',loc,'only the last version may be unpushed')   # ⑤
+        if a.get('kind') in ('register','first') and a.get('pushed') is not True:err('E_APPLY',loc,'a register/first version is pushed')
+        if a.get('kind') in ('register','apply') and (not isinstance(a.get('approval_ref'),str) or not a['approval_ref'].strip()):err('E_APPLY',loc,'approval_ref missing')
+        docs=a.get('docs')
+        if not isinstance(docs,dict) or set(docs)!=set(archived) or any(not isinstance(v,str) or not hexa.fullmatch(v) for v in docs.values()):   # ②
+            err('E_APPLY',loc+'.docs','docs must hold the sha256 of every document with an archive copy');prev=None;continue
+        changed=a.get('changed')
+        if not isinstance(changed,list):err('E_APPLY',loc+'.changed','expected list');prev=docs;continue
+        if n==1:
+            if changed or a.get('base_version') is not None:err('E_APPLY',loc,'v1 has no base_version and no changed documents')
+        elif prev is not None:   # ④
+            if a.get('base_version')!=n-1:err('E_APPLY',loc,'base_version must be the previous version')
+            paths=set()
+            for x in changed:
+                if not isinstance(x,dict) or x.get('path') not in docs or x['path'] in paths or not isinstance(x.get('change_ids'),list) or not x['change_ids']:err('E_APPLY',loc+'.changed','each entry names one document of docs once, with its change_ids');continue
+                paths.add(x['path'])
+                if x.get('before')!=prev[x['path']] or x.get('after')!=docs[x['path']] or x['before']==x['after']:err('E_APPLY',loc+'.changed.'+x['path'],'before/after must be the previous/this version and differ')
+            for k in set(docs)-paths:
+                if docs[k]!=prev[k]:err('E_APPLY',loc+'.docs.'+k,'a document not in changed must keep its previous sha256')
+        prev=docs
+    last=applies[-1]
+    if isinstance(last,dict) and isinstance(last.get('docs'),dict) and last['docs']!=archived:err('E_APPLY','applies','the last version docs must equal the records sha256')   # ③
+    if read_log is not None:   # ⑥ the Stock apply_log holds exactly the pushed versions
+        from package import LOG_KEYS
+        log=read_log();want=[{k:a.get(k) for k in LOG_KEYS} for a in applies if isinstance(a,dict) and a.get('pushed') is True]
+        if not isinstance(log,dict) or log.get('versions')!=want:err('E_APPLY','apply_log','the Stock apply_log must hold exactly the pushed versions')
 
 def receipt_problem(ref,layer,contract):
     """The step 8 actual-user receipt: a Context YAML inside the Layer with the receipt labels."""
@@ -473,6 +718,30 @@ def list_ids(spec,safe,key):
     except Exception:return None
     if not isinstance(data,dict) or not isinstance(data.get(key),list):return None
     return {r['id']:r.get('kind') for r in data[key] if isinstance(r,dict) and isinstance(r.get('id'),str)}
+
+def knot_problems(spec,r):
+    """Knot columns of one todo row (contract v3 only: the spec has a 'knot' section). Returns ([error messages],[warning messages]).
+    v2 specs have no 'knot', so nothing is checked there (the 3 columns are unknown keys). Shapes are in registers_contract.yaml."""
+    kn=spec.get('knot')
+    if not isinstance(kn,dict):return [],[]
+    errs,warns=[],[]
+    if r.get('done_when') is not None and r['done_when'] not in kn['done_when']:errs.append('done_when must be one of '+', '.join(kn['done_when']))
+    for col in ('updated_on','confirmed_on'):   # confirmed_on: contract v4 only (in v3 its knot section has no such key, and the column is an unknown key)
+        u=r.get(col)
+        if u is not None and col in kn:
+            s_=u.date().isoformat() if isinstance(u,datetime) else u.isoformat() if isinstance(u,date) else u
+            if not isinstance(s_,str) or not re.fullmatch(kn[col],s_) or _as_date(s_) is None or _as_date(s_).isoformat()!=s_:errs.append(col+' must be a real date YYYY-MM-DD')
+    b=r.get('blocked_by')
+    if b is not None:
+        for v in (b if isinstance(b,list) else [b]):
+            if not isinstance(v,str) or not re.fullmatch(kn['blocked_by'],v):errs.append('blocked_by must be <scope_id>/<Txxx> (e.g. L-1234/T003)')
+    src=r.get('source')
+    for v in (src if isinstance(src,list) else [src] if src is not None else []):
+        if not isinstance(v,str):continue
+        t=v.strip()
+        if re.fullmatch(r'[IH]\d+',t) or any(re.fullmatch(p,t) for p in kn['source_recommended']):continue
+        warns.append('source '+t+' is neither a backlog Txxx nor a Documents/ file of this Layer')
+    return errs,warns
 
 def check_list(spec,safe,err,warn=None,ids=None):
     """Minimal required-key check for issues/todo/wbs/roadmap."""
@@ -768,6 +1037,11 @@ def check_plan_lists(rc,safe,err,warn,layer):
                     if m:
                         target=spec['source_refs'][m.group(1)]
                         if ids.get(target) is not None and v not in ids[target]:err('E_REGISTERS',rl,'source points to unknown id '+v)
+            if name=='todo':
+                ke,kw=knot_problems(spec,r)
+                for m_ in ke:err('E_REGISTERS',rl,m_)
+                for m_ in kw:
+                    if warn is not None:warn('W_REGISTERS',rl,m_)
             if name=='todo' and warn is not None and not r.get('wbs_id') and r.get('status')!='cancelled':warn('W_REGISTERS',rl,'no WBS number (wbs_id is empty); an AI guess must be shown separately as a candidate')
             if name=='wbs':
                 acc=spec['acceptance'];ev=r.get('evidence_refs');ev=ev if isinstance(ev,list) else ([ev] if ev else [])
@@ -847,7 +1121,7 @@ def check_registers(contract,safe,validation,err,layer=None,warn=None,out=None):
     try:rc_path=registers_contract_path(contract.get('registers_contract_version'))   # the version the package was bound to
     except ValueError as ex:err('E_REGISTERS','registers_contract',str(ex));return
     if digest(rc_path)!=contract.get('registers_contract_sha256'):err('E_REGISTERS','registers_contract','registers contract changed or hash mismatch');return
-    rc=load(rc_path);spec=rc['files']['hypotheses'];js=spec['judgement']
+    rc=registers_layout(contract,load(rc_path));spec=rc['files']['hypotheses'];js=spec['judgement']   # sheets_v1: no registers/ folder
     ids={'hypotheses':list_ids(rc['files']['hypotheses'],safe,'hypotheses'),'issues':list_ids(rc['files']['issues'],safe,'issues')}
     for name in ('issues','todo','wbs','roadmap'):check_list(rc['files'][name],safe,err,warn,ids)
     summary=check_resolution(rc,safe,err,warn,layer,contract)
@@ -912,7 +1186,11 @@ def check_registers(contract,safe,validation,err,layer=None,warn=None,out=None):
 
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--layer',required=True);parser.add_argument('--phase',choices=['prearchive','final'],default='final');args=parser.parse_args()
-    try: result=validate(Path(args.layer).absolute()/'Documents/aipm_project',phase=args.phase,layer=args.layer)
+    parser=argparse.ArgumentParser();parser.add_argument('--layer',required=True);parser.add_argument('--phase',choices=['prearchive','final'],default='final')
+    parser.add_argument('--stock-root',help='box_root_v1 final: the repository root that holds Stock/ (default: the parent of the Flow folder that holds the Layer; a Flow worktree outside the repository needs it)');args=parser.parse_args()
+    try:
+        L=Path(args.layer).absolute()
+        pkg=L/SHEETS_ROOT if not select(L) and light.is_light(L) else L/build_contract(L)['package_root']
+        result=validate(pkg,phase=args.phase,layer=args.layer,stock_root=args.stock_root)
     except Exception as ex: result={'pass':False,'errors':[{'code':'E_VALIDATOR','path':'.','message':str(ex)}],'warnings':[]}
     print(json.dumps(result,ensure_ascii=False,indent=2));raise SystemExit(0 if result['pass'] else 1)

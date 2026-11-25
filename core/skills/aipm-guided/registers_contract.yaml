@@ -1,9 +1,9 @@
 # AIPM モードの案件側の一覧（registers）の契約。intent の aipm.registers: true のときだけ使う。
 # format_schema.yaml（固定版の契約）は変えない。
-# 版: これは最新版（v2）。旧版は registers_contract.v<版>.yaml にバイト単位で凍結して残し、保存済みの package は
+# 版: これは最新版（v4・todo に確認日 confirmed_on を足した。v3 で結び目の3列 done_when・updated_on・blocked_by を足した）。旧版（v1・v2・v3）は registers_contract.v<版>.yaml にバイト単位で凍結して残し、保存済みの package は
 #     format_contract.yaml の registers_contract_version の版で組み立て・検査する。中身を変えるときは版と接尾を上げ、旧版を凍結して残す。
-version: 2
-contract_suffix: '+registers.2'
+version: 4
+contract_suffix: '+registers.4'
 root: registers
 upstream_canonical_unchanged: true
 files:
@@ -60,10 +60,16 @@ files:
     top_required: [todo]
     id_pattern: '^D\d+$'
     required: [id, title, status, owner]
-    optional: [source, wbs_id, due, priority, note, source_of_truth]
+    optional: [source, wbs_id, due, priority, note, source_of_truth, done_when, updated_on, blocked_by, confirmed_on]
     status: [todo, doing, done, cancelled]
     refs: {wbs_id: wbs}
     source_refs: {I: issues, H: hypotheses}     # source may be I/H ids (checked) or free text such as a meeting name
+    knot:   # 結び目の列（v3）。3列とも optional（行に無くてもよい）。ここにある列だけ値を検査する（v2 の package にはこの節が無く、3列は unknown key）
+      source_recommended: ['^T\d+$', '^Documents/.+']   # backlog の Task（Txxx）か、同じ Layer の Documents のファイル。I/H の id と、これ以外の書き方（会議名など）は W_REGISTERS（警告）に留める
+      done_when: [task_completed, owner_action, external_event]   # 文字列1つ。task_completed=source の Task の完了／owner_action=本人が動く・決める／external_event=相手の返事・承認・付与が届く
+      updated_on: '^\d{4}-\d{2}-\d{2}$'                        # 作業日（同期時刻ではない）。実在する日付。引用符なしの YAML の日付も可
+      confirmed_on: '^\d{4}-\d{2}-\d{2}$'                      # 本人が「この行は正しい」と確かめた日（v4）。本人の確認の回答があるときだけ ops の todo.link で書く。AI の案（redit の add_row・todo.add）では書かない
+      blocked_by: '^L-\d{4}(-[A-Za-z0-9]+)*/T\d+$'              # <scope_id>/<Txxx>（例 L-1234/T003）。文字列1つか、その並び。依存があるときだけ書く
   wbs:
     path: registers/wbs.yaml
     list_key: wbs

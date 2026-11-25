@@ -36,13 +36,13 @@ INSTALLER_FILES = ("install.sh", "install-cc.sh", "install-cursor.sh", "install-
                    "lib/ai_plc_safe_fs.py", "lib/ai_plc_multi_env.py")
 MODES = ("cc", "both", "all", "cursor", "codex")
 # Files that the installer started to distribute after BASELINE_REF, for every mode (v1.14.0: the
-# model-routing rule and two DB scripts). They are applied to the baseline installer too, so the
+# model-routing rule and two DB scripts; v2.0.0: aiplc_paths / business_registry / shared_stock). They are applied to the baseline installer too, so the
 # comparison still isolates the effect of --with-jev instead of reporting these intended additions.
 INVENTORY_ADDITIONS = (
     ('("ai-plc-system.md", "ai-plc-session.md", "ai-plc-adaptive.md")',
      '("ai-plc-system.md", "ai-plc-session.md", "ai-plc-adaptive.md", "ai-plc-model-routing.md")'),
     ('("init_db.py", "plc_query.py", "sync.py", "README.md")',
-     '("init_db.py", "plc_query.py", "sync.py", "README.md", "project_lifecycle.py", "plc_explain.py")'),
+     '("init_db.py", "plc_query.py", "sync.py", "README.md", "project_lifecycle.py", "plc_explain.py",\n                         "aiplc_paths.py", "business_registry.py", "shared_stock.py")'),
 )
 JEV_VERSION = (REPO / "experimental/jev/VERSION").read_text().strip()
 # A package version newer than the current one (same core prefix, exp number + 98), so version bumps

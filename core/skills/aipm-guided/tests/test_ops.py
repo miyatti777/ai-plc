@@ -14,12 +14,13 @@ def inventory(layer):
     return {str(p.relative_to(layer)):(hashlib.sha256(p.read_bytes()).hexdigest(),p.stat().st_mtime_ns) for p in sorted(Path(layer).rglob('*')) if p.is_file()}
 
 class Base(unittest.TestCase):
+    LAYOUT='nested_v1'   # the box_root_v1 subclasses (test_box_root_ops) set box_root_v1
     def setUp(self):self.temp=tempfile.TemporaryDirectory();self.base=Path(self.temp.name)
     def tearDown(self):self.temp.cleanup()
     def layer(self,name='L'):
         layer=self.base/name;root,c=reg.registers_fixture(layer);return layer,root
     def inp(self,layer,name,data):base.write_yaml(layer/'Context'/name,data);return 'Context/'+name
-    def rows(self,root,key,file=None):return package.load(root/'registers'/((file or key)+'.yaml'))[key]
+    def rows(self,root,key,file=None):return package.load(base.reg(root,file or key))[key]
     def receipt(self,layer,name='receipt_q.yaml',**over):
         r={'kind':'user_reported','actor':'actual_user','origin':'actual_user_reply','scope_id':'L-SYN-1','question_id':'Q1','received_at':'2026-10-23T10:00:00+09:00','question':'I1 をどう決めるか','answer':'synthetic'};r.update(over)
         return self.inp(layer,name,r)
@@ -63,13 +64,13 @@ class Ops(Base):
 
     def test_one_fixed_one_new_is_still_refused(self):
         layer,root=self.layer()
-        base.write_yaml(root/'registers/todo.yaml',{'todo':[{'id':'D1','title':'x','status':'todo','owner':'PM','wbs_id':'W98'}]})
+        base.write_yaml(base.reg(root,'todo'),{'todo':[{'id':'D1','title':'x','status':'todo','owner':'PM','wbs_id':'W98'}]})
         ref=self.inp(layer,'l.yaml',{'id':'D1','wbs_id':'W99'});before=inventory(layer);r=ops.run(layer,'todo.link',ref,apply=True)
         self.assertFalse(r['applied']);self.assertEqual(len(r['new_problems']),1);self.assertEqual(before,inventory(layer))   # W98 goes away, W99 appears: same count, still refused
 
     def test_writes_on_a_layer_right_after_init(self):
         layer=self.base/'init';layer.mkdir();(layer/'Context').mkdir()
-        base.write_yaml(layer/'intent.yaml',{'scope_id':'L-OPS','scope_name':'ops','work_style':'aipm','aipm':{'date':'2026-10-23','registers':True},'goal':{'description':'synthetic'}})
+        base.write_yaml(layer/'intent.yaml',{'scope_id':'L-OPS','scope_name':'ops','work_style':'aipm','aipm':{'layout':self.LAYOUT,'date':'2026-10-23','registers':True},'goal':{'description':'synthetic'}})
         root=Path(package.init(layer)['package'])
         whole=base.validate_package.validate(root,layer=layer);self.assertFalse(whole['pass'])   # E_MISSING is normal right after init
         r=ops.run(layer,'issue.add',self.inp(layer,'i.yaml',{'question':'合成の問い'}),apply=True)
@@ -83,7 +84,7 @@ class Ops(Base):
         with self.assertRaises(ValueError):ops.run(layer,'issue.resolve',self.inp(layer,'r3.yaml',{'id':'I1','answer':'x','evidence_refs':[self.receipt(layer)],'decided_by':'ai_proxy'}))
         with self.assertRaises(ValueError):ops.run(layer,'issue.resolve',self.inp(layer,'r4.yaml',{'id':'I1','answer':'x','evidence_refs':[self.decision(layer,decided_by='decider')],'decided_by':'owner'}))   # record differs
         row=lambda i:{'id':i,'question':'q','status':'open','priority':'high','owner':'PM','due':'undecided'}
-        base.write_yaml(root/'registers/issues.yaml',{'charter':{'change_conditions':['c'],'exit_conditions':['e']},'issues':[row('I1'),row('I2')]})
+        base.write_yaml(base.reg(root,'issues'),{'charter':{'change_conditions':['c'],'exit_conditions':['e']},'issues':[row('I1'),row('I2')]})
         with self.assertRaises(ValueError):ops.run(layer,'issue.resolve',self.inp(layer,'r6.yaml',{'id':'I2','answer':'x','evidence_refs':[self.receipt(layer)],'decided_by':'owner'}))   # the receipt is about I1
         with self.assertRaises(ValueError):ops.run(layer,'issue.resolve',self.inp(layer,'r7.yaml',{'id':'I2','answer':'x','evidence_refs':[self.decision(layer)],'decided_by':'owner'}))   # the record is about I1
         r=ops.run(layer,'issue.resolve',self.inp(layer,'r5.yaml',{'id':'I1','answer':'B 案','evidence_refs':[self.receipt(layer)],'decided_by':'owner'}),apply=True)
@@ -104,7 +105,8 @@ class Ops(Base):
         with self.assertRaises(ValueError):ops.run(layer,'todo.add',self.inp(layer,'u.yaml',{'title':'x','assignee':'誰か'}))   # unknown key
 
     def test_trial_sees_the_same_sources_as_the_real_layer(self):
-        layer=self.base/'repo/Flow/202610/2026-10-23/L';layer.parent.mkdir(parents=True);root,c=reg.registers_fixture(layer)   # under Flow: repo-relative sources are checked
+        layer=self.base/'repo/Flow/202610/2026-10-23/L';layer.parent.mkdir(parents=True);(self.base/'repo/Stock/programs/Sample').mkdir(parents=True)   # the flat layouts archive into the repository Stock
+        root,c=reg.registers_fixture(layer)   # under Flow: repo-relative sources are checked
         ref=self.inp(layer,'s.yaml',{'question':'出典の無い問い','sources':['nope/x.md']});before=inventory(layer)
         r=ops.run(layer,'issue.add',ref,apply=True)
         self.assertFalse(r['applied'],r);self.assertTrue(any('nope/x.md' in p['message'] for p in r['new_problems']));self.assertEqual(before,inventory(layer))
@@ -130,7 +132,7 @@ class Ops(Base):
         self.assertEqual(r['route'],'unselected');self.assertEqual(before,inventory(plain))
         held=self.base/'held';held.mkdir();base.write_yaml(held/'intent.yaml',{'scope_id':'L-HELD','work_style':'other','goal':{'description':'x'}})
         r=ops.run(held,'issue.add',None,apply=True);self.assertEqual((r['route'],r['pass']),('held',False))
-        layer,root=self.layer('missing');(root/'registers/todo.yaml').unlink()
+        layer,root=self.layer('missing');(base.reg(root,'todo')).unlink()
         r=ops.run(layer,'todo.add',None,apply=True);self.assertEqual(r['route'],'held');self.assertIn('registers files missing',r['reason'])
         with self.assertRaises(ValueError):ops.run(self.layer('unknown')[0],'issue.delete')
 
@@ -145,7 +147,7 @@ class Ops(Base):
         self.assertFalse(bad['pass']);self.assertIn('judge',bad['error'])
 
 class OpsRest(Base):
-    """pm-capture / pm-today / pm-persona / pm-story never write."""
+    """pm-suggest / pm-today / pm-persona / pm-story never write."""
     def unsave(self,root):
         m=package.load(root/'manifest.yaml')
         for r in m['records']:
@@ -167,8 +169,8 @@ class OpsRest(Base):
     def test_today_order(self):
         layer,root=self.layer();before_empty=ops.run(layer,'today.pick')
         self.assertIsNone(before_empty['pick'])
-        base.write_yaml(root/'registers/todo.yaml',{'todo':[{'id':'D1','title':'進行中','status':'doing','owner':'PM'},{'id':'D2','title':'遅れ','status':'todo','owner':'PM','due':'2026-10-01'}]})
-        base.write_yaml(root/'registers/issues.yaml',{'charter':{'change_conditions':['c'],'exit_conditions':['e']},'issues':[{'id':'I1','question':'q','status':'open','priority':'high','owner':'PM','due':'2026-10-25'}]})
+        base.write_yaml(base.reg(root,'todo'),{'todo':[{'id':'D1','title':'進行中','status':'doing','owner':'PM'},{'id':'D2','title':'遅れ','status':'todo','owner':'PM','due':'2026-10-01'}]})
+        base.write_yaml(base.reg(root,'issues'),{'charter':{'change_conditions':['c'],'exit_conditions':['e']},'issues':[{'id':'I1','question':'q','status':'open','priority':'high','owner':'PM','due':'2026-10-25'}]})
         ref=self.inp(layer,'d.yaml',{'today':'2026-10-23'});before=inventory(layer);r=ops.run(layer,'today.pick',ref)
         self.assertEqual((r['pick']['id'],r['reason']),('D2','期限を過ぎた ToDo'))
         self.assertEqual([c['reason'] for c in r['candidates']],['期限を過ぎた ToDo','7日以内が期限の論点','進行中の ToDo'])
@@ -197,14 +199,14 @@ class OpsRest(Base):
     def test_today_input_and_rows_without_id(self):
         layer,root=self.layer()
         with self.assertRaises(ValueError):ops.run(layer,'today.pick',self.inp(layer,'bad.yaml',{'today':'tomorrow'}))
-        base.write_yaml(root/'registers/todo.yaml',{'todo':[{'title':'id なし','status':'doing','owner':'PM'}]})
+        base.write_yaml(base.reg(root,'todo'),{'todo':[{'title':'id なし','status':'doing','owner':'PM'}]})
         self.assertIsNone(ops.run(layer,'today.pick')['pick'])
 
     def test_revise_stops(self):
         plain=self.base/'plain';plain.mkdir();base.write_yaml(plain/'intent.yaml',{'scope_id':'L-PLAIN','goal':{'description':'x'}})
         self.assertEqual(ops.run(plain,'story.revise')['route'],'unselected')
         layer=self.base/'init';layer.mkdir();(layer/'Context').mkdir()
-        base.write_yaml(layer/'intent.yaml',{'scope_id':'L-OPS','scope_name':'ops','work_style':'aipm','aipm':{'date':'2026-10-23','registers':True},'goal':{'description':'synthetic'}})
+        base.write_yaml(layer/'intent.yaml',{'scope_id':'L-OPS','scope_name':'ops','work_style':'aipm','aipm':{'layout':self.LAYOUT,'date':'2026-10-23','registers':True},'goal':{'description':'synthetic'}})
         package.init(layer);r=ops.run(layer,'persona.revise')
         self.assertEqual(r['route'],'held');self.assertIn('manifest',r['reason'])
         self.assertEqual(ops.run(plain,'today.pick')['route'],'unselected')
@@ -231,7 +233,7 @@ class PmInit(Base):
         D=self.midway('declined');rec.assess(D,{'version':1,'scope_id':'L-MID','conditions':{k:{'value':'yes','reason':'synthetic','evidence_refs':[{'path':'Context/facts.md','sha256':ref['sha256']}]} for k in rec.CONDITIONS},'recommendation_reason':'synthetic'},'normal',apply=True)
         sd=rec.Store(D).state
         rec.respond(D,dict(reply('通常方式で進める'),question_id=sd['question']['id'],target_path=sd['snapshot'],target_sha256=sd['snapshot_sha256']),apply=True)
-        self.assertEqual(self.status(D)['state'],'declined')
+        self.assertEqual(self.status(D)['state'],'light')   # declining AIPM records AIPM ライトモード (the method is required)
         rec.respond(L,reply('AIPM方式で進める'),apply=True)
         r=self.status(L);self.assertEqual(r['state'],'selected_not_initialized')
         it=package.load(L/'intent.yaml');it['aipm']={'date':'2026-10-23','course':'document_based/single_persona','registers':True};base.write_yaml(L/'intent.yaml',it)
@@ -258,9 +260,10 @@ class PmInit(Base):
         (L/'Context/facts.md').write_text('changed\n');self.assertEqual(self.status(L)['state'],'stale_recommendation')
         S=self.midway('sel',addons=[{'addon_id':'aipm','source':'bundled','addon_version':'2.0'}],aipm={'date':'2026-10-23','registers':True});package.init(S)
         base.write_yaml(S/'backlog.yaml',{'tasks':[{'id':'T1','status':'completed','output':['../outside.md','/abs/x.md','Documents/T001.md']},
-                                                  {'id':'T2','status':'completed','output':'Documents/aipm_project_old/x.md'}]})
-        r=self.status(S);self.assertEqual(r['state'],'initialized_no_tasks');self.assertEqual(r['import_candidates'],['Documents/T001.md'])   # prefix-only names are not the package
-        base.write_yaml(S/'backlog.yaml',{'tasks':[{'id':'T3','status':'pending','output':'./Documents/aipm_project/x.md'}]})
+                                                  {'id':'T2','status':'completed','output':'Documents/aipm_project_old/x.md'},
+                                                  {'id':'T4','status':'completed','output':package.build_contract(S)['package_root']+'_old/x.md'}]})
+        r=self.status(S);self.assertEqual(r['state'],'initialized_no_tasks');self.assertEqual(r['import_candidates'],['Documents/T001.md'])   # prefix-only names are not the package (of either layout)
+        base.write_yaml(S/'backlog.yaml',{'tasks':[{'id':'T3','status':'pending','output':'./'+package.build_contract(S)['package_root']+'/x.md'}]})   # the package of this (default) layout
         self.assertEqual(self.status(S)['state'],'running')
         (S/'backlog.yaml').write_text('tasks: [unclosed');self.assertEqual(self.status(S)['state'],'held')
         base.write_yaml(S/'backlog.yaml',['not','a','map']);self.assertEqual(self.status(S)['state'],'held')

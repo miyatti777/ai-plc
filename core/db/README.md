@@ -15,8 +15,9 @@ AI-PLC は、プロジェクト横断の台帳とタスクをローカル SQLite
 インストーラが自動で実行します。手動なら:
 
 ```bash
-python3 .claude/db/init_db.py            # 空DBを作成（.claude/db/ai_plc.db。新しく作るときだけタスク同期を凍結）
-python3 .claude/db/init_db.py --reset    # 作り直す
+python3 .claude/db/init_db.py --allow-production            # 空DBを作成（.claude/db/ai_plc.db。新しく作るときだけタスク同期を凍結）
+python3 .claude/db/init_db.py --allow-production --reset    # 作り直す
+python3 .claude/db/init_db.py --db /tmp/try.db               # 別の DB で試す
 ```
 
 既存の DB に `init_db.py` を流しても、スキーマを保証するだけで凍結の印は足しません。

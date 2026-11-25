@@ -4,7 +4,7 @@
 
 ## 同梱のアドオン（目録）
 
-- 本体に同梱のアドオンは [addon-catalog.yaml](addon-catalog.yaml)（目録）に載る。今は aipm（同梱の PM アドオン）の1行だけ。顧客専用（持ち込み・case）の行は目録に書かない。形の正本は [addon-seam-contract_v0.5.yaml](addon-seam-contract_v0.5.yaml)（v0.4 に目録の `operations` 欄を足したもの。v0.1〜v0.4 は変えない）。目録の行の `operations` に、その方式の箱の中の操作を書く（aipm は pm- 8本）。
+- 本体に同梱のアドオンは [addon-catalog.yaml](addon-catalog.yaml)（目録）に載る。今は aipm（同梱の PM アドオン）と aipm-light（AIPM ライトモード。方式の答えが無いときの既定）の2行。方式（組 work_method）は必須で、意味は addon-seam-contract_v0.6.yaml の none_allowed・default_addon。顧客専用（持ち込み・case）の行は目録に書かない。形の正本は [addon-seam-contract_v0.6.yaml](addon-seam-contract_v0.6.yaml)（v0.5〔v0.4 に目録の `operations` 欄を足したもの〕に、組の `default_addon` と none_allowed の意味、判定結果の method_required・method_missing・default_method を足したもの。v0.1〜v0.5 は変えない）。目録の行の `operations` に、その方式の箱の中の操作を書く（aipm は pm- 8本）。
 - 選ばれているかは判定関数 `.claude/skills/ai-plc/scripts/plc_addon_select.py` の `selected_addons`（読むだけ）で決める。旧い欄 `work_style: aipm` は同梱の aipm を選んだものとして読み、intent は書き換えない（目録の `legacy_alias`）。両方あれば同じ選択。`work_style` が別の値、又は同梱の aipm と食い違えば Hold。
 - `source: bundled` は目録にある addon_id だけ有効。目録に無い addon_id、又は guide_ref・forms など case の欄が付いた件は Hold。同じ排他の組（work_method）から2件、又は組の宣言（common の ADDON_PROFILE ブロック）の無い持ち込みと同梱の aipm が一緒なら Hold。
 - 同梱でも選択の照合は残す（Context/ の selection の記録と、同梱の1件の `selection_ref`。旧い Layer は `work_style_source`）。照合できない旧い Layer も選ばれたものとして読み、`selection_verified: false` を返す（照合ではなく、認証でもない）。

@@ -35,7 +35,8 @@ python3 .claude/db/sync.py tasks-sync --unfreeze --approved-by NAME             
 
 - `NOTION_API_TOKEN` 環境変数が設定済みであること（pull / push / sync / status。`tasks-sync` は Notion を呼ばない）
 - 同期先の Notion DB ID を `AI_PLC_PROJECTS_DB_ID`（タスク同期が凍結されていなければ `AI_PLC_TASKS_DB_ID` も）で指定すること
-- `.claude/db/ai_plc.db` が存在すること（なければ `python3 .claude/db/init_db.py` で作成）
+- Notion の DB に識別子の列があること（v2.0.0〜）。Projects に `Sync UID`・`Workspace ID`（テキスト）と `Ownership Epoch`・`Identity Version`（数値）、Tasks に `Project Sync UID`・`Workspace ID`（テキスト）と `Project Ownership Epoch`・`Identity Version`（数値）。無いと `pull`・`push`・`sync` は `SCHEMA_MISMATCH`（exit 3）で止まる。先に `python3 .claude/db/sync.py preflight` で確かめる。v1.14.0 までの DB は `sync.py adopt-existing --dry-run` で移行の計画を確かめてから進める
+- `.claude/db/ai_plc.db` が存在すること。無いときだけ、ユーザーの了承を得て `python3 .claude/db/init_db.py --allow-production` で作成する（`--allow-production` が無いと、まだ無い本番の DB でも開く前に `INIT_DB_PRODUCTION_WRITE_FORBIDDEN`〔exit 3〕で止まる。使い方の確認は `--help`、試すときは `--db <一時パス>`）
 
 ## Agent Rules
 
@@ -49,7 +50,7 @@ python3 .claude/db/sync.py tasks-sync --unfreeze --approved-by NAME             
 - **Push**: `updated_at > last_sync_at` の行を検出 → Notion API で PATCH/POST
 - **Conflict**: Pull時にローカルも変更されている行は CONFLICT としてスキップ（安全側）
 - **タスク同期の凍結中**: pull / push / sync / status は Projects だけを扱い、tasks テーブルにも Notion の Tasks DB にも触れない。凍結の記録が壊れていると pull / push / sync / status は止まる（exit 3）。記録は手で直さず報告する
-- **Project の cancelled**: 中止の metadata（理由・判断）の Notion への同期は未対応（RUL_plc_system §21）。中止・再開は `plc-project-status` で扱う
+- **Project の cancelled**: 中止の metadata（理由・判断）の Notion への同期は未対応（RUL_plc_system §21）。中止・再開は `plc-lifecycle` で扱う
 
 ## Data Model
 
@@ -68,7 +69,7 @@ python3 .claude/db/sync.py tasks-sync --unfreeze --approved-by NAME             
 ## Related Files
 
 - `.claude/db/ai_plc.db` — SQLite DB本体
-- `.claude/db/init_db.py` — スキーマ作成（新しい DB はタスク同期を凍結済みで作る）
+- `.claude/db/init_db.py` — スキーマ作成（新しい DB はタスク同期を凍結済みで作る。本番の DB は `--allow-production` を付けたときだけ書く）
 - `.claude/db/plc_query.py` — ローカルクエリヘルパー
 - `.claude/db/sync.py` — 同期エンジン
 - `.claude/db/README.md` — ドキュメント

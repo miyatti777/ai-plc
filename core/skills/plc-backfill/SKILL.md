@@ -9,6 +9,8 @@ description: AI-PLCのスキル（/04-operation 等）を通さずに済ませ�
 
 **アドオンの前置判定（持ち込みのアドオンがある Layer だけ）:** 対象 Layer の intent の `addons` に、目録（[addon-catalog.yaml](../ai-plc/references/addon-catalog.yaml)）にある同梱の件（`source: bundled`）以外の件が1件でもあるときだけ（判定関数 `.claude/skills/ai-plc/scripts/plc_addon_select.py` の `has_case_addons` とおおむね同じ。判定関数で held になる形も前置判定の側に倒す）、[addon-seam.md](../ai-plc/references/addon-seam.md) の「現在依頼の読取境界を最初に判定する」「全入口の前置条件」を最初に適用し、必要なら `.claude/skills/ai-plc/scripts/plc_addon.py` を実呼出する。addons の中身は、既に許可された intent 読取の範囲内でだけ確認する。addons の無い Layer（既定）と、同梱の PM アドオンだけの Layer（旧い欄 `work_style: aipm` を含む）では Hold 判定をせず本来の手順から始める。ただし本人が今回の依頼で「全体 no-write / trial」を明示している場合は、addons の有無によらず書込前に止めて確認する。
 
+**方式の確かめ:** 対象 Layer が決まったら、書き込みの前に `python3 -B .claude/skills/ai-plc/scripts/plc_addon_select.py --layer <Layer> --require-method`（持ち込みの件があるときは `--read-root <実許可root>`、scope: common なら `--common-root <root>` も付ける）を1回呼ぶ。`hold_reasons` に `method_required` があれば止めて、01-collection のPhase 7 の手順5（方式の記録）へ案内する。ほかの理由で `held` のときも `hold_reasons` を出して止まる。方式は自動では書かない。中止（cancelled）の Layer は方式の記録へ案内せず、中止のまま記録する（RUL_plc_system §21）。
+
 ## 何をするスキルか
 
 - 急いでいるときなどに、スキルを通さず頼んで**済んだ**作業を、あとから Layer の記録に載せる
@@ -60,7 +62,7 @@ description: AI-PLCのスキル（/04-operation 等）を通さずに済ませ�
 | --- | --- |
 | 済んだ小さな作業（1回・1時間程度）で、日次の記録で十分 | あなたの日次の記録へ（AI-PLC の範囲外） |
 | 続きがあり、複数タスク・複数日になる | `/01-collection` で新しい Layer を作り、そのあと `/plc-backfill <新Layer>` で済んだ分を記録 |
-| 作業中に「将来やりたいこと」が出ただけ | `/plc-someday <内容>` |
+| 作業中に「将来やりたいこと」が出ただけ | `/ppm-someday <内容>` |
 | 続きの小さなタスクが残った | あなたの TODO 管理へ（AI-PLC の範囲外） |
 
 ### 3. Layer を読み、足し方を決める

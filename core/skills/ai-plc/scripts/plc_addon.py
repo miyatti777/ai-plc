@@ -162,6 +162,37 @@ def _held(reason, coverage):
             "execution_note": "実施：案内保留（Task未実行・試行未実施）", "source_refs": []}
 
 
+def _execution_gate():
+    """plc_execution.py holds the only work_budget_v1 judgement. It lives in the plc-auto skill
+    (.claude/skills/plc-auto/scripts); a copy next to this file is used first when present."""
+    import importlib
+    import sys
+    try:
+        if __package__:
+            try:
+                return importlib.import_module(__package__ + ".plc_execution")
+            except ImportError:
+                pass
+        here = Path(__file__).resolve().parent
+        for folder in (here, here.parents[1] / "plc-auto" / "scripts"):   # .claude/skills/ai-plc/scripts, .claude/skills/plc-auto/scripts
+            if (folder / "plc_execution.py").is_file():
+                if str(folder) not in sys.path:
+                    sys.path.insert(0, str(folder))
+                break
+        return importlib.import_module("plc_execution")
+    except ImportError as exc:
+        raise Held("execution gate unavailable: " + type(exc).__name__ + ": " + str(exc))
+
+
+def _work_budget_verdict(budget, now):
+    """None when a work_budget_v1 budget permits work now, else (decision, reason). Bad records hold."""
+    gate = _execution_gate()
+    try:
+        return gate.work_budget_verdict(budget, now)
+    except (KeyError, ValueError, TypeError, AttributeError) as exc:
+        return ("hold", "work budget accounting invalid: " + type(exc).__name__ + ": " + str(exc))
+
+
 def _next(layer, backlog, approved_ids, now, roots, executor="codex"):
     """Only currently caller-authorized, pending, unblocked tasks may be offered."""
     tasks = backlog.get("tasks", [])
@@ -176,16 +207,22 @@ def _next(layer, backlog, approved_ids, now, roots, executor="codex"):
     usable = False
     if (contract.get("status") == "running" and contract.get("authorization_scope") == "end_to_end"
             and budget.get("status") == "running" and not contract.get("runner")):
-        try:
-            deadline = dt.datetime.fromisoformat(budget["deadline"].replace("Z", "+00:00"))
-            started = dt.datetime.fromisoformat(budget["started_at"].replace("Z", "+00:00"))
-            usable = (deadline.tzinfo is not None and started.tzinfo is not None
-                      and started <= now < deadline and contract.get("budget_id") == budget.get("budget_id"))
-            reserve = budget.get("recording_reserved_from")
-            if reserve and now >= dt.datetime.fromisoformat(reserve.replace("Z", "+00:00")):
+        if "time_policy" in budget:
+            # work_budget_v1 uses plc_execution's judgement; unknown policies are unusable.
+            usable = (budget.get("time_policy") == "work_budget_v1"
+                      and contract.get("budget_id") == budget.get("budget_id")
+                      and _work_budget_verdict(budget, now) is None)
+        else:
+            try:
+                deadline = dt.datetime.fromisoformat(budget["deadline"].replace("Z", "+00:00"))
+                started = dt.datetime.fromisoformat(budget["started_at"].replace("Z", "+00:00"))
+                usable = (deadline.tzinfo is not None and started.tzinfo is not None
+                          and started <= now < deadline and contract.get("budget_id") == budget.get("budget_id"))
+                reserve = budget.get("recording_reserved_from")
+                if reserve and now >= dt.datetime.fromisoformat(reserve.replace("Z", "+00:00")):
+                    usable = False
+            except (KeyError, ValueError, TypeError):
                 usable = False
-        except (KeyError, ValueError, TypeError):
-            usable = False
     states = {t["id"]: t.get("status") for t in tasks}
     for task in tasks:
         if (not usable or task["id"] not in approved_ids or task.get("status") != "pending"
@@ -519,12 +556,20 @@ def task_inputs(layer, *, allowed_roots, verified_selections=(), common_root=Non
                     or budget.get("status") != "running" or not budget.get("budget_id")
                     or contract.get("budget_id") != budget["budget_id"]):
                 raise Held("current Task approval/contract mismatch")
-            start = dt.datetime.fromisoformat(budget["started_at"].replace("Z", "+00:00"))
-            stop = dt.datetime.fromisoformat(budget["deadline"].replace("Z", "+00:00"))
-            if not start <= instant < stop:
-                raise Held("current finite allocation unavailable")
-            if budget.get("recording_reserved_from") and instant >= dt.datetime.fromisoformat(budget["recording_reserved_from"].replace("Z", "+00:00")):
-                raise Held("recording-only reserve reached")
+            if "time_policy" in budget:
+                # work_budget_v1: deadline role, cumulative ceiling and accounting from plc_execution.
+                if budget.get("time_policy") != "work_budget_v1":
+                    raise Held("unknown time policy; preserve mandatory legacy deadline")
+                verdict = _work_budget_verdict(budget, instant)
+                if verdict is not None:
+                    raise Held("work budget " + verdict[0] + ": " + verdict[1])
+            else:
+                start = dt.datetime.fromisoformat(budget["started_at"].replace("Z", "+00:00"))
+                stop = dt.datetime.fromisoformat(budget["deadline"].replace("Z", "+00:00"))
+                if not start <= instant < stop:
+                    raise Held("current finite allocation unavailable")
+                if budget.get("recording_reserved_from") and instant >= dt.datetime.fromisoformat(budget["recording_reserved_from"].replace("Z", "+00:00")):
+                    raise Held("recording-only reserve reached")
         if stage == "operation":
             states = {t["id"]: t.get("status") for t in tasks}
             deps = task.get("dependencies", [])
