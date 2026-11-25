@@ -25,6 +25,7 @@ description: AI-PLCの Registry ビューア（ブラウザで Project 一覧・
 
 ## 注意
 
-- **書き込み（status の変更）ができるのは Jev 実験版（`--with-jev`）も入っているときだけ。** 無ければ閲覧のみ（起動時に `mode: readonly（理由）` と出る）
-- 画面から status を変えると **`intent.yaml`・`backlog.yaml`・Registry の3か所**が書き換わる（順番と値は README の「status を変えると何が書き換わるか」）。変更するかは人が決め、確認ダイアログの内容を読んでから押す。試す前にバックアップを取る（README の手順）
+- **閲覧専用（0.3.0-alpha〜）。** 画面から status は変えられない。Project の中止・再開は `/plc-lifecycle`、タスクの進行は各 Stage（`/04-operation` など）で行う。0.2.x の古いコピーが入っていれば、README の手順で入れ直すよう伝える
+- 食い違い・機密判定は Jev 実験版（`--with-jev`）の `aiplc_status_audit.py` があるときだけ出る。無くても一覧・詳細は見られる（起動時に `mode: readonly（理由）` と出る）
+- Program 別の表示は、業務Project の表（`business_registry.py init`）があり、DB が Identity v2.0 のときだけ出る（README の「Program 別の表示」）
 - 行の追加・削除や Notion 同期（`/plc-db-sync`）はできない。常駐しないので、使い終わったら止める
