@@ -789,17 +789,18 @@ python3 .claude/db/sync.py sync     # 双方向同期
 
 ### 画面で見る（アルファ版: `experimental/registry-viewer/`）
 
-Registry をブラウザで一覧（親子のツリー・status・進捗率）し、Project と Task の status を変えられるローカル専用のビューアを、**アルファ版**として置いています。installer の対象外なので、プロジェクトに手でコピーして使います。
+Registry をブラウザで一覧（親子のツリー・status・進捗率）できる、ローカル専用・閲覧専用のビューアを、**アルファ版**として置いています（0.3.0-alpha。v2.2.0〜）。installer の対象外なので、プロジェクトに手でコピーして使います。
 
 ```bash
 cp -R experimental/registry-viewer <プロジェクト>/.claude/db/registry_viewer
 cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http://127.0.0.1:8765/
 ```
 
-- core だけの環境では**閲覧のみ**、Jev 実験版（`--with-jev`）を入れた環境では status の変更やステータス点検の指摘も使えます
-- status を変えると Layer のファイルと Registry の両方を書き換えます。試す前にバックアップを取ってください（手順と、書き換わる範囲・戻し方は [`experimental/registry-viewer/README.md`](experimental/registry-viewer/README.md)）
-- 0.2.1-alpha から、タスク同期を凍結した DB（v1.12.0 以降の新しい DB）では Registry の tasks を読まず・書かず、タスクは backlog.yaml だけで扱います
-- 0.2.0-alpha から、各 Project に分類（所属・種類・実行環境）を付けて、一覧のバッジと絞り込みで見分けられます（`classify.py`。手順は同じ README の「分類」）
+- **0.3.0-alpha から閲覧専用です。** 画面から Project や Task の status は変えられません。変えるときは `/plc-lifecycle`（中止・再開）や各 Stage の実行で行います。Jev 実験版（`--with-jev`）を入れた環境では、ステータス点検の指摘も表示します
+- 中止した Project（cancelled）を絞り込みと件数に出し、中止の記録を詳細に表示します。運用タスク（`recurrence`）は進捗から外し、タスクの表に実行時期と期限を出します
+- 一覧を、作業記録（backlog・context）の更新が新しい順に並べられます（更新順・開始日順・ID 順）
+- 業務プロジェクトの表（`python3 .claude/db/business_registry.py`）を作ってある DB では、Program・業務プロジェクトごとに案件をまとめて見られます（前提と手順は [`experimental/registry-viewer/README.md`](experimental/registry-viewer/README.md) の「Program 別の表示」）
+- 各 Project に分類（所属・種類・実行環境）を付けて、一覧のバッジと絞り込みで見分けられます（`classify.py`。手順は同じ README の「分類」）
 - macOS のメニューバーアプリのソース（自分でビルドする）も同梱しています。試した結果の報告は Issue で歓迎します
 
 ### 進み具合と YAML を画面で見る（アルファ版: `experimental/backlog-live/`・`experimental/yaml-viewer/`。v2.1.0〜）
@@ -838,7 +839,7 @@ cd <プロジェクト> && python3 tools/YamlViewer/server.py    # http://127.0.
 | `ppm-registry` | Project Registry（`.claude/db/ai_plc.db`）の照会と追加 | いつでも |
 | `plc-db-sync` | ローカル DB ⇔ Notion DB の同期（旧 `ai-plc-db-sync`） | Notion の設定をしたとき |
 | `ppm-audit` | ステータス点検（intent・backlog・Registry の食い違いの洗い出しと、承認した行だけの反映） | 実験版（`--with-jev`）を入れたとき |
-| `ppm-viewer` | Registry ビューア（ブラウザ）の起動・停止 | `experimental/registry-viewer` を手でコピーしたとき（status の変更は実験版も入れたときだけ。無ければ閲覧のみ） |
+| `ppm-viewer` | Registry ビューア（ブラウザ）の起動・停止 | `experimental/registry-viewer` を手でコピーしたとき（閲覧専用。ステータス点検の指摘の表示は実験版も入れたときだけ） |
 | `plc-consult` | アイデア相談。「ここをこうしたい」を今の Layer と照らして 却下／今のタスク内で修正／Re-Inception／Re-Collection／いつかやる に振り分け、所感と次に打つコマンドを返す（読み取り専用。v1.10.0〜） | いつでも |
 | `plc-auto` | 固定本文をnative Goalに設定し、この会話のLayerを自動完走する専用入口（v1.13.0〜）。表示名も `plc-auto` | 利用者の明示実行・Goal管理ツールが利用可能。使えない場合は未設定で停止して `/goal` を案内（[詳細](docs/plc-auto.md)） |
 | `plc-backfill` | スキル外作業の事後記録。スキルを通さずに済ませた作業を、承認を得てから対象 Layer の backlog に ad-hoc タスクとして足し、04-operation の Phase 5.5〜7（検証・ステータス更新・Propagation）を通す（v1.11.0〜） | いつでも |
@@ -927,7 +928,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 ./install.sh --target /path/to/your/project cc --with-jev
 ```
 
-- 現在のcheckoutでは core も同時に 2.1.0 に上がります。上がったかどうかは、`.ai-plc-version` が `2.1.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
+- 現在のcheckoutでは core も同時に 2.2.0 に上がります。上がったかどうかは、`.ai-plc-version` が `2.2.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
 - `--with-jev` を付けずに更新すると、core だけが上がり、実験版は前の版のまま残ります。前の版の実験版スキルは core 1.8.1 の時点のもので、Construction を既定で省く変更と自動完走（/goal）に対応していないので、実験版も一緒に上げてください
 - 1.12.0-exp.2 を入れた後に、前の実験版を配る checkout の installer で `--with-jev` を付けると、`[CONFLICT] component downgrade refused: experimental_jev` などの行を出して止まり、何も書き換えません。前の版に戻したいときは、今の checkout で `uninstall.sh cc` してから、前の版の checkout で入れ直します
 
@@ -935,7 +936,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 
 - **会話監視 hook と成功条件カバー判定を凍結しました。** `/02-inception-jev` はカバー判定を呼ばず（`jev_monitor: true` でも）、`/02-inception-jev`・`/03-construction-jev`・`/04-operation-jev` の会話監視の案内は「登録しない（登録済みなら外してよい）」に変えました。スクリプトは残しますが更新しません。Backtrack の異常ヒント（`/04-operation-jev` の 5.5b・6b）とステータス点検は変わりません
 - **`KNOWN_RELEASES.sha256`:** 1.12.0-exp.1 の配布物のハッシュを足しました
-- この実験版リリースでは Python のコードと installer の処理は変えていません。現在のcoreは2.1.0ですが、この実験版はcore 1.12.0時点のままです
+- この実験版リリースでは Python のコードと installer の処理は変えていません。現在のcoreは2.2.0ですが、この実験版はcore 1.12.0時点のままです
 
 それより前の変更（1.12.0-exp.1 など）は CHANGELOG にあります。
 

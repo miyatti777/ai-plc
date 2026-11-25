@@ -1,35 +1,29 @@
 #!/usr/bin/env python3
-"""AI-PLC Registry ビューア（alpha）— ローカル専用の閲覧・status 変更サーバ。
+"""AI-PLC Registry ビューア（alpha）— ローカル専用の閲覧サーバ。
 
     python3 .claude/db/registry_viewer/server.py [--port 8765] [--no-browser] [--db PATH] [--root PATH]
 
-- aiplc_status_audit.py と plc_query.py が見つかればフル機能、無ければ閲覧のみ（find_dependencies）
-
 - 127.0.0.1 でだけ待ち受ける。外部送信・CDN なし
-- 読み取り: Registry（ai_plc.db を読み取り専用で開く）と、scripts/aiplc_status_audit.audit()（Layer の場所・食い違い）
-- 書き込み: status だけ。Layer ファイル（intent.yaml / backlog.yaml）→ Registry の順（status_audit --apply と同じ）。
-  行の追加はしない。変更前の値（expected）が1つでも違えば何も書かない（409）
+- 読み取り: Registry（ai_plc.db を読み取り専用で開く）と Layer の intent.yaml / backlog.yaml。
+  aiplc_status_audit.py が見つかれば、その audit()（Layer の場所・食い違い・機密判定）も使う
+- 閲覧専用: 状態を変える HTTP API は無い（GET / HEAD 以外は 405）。status の変更は /plc-lifecycle や
+  各 Stage の実行（/04-operation など）で行う
 """
 from __future__ import annotations
 
 import argparse
-import contextlib
-import copy
 import hashlib
 import importlib.util
-import io
 import json
 import os
 import re
 import secrets
-import shutil
 import sqlite3
 import sys
-import tempfile
 import threading
+import time
 import webbrowser
 from datetime import date, datetime
-from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -38,8 +32,14 @@ import yaml
 sys.dont_write_bytecode = True
 
 HERE = Path(__file__).resolve().parent
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+import project_activity  # noqa: E402
+
 STATIC = HERE / "static"
 VERSION = ((HERE / "VERSION").read_text(encoding="utf-8").strip() if (HERE / "VERSION").is_file() else "dev")
+LIST_CACHE_SECONDS = 15.0
+READONLY_MESSAGE = "閲覧専用です（status の変更は /plc-lifecycle や各 Stage の実行で行います）"
 
 
 DB_DIRS = (Path(".claude") / "db", Path(".cursor") / "db")  # Claude Code / Cursor の配置
@@ -53,14 +53,34 @@ def find_root(start: Path = HERE):
     return None
 
 
+def _aiplc_paths():
+    """DB の場所の共通関数 aiplc_paths.py。プロジェクトに置いたときは隣のフォルダ（.claude/db/）、
+    公開リポの checkout では core/db/ にある。見つからない・読み込めないときは None（隣の DB で動く）"""
+    for p in (HERE.parent / "aiplc_paths.py", HERE.parents[1] / "core" / "db" / "aiplc_paths.py"):
+        if p.is_file():
+            try:
+                return _load("_rv_aiplc_paths", p)
+            except Exception:  # noqa: BLE001  (古い版・壊れたファイル)
+                return None
+    return None
+
+
 def default_db(root: Path) -> Path:
+    paths = _aiplc_paths()  # .ai-plc/config.yaml の db_path や、worktree から開いたときの本体の DB を見る
+    if paths is not None:
+        try:
+            r = paths.resolve_db(root, env={})
+            if r.source != "script" and Path(r.path).is_file():
+                return Path(r.path)
+        except Exception:  # noqa: BLE001  (git が無いなど。今までどおり隣の DB を使う)
+            pass
     return next((root / d / "ai_plc.db" for d in DB_DIRS if (root / d / "ai_plc.db").is_file()),
                 root / DB_DIRS[0] / "ai_plc.db")
 
 
-# ビューアが status_audit から使うもの。1つでも欠けていれば（古い版・別の版）閲覧のみにする
-AUDIT_API = ("audit", "Layer", "Confidential", "hash_id", "task_vocab", "detect_task_vocab", "reg_task_target", "norm",
-             "read_yaml_status", "write_yaml_status", "_replace_value", "sql_lit", "open_ro")
+# ビューアが status_audit から使うもの。1つでも欠けていれば（古い版・別の版）使わない
+AUDIT_API = ("audit", "Layer", "Confidential", "hash_id", "task_vocab", "detect_task_vocab",
+             "reg_task_target", "norm", "open_ro")
 
 
 REPO = find_root()  # 見つからなければ None（main は --root / --db の指定を求める）
@@ -68,7 +88,7 @@ REPO = find_root()  # 見つからなければ None（main は --root / --db の
 
 def find_dependencies(root: Path):
     """(audit_path or None, plc_path or None, reason or None)。
-    環境変数で指定したのに無いファイルは FileNotFoundError（打ち間違いで黙って閲覧のみにならないように）"""
+    環境変数で指定したのに無いファイルは FileNotFoundError（打ち間違いで黙って表示が減らないように）"""
     def pick(env, candidates):
         v = os.environ.get(env)
         if v:
@@ -79,19 +99,16 @@ def find_dependencies(root: Path):
     audit = pick("AIPLC_STATUS_AUDIT", [root / "scripts" / "aiplc_status_audit.py",
                                         root / ".claude" / "ai-plc-jev" / "scripts" / "aiplc_status_audit.py"])
     plc = pick("AIPLC_PLC_QUERY", [root / d / "plc_query.py" for d in DB_DIRS])
-    missing = [n for n, v in (("aiplc_status_audit.py", audit), ("plc_query.py", plc)) if v is None]
-    return audit, plc, (f"{'・'.join(missing)} が見つからないため閲覧のみ" if missing else None)
+    return audit, plc, (None if audit else "aiplc_status_audit.py が見つからないため、食い違い・機密判定は出ません")
+
+
 ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
 
-PROJECT_CHOICES = {  # 画面の値 -> (intent に書く値, Registry に書く値)
-    "active": ("active", "active"),
-    "completed": ("completed", "completed"),
-    "paused": ("deferred", "paused"),
-}
 # intent の値 -> 一致とみなす Registry の値（status_audit が食い違いと判定しない組み合わせに合わせる）
 INTENT_REGISTRY_OK = {"active": {"active"}, "completed": {"completed"}, "done": {"completed"},
                       "deferred": {"paused"}, "blocked": {"active"}, "pending": {"planned", "active"},
-                      "pending_init": {"planned", "active"}, "pending_inception": {"planned", "active"}}
+                      "pending_init": {"planned", "active"}, "pending_inception": {"planned", "active"},
+                      "cancelled": {"cancelled"}, "paused": {"paused"}}
 
 
 def status_mismatch(layer, reg_status):
@@ -99,7 +116,8 @@ def status_mismatch(layer, reg_status):
         return False
     ok = INTENT_REGISTRY_OK.get(str(layer.status or ""))
     return ok is not None and reg_status not in ok
-TASK_CHOICES = ("pending", "in_progress", "completed", "blocked", "deferred", "cancelled")
+
+
 TASK_DONE = frozenset({"completed", "done", "完了"})
 TASK_EXCLUDED = frozenset({"cancelled", "dropped", "deferred"})
 
@@ -124,7 +142,7 @@ def _yaml(path: Path) -> dict:
 
 def _registry_tasks_frozen(conn):
     """`sync.py tasks-sync --freeze`（または core 1.12.0 以降の新しい DB）でタスク同期が凍結されていれば、
-    Registry の tasks テーブルは古い写しで、タスクの正は backlog.yaml だけ（読まない・書かない）"""
+    Registry の tasks テーブルは古い写しで、タスクの正は backlog.yaml だけ（読まない）"""
     try:
         return conn.execute(
             "SELECT 1 FROM _metadata WHERE key='task_sync_frozen'").fetchone() is not None
@@ -133,7 +151,7 @@ def _registry_tasks_frozen(conn):
 
 
 class _ReadonlyAudit:
-    """aiplc_status_audit が無い環境用の最小の代替（読み取りだけ）。書き込み・食い違い検出・機密判定はしない"""
+    """aiplc_status_audit が無い環境用の最小の代替（読み取りだけ）。食い違い検出・機密判定はしない"""
     SKIP = frozenset({"Documents", "node_modules", "__pycache__", "venv", "site-packages"})
     TERMINAL = frozenset({"completed", "done", "cancelled", "dropped", "完了"})
 
@@ -166,8 +184,9 @@ class _ReadonlyAudit:
             self.status = _ReadonlyAudit.norm(self.status_raw)
             raw = self.backlog.get("tasks")
             self.raw_tasks = [t for t in raw if isinstance(t, dict)] if isinstance(raw, list) else []
+            # 運用タスク（recurrence）は tasks・open から外し、raw_tasks にだけ残す（進捗に数えない）
             self.tasks = [(str(t.get("id", t.get("task_id")) or "").strip() or None, _ReadonlyAudit.norm(t.get("status")),
-                           t.get("completed_at")) for t in self.raw_tasks]
+                           t.get("completed_at")) for t in self.raw_tasks if not t.get("recurrence")]
             self.open = sum(1 for _, st, _ in self.tasks if st not in _ReadonlyAudit.TERMINAL and st != "deferred")
             summary = self.backlog.get("summary")
             self.summary_has_status = isinstance(summary, dict) and "status" in summary
@@ -224,156 +243,22 @@ class _ClassifiedConfidential:
 
 
 class WriteError(Exception):
+    """HTTP の応答コードつきのエラー（名前は以前の版との互換のため）"""
+
     def __init__(self, code: int, message: str, **extra):
         super().__init__(message)
         self.code, self.message, self.extra = code, message, extra
 
 
-# ---------------------------------------------------------------- backlog task status 1行書き換え
-_ITEM_RE = re.compile(r"^(?P<ind>[ \t]*)-[ \t]+(?P<key>[A-Za-z_][\w-]*)[ \t]*:")
-_KEY_RE = re.compile(r"^(?P<ind>[ \t]*)(?P<key>[A-Za-z_][\w-]*)[ \t]*:")
-
-
-def _task_blocks(lines):
-    """[(start, end, keycol)] for every block-mapping list item (`- key: ...`)."""
-    out = []
-    for i, line in enumerate(lines):
-        m = _ITEM_RE.match(line)
-        if not m:
-            continue
-        ind = len(m.group("ind"))
-        keycol = m.start("key")
-        j = i + 1
-        while j < len(lines):
-            s = lines[j].strip()
-            if s and not s.startswith("#"):
-                cur = len(lines[j]) - len(lines[j].lstrip(" \t"))
-                if cur <= ind:
-                    break
-            j += 1
-        out.append((i, j, keycol))
-    return out
-
-
-def _keys_in_block(lines, start, end, keycol):
-    """{key: line_index} for keys that sit exactly at keycol (the dash line counts)."""
-    keys = {}
-    m = _ITEM_RE.match(lines[start])
-    keys.setdefault(m.group("key"), []).append(start)
-    for j in range(start + 1, end):
-        km = _KEY_RE.match(lines[j])
-        if km and len(km.group("ind")) == keycol:
-            keys.setdefault(km.group("key"), []).append(j)
-    return keys
-
-
-def _scalar(line, key):
-    m = re.match(r"^[ \t]*(?:-[ \t]+)?" + re.escape(key) + r"[ \t]*:[ \t]*(?P<v>[^#\r\n]*?)[ \t]*(#.*)?\r?\n?$", line)
-    if not m:
-        return None
-    v = m.group("v")
-    if len(v) >= 2 and v[0] == v[-1] and v[0] in "'\"":
-        v = v[1:-1]
-    return v
-
-
-def _tasks_range(lines):
-    """(start, end) of the top-level `tasks:` block (exclusive end)."""
-    heads = [i for i, l in enumerate(lines) if re.match(r"^tasks[ \t]*:[ \t]*(#.*)?\r?\n?$", l)]
-    if len(heads) != 1:
-        raise WriteError(409, "backlog.yaml にトップレベルの tasks: ブロックが1つだけ見つかりません")
-    j = heads[0] + 1
-    while j < len(lines):
-        s = lines[j].strip()
-        if s and not s.startswith("#") and not lines[j][:1].isspace() and not lines[j].startswith("-"):
-            break
-        j += 1
-    return heads[0] + 1, j
-
-
-def edit_task_status_text(text, task_id, new, audit_mod):
-    lines = text.splitlines(keepends=True)
-    lo, hi = _tasks_range(lines)
-    hits = []
-    for start, end, keycol in _task_blocks(lines[:hi]):
-        if start < lo:
-            continue
-        keys = _keys_in_block(lines, start, end, keycol)
-        idk = "id" if "id" in keys else ("task_id" if "task_id" in keys else None)
-        if not idk or len(keys[idk]) != 1:
-            continue
-        if _scalar(lines[keys[idk][0]], idk) == str(task_id):
-            hits.append(keys)
-    if len(hits) != 1:
-        raise WriteError(409, f"backlog.yaml に {task_id} のタスクが {len(hits)} 件見つかりました（1件のときだけ書きます）")
-    st = hits[0].get("status") or []
-    if len(st) != 1:
-        raise WriteError(409, f"{task_id} の status 行が {len(st)} 行あります（1行のときだけ書きます）")
-    i = st[0]
-    line = lines[i]
-    m = _ITEM_RE.match(line)
-    if m:  # `- status: x` (status が先頭キー)
-        head = line[:m.start("key")]
-        lines[i] = head + audit_mod._replace_value(line[m.start("key"):], new)
-    else:
-        lines[i] = audit_mod._replace_value(line, new)
-    return "".join(lines)
-
-
-def _find_task(data, task_id):
-    found = [t for t in (data or {}).get("tasks") or [] if isinstance(t, dict)
-             and str(t.get("id", t.get("task_id"))).strip() == str(task_id)]
-    return found
-
-
-def write_task_status(path: Path, task_id, new, audit_mod):
-    text = path.read_bytes().decode("utf-8")
-    old = yaml.safe_load(text)
-    if not isinstance(old, dict) or len(_find_task(old, task_id)) != 1:
-        raise WriteError(409, f"backlog.yaml で {task_id} を1件に特定できません")
-    new_text = edit_task_status_text(text, task_id, new, audit_mod)
-    expect = copy.deepcopy(old)
-    _find_task(expect, task_id)[0]["status"] = new
-    if yaml.safe_load(new_text) != expect:
-        raise WriteError(500, "書き換えで status 以外が変わるため中止しました")
-    _atomic_write(path, new_text, orig=text)
-
-
-_MISSING = object()
-
-
-def read_task_status(path: Path, task_id):
-    """status of the task, or _MISSING when the task is not in backlog.yaml. Duplicates / no status key -> 409."""
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    hits = _find_task(data if isinstance(data, dict) else {}, task_id)
-    if not hits:
-        return _MISSING
-    if len(hits) > 1:
-        raise WriteError(409, f"backlog.yaml に {task_id} が {len(hits)} 件あります（1件のときだけ書きます）")
-    if "status" not in hits[0] or hits[0]["status"] is None:
-        raise WriteError(409, f"backlog.yaml の {task_id} に status がありません（書き換える行が無いため書きません）")
-    return hits[0]["status"]
-
-
-def _atomic_write(path: Path, text: str, orig: str | None = None):
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".registry_viewer_", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
-            f.write(text)
-        shutil.copymode(path, tmp)
-        if orig is not None and path.read_bytes().decode("utf-8") != orig:
-            raise WriteError(409, f"{path.name} が書き込みの直前に他で変更されました。再読み込みしてください")
-        os.replace(tmp, path)
-    finally:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
+MEMBERSHIP_TABLES = frozenset({"programs", "business_projects", "business_project_links", "program_memberships"})
 
 
 # ---------------------------------------------------------------- core
 class Registry:
     def __init__(self, db: Path, root: Path, audit_path: Path | None = None, plc_path: Path | None = None,
                  readonly_reason: str | None = None):
-        """audit_path / plc_path を省略すると find_dependencies(root) で探す。どちらかが無ければ閲覧のみ"""
+        """audit_path を省略すると find_dependencies(root) で探す。依存の有無にかかわらず閲覧専用
+        （plc_path は以前の版との互換のために受け取るだけで使わない）"""
         self.db, self.root = Path(db), Path(root)
         if audit_path is None and plc_path is None and readonly_reason is None:
             audit_path, plc_path, readonly_reason = find_dependencies(self.root)
@@ -387,15 +272,15 @@ class Registry:
                 mod = _load("_rv_audit", audit_path)
             except Exception as e:  # noqa: BLE001  (隣の jev_client.py が無い・構文エラーなど)
                 mod = None
-                reasons.append(f"aiplc_status_audit.py を読み込めない（{type(e).__name__}: {e}）ため閲覧のみ")
+                reasons.append(f"aiplc_status_audit.py を読み込めない（{type(e).__name__}: {e}）ため、食い違い・機密判定は出ません")
             lacking = [n for n in AUDIT_API if mod is not None and not hasattr(mod, n)]
             if lacking:
-                reasons.append(f"aiplc_status_audit.py に {', '.join(lacking)} が無い（版が違う）ため閲覧のみ")
+                reasons.append(f"aiplc_status_audit.py に {', '.join(lacking)} が無い（版が違う）ため、食い違い・機密判定は出ません")
             elif mod is not None:
                 self.audit = mod
                 self.audit_rel = (os.path.relpath(audit_path, self.root)
                                   if Path(audit_path).resolve().is_relative_to(self.root.resolve()) else str(audit_path))
-        self.plc = _load("_rv_plc", plc_path) if plc_path is not None else None
+        self.plc = None  # 互換のための属性。書き込みのモジュールは読み込まない
         # 分類（所属・種類・実行環境）: classify.py（環境変数 → DB と同じフォルダ → server.py の隣）と分類の表が
         # あるときだけ表示する（無ければ今までどおり）
         self.classify = None
@@ -407,13 +292,11 @@ class Registry:
                 self.classify = _load("_rv_classify", cls_path)
             except Exception:  # noqa: BLE001
                 self.classify = None
-        if self.plc is None and not reasons:
-            reasons.append("plc_query.py が見つからないため閲覧のみ")
-        # audit が有れば、plc_query が無くても表示（食い違い・機密判定）はフル。書き込みは両方そろったときだけ
-        self.mode_reason = "／".join(dict.fromkeys(reasons)) or None
-        self.mode = "full" if self.mode_reason is None else "readonly"
-        self.lock = threading.Lock()
-        self.log_dir = Path(os.environ.get("AIPLC_STATUS_HYGIENE_DIR") or (self.db.parent / "status_hygiene"))
+        self.mode = "readonly"
+        self.mode_reason = "／".join(dict.fromkeys([READONLY_MESSAGE, *reasons]))
+        # 一覧は毎回 YAML を全部読む（Layer が多いと数秒）。HTTP からの一覧だけ短い間使い回し、同時の要求は1回の計算を待たせる
+        self._list_lock = threading.Lock()
+        self._list_cache = None  # (monotonic 時刻, DB の mtime, 結果)
 
     # -------- read
     def _ro(self):
@@ -439,6 +322,7 @@ class Registry:
                 for r in conn.execute("SELECT * FROM tasks ORDER BY scope_id, task_id"):
                     reg_tasks.setdefault(r["scope_id"], []).append(r)
             cls = self._read_classification(conn)
+            cls["membership"] = self._read_membership(conn, projects)
         finally:
             conn.close()
         layers = {sid: self._layer(rel) for sid, rel in layers_rel.items() if sid in projects}
@@ -446,9 +330,7 @@ class Registry:
         cands = {}
         for c in report["candidates"]:
             cands.setdefault(c["scope_id"], []).append(c)
-        wal = Path(str(self.db) + "-wal")
-        ts = max([self.db.stat().st_mtime] + ([wal.stat().st_mtime] if wal.exists() else []))
-        mtime = datetime.fromtimestamp(ts).isoformat(timespec="seconds")
+        mtime = datetime.fromtimestamp(self._db_mtime()).isoformat(timespec="seconds")
         return report, projects, reg_tasks, layers, conf, cands, mtime, cls
 
     def _read_classification(self, conn):
@@ -472,12 +354,102 @@ class Registry:
         return out
 
     @staticmethod
+    def _read_membership(conn, projects):
+        """Program・業務Project の確定済みの関係（business_registry.py が作る4つの表）。同じ読み取り専用の接続で
+        読むだけで、表が無い DB・Identity v2.0 でない DB（projects に sync_uid が無い）では使わない。
+        紐付けは link の aiplc_uid が projects.sync_uid と一致するものだけ採る（食い違いは identity_mismatch に数える）。"""
+        out = {"available": False, "programs": {}, "business": {}, "by_project": {}, "identity_mismatch": 0}
+        names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if not MEMBERSHIP_TABLES <= names:
+            return out
+        if "sync_uid" not in {r[1] for r in conn.execute("PRAGMA table_info(projects)")}:
+            return out
+        out["available"] = True
+        for r in conn.execute("SELECT program_uid, definition_key, display_name, display_group FROM programs "
+                              "WHERE state='active' ORDER BY display_name"):
+            out["programs"][r["program_uid"]] = {
+                "uid": r["program_uid"], "key": r["definition_key"] or "", "name": r["display_name"],
+                "group": r["display_group"],
+                # 画面共有モードで伏せる: 私生活の Program（business_registry.py add-program --private）
+                "sensitive": r["display_group"] == "private",
+                "masked": "PG-" + hashlib.sha256(r["program_uid"].encode()).hexdigest()[:6]}
+        biz_program = {r["business_uid"]: r["program_uid"] for r in conn.execute(
+            "SELECT business_uid, program_uid FROM program_memberships "
+            "WHERE state='confirmed' AND target_kind='business_project'")}
+        for r in conn.execute("SELECT id, business_uid, display_name FROM business_projects WHERE state='active' ORDER BY id"):
+            prog = biz_program.get(r["business_uid"])
+            out["business"][r["business_uid"]] = {
+                "uid": r["business_uid"], "display_id": f"BIZ-{r['id']:04d}", "name": r["display_name"],
+                "program_uid": prog if prog in out["programs"] else None,
+                "sensitive": bool(prog in out["programs"] and out["programs"][prog]["sensitive"])}
+        by_id = {p["id"]: (sid, p["sync_uid"]) for sid, p in projects.items()}
+
+        def entry(pid, uid):
+            sid, sync_uid = by_id.get(pid, (None, None))
+            if sid is None:
+                return None
+            if uid != sync_uid or sync_uid is None:  # NULL の sync_uid も照合できないので採らない
+                out["identity_mismatch"] += 1
+                return None
+            return out["by_project"].setdefault(sid, {"program_uid": None, "program_source": None,
+                                                       "primary_business": None, "related_business": []})
+        for r in conn.execute("SELECT program_uid, project_id, aiplc_uid FROM program_memberships "
+                              "WHERE state='confirmed' AND target_kind='aiplc_project'"):
+            e = entry(r["project_id"], r["aiplc_uid"])
+            if e is not None and r["program_uid"] in out["programs"]:
+                e["program_uid"], e["program_source"] = r["program_uid"], "direct"
+        for r in conn.execute("SELECT business_uid, project_id, aiplc_uid, relation_type FROM business_project_links "
+                              "WHERE state='confirmed' ORDER BY business_uid"):
+            if r["business_uid"] not in out["business"]:
+                continue
+            e = entry(r["project_id"], r["aiplc_uid"])
+            if e is None:
+                continue
+            if r["relation_type"] == "primary":
+                e["primary_business"] = r["business_uid"]
+            else:
+                e["related_business"].append(r["business_uid"])
+        # 直接の所属が無い（または直接の所属先が retired）なら、主な（primary）業務Project の Program を使う
+        for e in out["by_project"].values():
+            if e["program_uid"] is None and e["primary_business"]:
+                e["program_uid"] = out["business"][e["primary_business"]]["program_uid"]
+                e["program_source"] = "business" if e["program_uid"] else None
+        return out
+
+    @staticmethod
+    def membership_of(cls, sid):
+        """一覧・詳細に出す所属。紐付けの無い Project は None（推定しない）。伏せるのは画面側"""
+        m = cls.get("membership") or {}
+        if not m.get("available"):
+            return None
+        e = m["by_project"].get(sid)
+        if not e or not (e["program_uid"] or e["primary_business"] or e["related_business"]):
+            return None
+        biz = lambda u: {k: m["business"][u][k] for k in ("uid", "display_id", "name", "program_uid", "sensitive")}  # noqa: E731
+        return {"program": dict(m["programs"][e["program_uid"]]) if e["program_uid"] else None,
+                "program_source": e["program_source"],
+                "primary_business": biz(e["primary_business"]) if e["primary_business"] else None,
+                "related_business": [biz(u) for u in e["related_business"]]}
+
+    @staticmethod
+    def membership_index(cls, items):
+        m = cls.get("membership") or {}
+        if not m.get("available"):
+            return None
+        # 画面の「未紐付け」と同じ基準: Program か主な業務Project があれば紐付き（関連だけの Project は未紐付け）
+        linked = sum(1 for i in items if i.get("membership") and (i["membership"]["program"] or i["membership"]["primary_business"]))
+        return {"programs": list(m["programs"].values()),
+                "business_projects": list(m["business"].values()),  # id 順（読込順）
+                "linked": linked, "unlinked": len(items) - linked, "identity_mismatch": m["identity_mismatch"]}
+
+    @staticmethod
     def classification_of(cls, sid):
         """一覧・詳細に出す分類。表示名は語彙から（機密の所属は confidential を立てる。伏せるのは画面側）"""
         if not cls["available"]:
             return None
         c = cls["projects"].get(sid) or {}
         voc = cls["vocab"]
+
         def lab(axis):
             k = c.get(axis)
             e = voc.get(axis, {}).get(k) if k else None
@@ -494,9 +466,18 @@ class Registry:
                        for k, e in cls["vocab"].get(axis, {}).items()] for axis in ("affiliation", "kind")}
 
     @staticmethod
+    def _counted_statuses(layer):
+        """進捗に数えるタスクの status。運用タスク（recurrence）は外す。
+        公開版の aiplc_status_audit は運用タスクも tasks に入れる（tasks と raw_tasks が1対1）ので、ここで外す"""
+        raw = getattr(layer, "raw_tasks", None)
+        if isinstance(raw, list) and len(raw) == len(layer.tasks):
+            return [s for (_, s, _), t in zip(layer.tasks, raw) if not (isinstance(t, dict) and t.get("recurrence"))]
+        return [s for _, s, _ in layer.tasks]
+
+    @staticmethod
     def progress(layer, reg_rows):
-        if layer is not None and layer.tasks:
-            sts = [s for _, s, _ in layer.tasks]
+        sts = Registry._counted_statuses(layer) if layer is not None and layer.tasks else []
+        if sts:
             total = sum(1 for s in sts if s not in TASK_EXCLUDED)
             done = sum(1 for s in sts if s in TASK_DONE)
             return {"done": done, "total": total, "source": "backlog"}
@@ -507,18 +488,37 @@ class Registry:
 
     @staticmethod
     def launch_prompt(sid, row, layer):
+        if row["status"] == "cancelled" or (layer is not None and layer.status == "cancelled"):
+            return None  # 中止した Project は Operation で黙って再開しない（再開は /plc-lifecycle）
         if layer is None:
             return None
-        jev = "-jev" if str(layer.intent.get("pipeline_variant") or "").strip() == "jev" else ""
+        # 実験版 ai-plc-jev は凍結中。pipeline_variant: jev の Layer も本体版のコマンドを出す
         status = str(layer.status or row["status"] or "").lower()
         if status in ("completed", "done"):
-            return f"/01-collection{jev} を実行してください（Re-Collection）/ Layer: {layer.rel}"
+            return f"/01-collection を実行してください（Re-Collection）/ Layer: {layer.rel}"
         if not layer.tasks:
+            if any(isinstance(t, dict) and t.get("recurrence") for t in getattr(layer, "raw_tasks", None) or []):
+                return f"/04-operation を実行してください / Layer: {layer.rel}"  # 運用タスクだけの Layer
             # simple 深度は Stage 1 → 4 に直行できる（Stage 2・3 を飛ばす）
             if str(layer.intent.get("workflow_depth") or "").strip().lower() == "simple":
-                return f"/04-operation{jev} を実行してください / Layer: {layer.rel}"
-            return f"/02-inception{jev} を実行してください / Layer: {layer.rel}"
-        return f"/04-operation{jev} を実行してください / Layer: {layer.rel}"
+                return f"/04-operation を実行してください / Layer: {layer.rel}"
+            return f"/02-inception を実行してください / Layer: {layer.rel}"
+        return f"/04-operation を実行してください / Layer: {layer.rel}"
+
+    def _db_mtime(self):
+        wal = Path(str(self.db) + "-wal")
+        return max([self.db.stat().st_mtime] + ([wal.stat().st_mtime] if wal.exists() else []))
+
+    def list_projects_cached(self, ttl: float = LIST_CACHE_SECONDS):
+        """HTTP 用。ttl 秒以内で DB が変わっていなければ前回の結果を返す（YAML の変更は ttl 後に反映）。"""
+        with self._list_lock:
+            mtime, now = self._db_mtime(), time.monotonic()
+            c = self._list_cache
+            if c is not None and now - c[0] < ttl and c[1] == mtime:
+                return c[2]
+            data = self.list_projects()
+            self._list_cache = (time.monotonic(), mtime, data)
+            return data
 
     def list_projects(self):
         report, projects, reg_tasks, layers, conf, cands, mtime, cls = self.snapshot()
@@ -529,6 +529,7 @@ class Registry:
                 "scope_id": sid, "name": r["name"], "status": r["status"], "depth": r["depth"],
                 "parent_scope": (r["parent_scope"] or None), "deadline": r["deadline"],
                 "start_date": r["start_date"], "updated_at": r["updated_at"],
+                "activity": project_activity.evidence(self.root, layer.rel if layer else None, r),
                 "layer_path": layer.rel if layer else None,
                 "intent_status": layer.status_raw if layer else None,
                 "status_mismatch": self.audit is not _ReadonlyAudit and status_mismatch(layer, r["status"]),
@@ -537,16 +538,19 @@ class Registry:
                 "confidential": conf.check(sid) is not None,
                 "hash_id": self.audit.hash_id(sid),
                 "classification": self.classification_of(cls, sid),
+                "membership": self.membership_of(cls, sid),
             })
         cnt = report["counts"]
         return {"generated_at": datetime.now().isoformat(timespec="seconds"), "db_mtime": mtime,
                 "version": VERSION, "viewer_mode": self.mode, "viewer_mode_reason": self.mode_reason,
                 "audit_available": self.audit is not _ReadonlyAudit,
                 "classification_available": cls["available"], "vocab": self.vocab_options(cls),
-                "projects": items,
+                "projects": sorted(items, key=project_activity.order_key),
+                "membership": self.membership_index(cls, items),
+                "activity_notice": project_activity.NOTICE,
                 "counts": {"total": len(items),
                            "by_status": {s: sum(1 for i in items if i["status"] == s)
-                                         for s in ("planned", "active", "completed", "paused")},
+                                         for s in ("planned", "active", "completed", "paused", "cancelled")},
                            "issues": cnt["candidates"],
                            "registry_missing": cnt["by_kind"].get("registry_missing", 0)}}
 
@@ -565,31 +569,25 @@ class Registry:
                 order.append(tid)
                 merged[tid] = {"task_id": tid, "name": t.get("name"), "priority": t.get("priority"),
                                "type": t.get("type"), "layer_status": t.get("status"), "registry_status": None,
-                               "in_layer": True, "in_registry": False, "output": t.get("output")}
+                               "in_layer": True, "in_registry": False, "output": t.get("output"),
+                               "recurrence": t.get("recurrence"),
+                               # 実行時期・期限は backlog に書いたままの値（日付は文字列にする）
+                               "scheduled_for": None if t.get("scheduled_for") is None else str(t.get("scheduled_for")),
+                               "due": None if t.get("due") is None else str(t.get("due"))}
         for r in reg_tasks.get(sid, []):
             tid = str(r["task_id"]).strip()
             if tid not in merged:
                 order.append(tid)
                 merged[tid] = {"task_id": tid, "name": r["name"], "priority": r["priority"], "type": r["type"],
-                               "layer_status": None, "in_layer": False, "output": None}
+                               "layer_status": None, "in_layer": False, "output": None, "recurrence": None,
+                               "scheduled_for": None, "due": None}
             merged[tid].update({"registry_status": r["status"], "in_registry": True})
             merged[tid]["name"] = merged[tid]["name"] or r["name"]
         for tid, t in merged.items():
             t["executed_by"] = cls["tasks"].get(sid, {}).get(tid) if cls["available"] else None
         vocab = self.audit.task_vocab(self._vocab(), layer)
-        btext = None
-        if layer is not None and (layer.folder / "backlog.yaml").is_file():
-            btext = (layer.folder / "backlog.yaml").read_text(encoding="utf-8")
         for t in merged.values():
-            t["editable"], t["readonly_reason"] = self.mode == "full", None
-            if t["in_layer"] and self.mode == "full":  # 書き換えられるかの空実行
-                try:
-                    edit_task_status_text(btext, t["task_id"], "completed", self.audit)
-                except Exception as e:  # noqa: BLE001
-                    t["editable"] = False
-                    t["readonly_reason"] = (e.message if isinstance(e, WriteError) else str(e)) + \
-                        "（flow 形式 `- {id: ..}` などは1行書き換えの対象外）"
-        for t in merged.values():
+            t["editable"], t["readonly_reason"] = False, READONLY_MESSAGE
             t["mismatch"] = (self.audit is not _ReadonlyAudit and t["in_layer"] and t["in_registry"] and t["layer_status"] is not None
                              and self.audit.reg_task_target(self.audit.norm(t["layer_status"]), vocab)
                              != t["registry_status"])
@@ -599,18 +597,21 @@ class Registry:
             "mode": row["mode"], "depth": row["depth"], "owner": row["owner"],
             "parent_scope": row["parent_scope"] or None, "children": children,
             "start_date": row["start_date"], "deadline": row["deadline"], "updated_at": row["updated_at"],
+            "activity": project_activity.evidence(self.root, layer.rel if layer else None, row),
+            "activity_notice": project_activity.NOTICE,
             "layer_path": layer.rel if layer else None,
             "intent_status": layer.status_raw if layer else None,
+            "cancellation": layer.intent.get("cancellation") if layer else None,
             "status_mismatch": self.audit is not _ReadonlyAudit and status_mismatch(layer, row["status"]),
             "summary_status": layer.summary_status if layer and layer.summary_has_status else None,
-            "writable": self.mode == "full" and layer is not None and sid not in self._dup_scopes(report),
-            "readonly_reason": (f"閲覧のみモード（{self.mode_reason}）" if self.mode != "full" else
-                                None if layer is not None and sid not in self._dup_scopes(report) else
-                                ("Layer フォルダが見つからない" if layer is None else "同じ scope_id のフォルダが複数ある")),
+            "writable": False,
+            "readonly_reason": READONLY_MESSAGE,
             "viewer_mode": self.mode, "audit_available": self.audit is not _ReadonlyAudit, "audit_path": self.audit_rel,
             "duplicate_folder": sid in self._dup_scopes(report),
             "confidential": conf.check(sid) is not None, "hash_id": self.audit.hash_id(sid),
             "classification": self.classification_of(cls, sid), "classification_available": cls["available"],
+            "membership": self.membership_of(cls, sid),
+            "membership_available": bool((cls.get("membership") or {}).get("available")),
             "progress": self.progress(layer, reg_tasks.get(sid)),
             "tasks": [merged[t] for t in order],
             "issues": [{"kind": c["kind"], "reason": c["reason"], "recommended_action": c["recommended_action"]}
@@ -619,10 +620,6 @@ class Registry:
             "db_mtime": mtime,
         }
 
-    def _require_full(self):
-        if self.mode != "full":
-            raise WriteError(409, f"閲覧のみモードです（{self.mode_reason}）")
-
     def _vocab(self):
         conn = self._ro()
         try:
@@ -630,204 +627,16 @@ class Registry:
         finally:
             conn.close()
 
-    # -------- write
-    def _registry_update(self, table, sets, where, readback, to):
-        """UPDATE via plc_query.cmd_sql (Identity guard on v2), then read the row back: total_changes is not usable
-        because the updated_at triggers count as changes too."""
-        conn = sqlite3.connect(str(self.db), timeout=10)
-        try:
-            q = f"UPDATE {table} SET {sets} WHERE {where}"
-            buf = io.StringIO()
-            with contextlib.redirect_stdout(buf):
-                rc = self.plc.cmd_sql(conn, q)
-            out = buf.getvalue()
-            if rc or "Error:" in out or "[BLOCKED]" in out:
-                raise WriteError(500, f"Registry の更新に失敗しました: {out.strip()[:200]}")
-            if conn.in_transaction:
-                conn.rollback()
-                raise WriteError(500, "Registry の更新でトランザクションが残りました（戻しました）")
-            rows = conn.execute(readback[0], readback[1]).fetchall()
-            if len(rows) != 1 or rows[0][0] != to:
-                got = rows[0][0] if len(rows) == 1 else f"{len(rows)} 行"
-                raise WriteError(409, f"Registry を読み戻すと {got} でした（他で変更された可能性）")
-        finally:
-            conn.close()
-
-    def _current_layer(self, sid):
-        report = self._report()
-        if sid in self._dup_scopes(report):
-            raise WriteError(409, "同じ scope_id の Layer フォルダが複数あるため書き込みません（どれが正か人が確認）")
-        rel = report["_layers"].get(sid)
-        return self._layer(rel)
-
     @staticmethod
     def _dup_scopes(report):
         return {d["scope_id"] for d in report["info"].get("duplicate_folders", [])}
 
-    def set_project_status(self, sid, to, expected):
-        self._require_full()
-        if to not in PROJECT_CHOICES:
-            raise WriteError(400, f"status は {', '.join(PROJECT_CHOICES)} のどれかです")
-        intent_to, reg_to = PROJECT_CHOICES[to]
-        with self.lock:
-            layer = self._current_layer(sid)
-            if layer is None:
-                raise WriteError(409, "Layer フォルダが見つからないため書き込みません（Registry だけ変えると食い違うため）")
-            conn = self._ro()
-            try:
-                rows = conn.execute("SELECT status FROM projects WHERE scope_id=?", (sid,)).fetchall()
-            finally:
-                conn.close()
-            if len(rows) != 1:
-                raise WriteError(404, f"{sid} は Registry にありません（行の追加は plc_query.py add-project）")
-            intent_path = layer.folder / "intent.yaml"
-            backlog_path = layer.folder / "backlog.yaml"
-            try:
-                cur_intent = self.audit.read_yaml_status(intent_path)
-            except Exception as e:  # noqa: BLE001  (ApplyError: status missing / not a mapping)
-                raise WriteError(409, f"intent.yaml の status を読めません（{e}）")
-            if cur_intent is None or str(cur_intent).strip() == "":
-                raise WriteError(409, "intent.yaml の status が空のため書きません")
-            cur_reg = rows[0]["status"]
-            cur_summary = layer.summary_status if layer.summary_has_status else None
-            exp = expected or {}
-            if to == "completed":
-                conn = self._ro()
-                try:
-                    vocab = self.audit.task_vocab(self.audit.detect_task_vocab(conn), layer)
-                    reg_open = 0 if _registry_tasks_frozen(conn) else conn.execute(
-                        f"SELECT COUNT(*) FROM tasks WHERE scope_id=? AND status NOT IN "
-                        f"({','.join('?' * len(vocab['done_set']))})", (sid, *sorted(vocab["done_set"]))).fetchone()[0]
-                finally:
-                    conn.close()
-                if layer.open or reg_open:
-                    raise WriteError(409, f"未完了のタスクがあります（backlog {layer.open} 件・Registry {reg_open} 件）。"
-                                          "先にタスクを completed か cancelled にしてください（deferred・blocked は Registry で未着手になり、"
-                                          "閉じると食い違いになるため）",
-                                     open_tasks={"backlog": layer.open, "registry": reg_open})
-            if str(cur_intent) != str(exp.get("intent")) or str(cur_reg) != str(exp.get("registry")):
-                raise WriteError(409, "画面を読んだ後に値が変わっています。再読み込みしてください",
-                                 current={"intent": cur_intent, "registry": cur_reg})
-            done = []  # (path, old, summary)
-            try:
-                if str(cur_intent) != intent_to:
-                    self.audit.write_yaml_status(intent_path, intent_to)
-                    done.append((intent_path, cur_intent, False, intent_to))
-                if layer.summary_has_status and str(cur_summary) != intent_to:
-                    self.audit.write_yaml_status(backlog_path, intent_to, summary=True)
-                    done.append((backlog_path, cur_summary, True, intent_to))
-                if cur_reg != reg_to:
-                    lit = self.audit.sql_lit
-                    self._registry_update("projects", f"status={lit(reg_to)}",
-                                          f"scope_id={lit(sid)} AND status={lit(cur_reg)}",
-                                          ("SELECT status FROM projects WHERE scope_id=?", (sid,)), reg_to)
-            except Exception as e:
-                rollback = self._rollback(done)
-                err = self._wrap(e, rollback)
-                self._log({"op": "project_status", "scope_id": sid, "to": to, "result": "error", "error": err.message})
-                raise err
-            self._log({"op": "project_status", "scope_id": sid, "to": to, "result": "ok",
-                       "before": {"intent": cur_intent, "summary": cur_summary, "registry": cur_reg},
-                       "after": {"intent": intent_to, "registry": reg_to}})
-            return {"ok": True, "scope_id": sid, "intent": intent_to, "registry": reg_to,
-                    "wrote": [str(p.relative_to(self.root)) for p, _, _, _ in done] + (["registry.projects"] if cur_reg != reg_to else [])}
+    # 以前の版の書き込みの入口。何も読まず・書かずに断る
+    def set_project_status(self, *_args, **_kw):
+        raise WriteError(405, "VIEWER_READ_ONLY: " + READONLY_MESSAGE)
 
-    def set_task_status(self, sid, tid, to, expected):
-        self._require_full()
-        if to not in TASK_CHOICES:
-            raise WriteError(400, f"status は {', '.join(TASK_CHOICES)} のどれかです")
-        with self.lock:
-            layer = self._current_layer(sid)
-            if layer is None:
-                raise WriteError(409, "Layer フォルダが見つからないため書き込みません（Registry だけ変えると食い違うため）")
-            backlog_path = layer.folder / "backlog.yaml"
-            cur_layer = read_task_status(backlog_path, tid) if backlog_path.is_file() else _MISSING
-            in_layer = cur_layer is not _MISSING
-            if not in_layer:
-                cur_layer = None
-            conn = self._ro()
-            try:
-                rows = [] if _registry_tasks_frozen(conn) else conn.execute(
-                    "SELECT status FROM tasks WHERE scope_id=? AND task_id=?", (sid, tid)).fetchall()
-                vocab = self.audit.task_vocab(self.audit.detect_task_vocab(conn), layer)
-            finally:
-                conn.close()
-            if len(rows) > 1:
-                raise WriteError(409, f"Registry に {sid}/{tid} が {len(rows)} 行あります")
-            cur_reg = rows[0]["status"] if rows else None
-            if not in_layer and cur_reg is None:
-                raise WriteError(404, f"{tid} は backlog.yaml にも Registry にもありません")
-            exp = expected or {}
-            if str(cur_layer) != str(exp.get("backlog")) or str(cur_reg) != str(exp.get("registry")):
-                raise WriteError(409, "画面を読んだ後に値が変わっています。再読み込みしてください",
-                                 current={"backlog": cur_layer, "registry": cur_reg})
-            reg_to = self.audit.reg_task_target(to, vocab)
-            done = []
-            wrote = []
-            try:
-                if in_layer and str(cur_layer) != to:
-                    write_task_status(backlog_path, tid, to, self.audit)
-                    done.append((backlog_path, cur_layer, ("task", tid), to))
-                    wrote.append(str(backlog_path.relative_to(self.root)))
-                if cur_reg is not None and cur_reg != reg_to:
-                    lit = self.audit.sql_lit
-                    sets = [f"status={lit(reg_to)}"]
-                    if reg_to in vocab["done_set"]:
-                        sets.append(f"completed_at=COALESCE(completed_at, {lit(date.today().isoformat())})")
-                    self._registry_update("tasks", ", ".join(sets),
-                                          f"scope_id={lit(sid)} AND task_id={lit(tid)} AND status={lit(cur_reg)}",
-                                          ("SELECT status FROM tasks WHERE scope_id=? AND task_id=?", (sid, tid)), reg_to)
-                    wrote.append("registry.tasks")
-            except Exception as e:
-                rollback = self._rollback(done)
-                err = self._wrap(e, rollback)
-                self._log({"op": "task_status", "scope_id": sid, "task_id": tid, "to": to, "result": "error",
-                           "error": err.message})
-                raise err
-            self._log({"op": "task_status", "scope_id": sid, "task_id": tid, "to": to, "result": "ok",
-                       "before": {"backlog": cur_layer, "registry": cur_reg}, "after": {"backlog": to if in_layer else None,
-                                                                                         "registry": reg_to if cur_reg is not None else None}})
-            return {"ok": True, "scope_id": sid, "task_id": tid, "backlog": to if in_layer else None,
-                    "registry": reg_to if cur_reg is not None else None, "wrote": wrote}
-
-    def _log(self, rec):
-        """1変更1行の記録（git 管理外の status_hygiene/）。記録の失敗で書き込みは失敗させない。"""
-        try:
-            d = self.log_dir
-            d.mkdir(parents=True, exist_ok=True)
-            rec = {"at": datetime.now().astimezone().isoformat(timespec="seconds"), **rec}  # 例 2026-09-29T17:17:51+09:00
-            with open(d / "viewer_log.jsonl", "a", encoding="utf-8") as f:
-                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        except OSError:
-            pass
-
-    def _rollback(self, done):
-        failed = []
-        for path, old, kind, ours in reversed(done):
-            try:
-                cur = (read_task_status(path, kind[1]) if isinstance(kind, tuple)
-                       else self.audit.read_yaml_status(path, summary=kind))
-                if str(cur) != str(ours):
-                    failed.append(f"{path.name}: 他で {cur} に変更されていたため戻していません")
-                    continue
-                if isinstance(kind, tuple):
-                    write_task_status(path, kind[1], old, self.audit)
-                else:
-                    self.audit.write_yaml_status(path, old, summary=kind)
-            except Exception as e:  # noqa: BLE001
-                failed.append(f"{path.name}: {e}")
-        return failed
-
-    @staticmethod
-    def _wrap(e, rollback_failed):
-        if isinstance(e, WriteError):
-            err = e
-        else:
-            err = WriteError(500, f"書き込みに失敗しました: {e}")
-        if rollback_failed:
-            err.message += "。Layer ファイルの書き戻しにも失敗しました（status_audit で検出できます）: " + "; ".join(rollback_failed)
-            err.extra["rollback_failed"] = rollback_failed
-        return err
+    def set_task_status(self, *_args, **_kw):
+        raise WriteError(405, "VIEWER_READ_ONLY: " + READONLY_MESSAGE)
 
 
 # ---------------------------------------------------------------- HTTP
@@ -835,6 +644,7 @@ def make_handler(reg: Registry, token: str, port_ref: dict):
     class Handler(BaseHTTPRequestHandler):
         server_version = "RegistryViewer/" + VERSION
         registry = reg
+        _head = False
 
         def log_message(self, fmt, *args):  # 静かにする（エラーは応答で返す）
             pass
@@ -853,19 +663,23 @@ def make_handler(reg: Registry, token: str, port_ref: dict):
 
         def _send(self, code, body, ctype="application/json; charset=utf-8"):
             data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False, default=str).encode("utf-8")
-            self.send_response(code)
-            self.send_header("Content-Type", ctype)
-            self.send_header("Content-Length", str(len(data)))
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Referrer-Policy", "no-referrer")
-            if ctype.startswith("text/html"):
-                self.send_header("Content-Security-Policy",
-                                 "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; "
-                                 "connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; "
-                                 "frame-ancestors 'none'")
-            self.end_headers()
-            self.wfile.write(data)
+            try:
+                self.send_response(code)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Referrer-Policy", "no-referrer")
+                if ctype.startswith("text/html"):
+                    self.send_header("Content-Security-Policy",
+                                     "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; "
+                                     "connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; "
+                                     "frame-ancestors 'none'")
+                self.end_headers()
+                if not self._head:
+                    self.wfile.write(data)
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # 相手が待ちきれずに切った。ログを汚さない
 
         def _err(self, e: WriteError):
             self._send(e.code, {"ok": False, "error": e.message, **e.extra})
@@ -878,8 +692,10 @@ def make_handler(reg: Registry, token: str, port_ref: dict):
                 if path in ("/", "/index.html"):
                     html = (STATIC / "index.html").read_text(encoding="utf-8").replace("__VIEWER_TOKEN__", token)
                     return self._send(200, html.encode("utf-8"), "text/html; charset=utf-8")
+                if path == "/api/health":  # 起動確認用（一覧の計算をしない）
+                    return self._send(200, {"ok": True, "version": VERSION})
                 if path == "/api/projects":
-                    return self._send(200, reg.list_projects())
+                    return self._send(200, reg.list_projects_cached())
                 m = re.match(r"^/api/projects/([^/]+)$", path)
                 if m and ID_RE.match(m.group(1)):
                     return self._send(200, reg.project_detail(m.group(1)))
@@ -889,38 +705,20 @@ def make_handler(reg: Registry, token: str, port_ref: dict):
             except Exception as e:  # noqa: BLE001
                 return self._send(500, {"ok": False, "error": f"{type(e).__name__}: {e}"})
 
-        def do_POST(self):
+        def do_HEAD(self):
+            self._head = True
+            try:
+                self.do_GET()
+            finally:
+                self._head = False
+
+        def _reject_mutation(self):
             if not self._host_ok() or not self._origin_ok():
                 return self._send(403, {"ok": False, "error": "Host / Origin が不正です"})
-            if not secrets.compare_digest(self.headers.get("X-Viewer-Token") or "", token):
-                return self._send(403, {"ok": False, "error": "トークンが不正です"})
-            if (self.headers.get("Content-Type") or "").split(";")[0].strip() != "application/json":
-                return self._send(415, {"ok": False, "error": "Content-Type は application/json"})
-            try:
-                n = int(self.headers.get("Content-Length") or 0)
-                if n < 0:
-                    return self._send(400, {"ok": False, "error": "Content-Length が不正です"})
-                if n > 10_000:
-                    return self._send(413, {"ok": False, "error": "too large"})
-                body = json.loads(self.rfile.read(n) or b"{}")
-                if not isinstance(body, dict):
-                    raise ValueError
-            except (ValueError, json.JSONDecodeError):
-                return self._send(400, {"ok": False, "error": "JSON が不正です"})
-            path = self.path.split("?", 1)[0]
-            try:
-                m = re.match(r"^/api/projects/([^/]+)/status$", path)
-                if m and ID_RE.match(m.group(1)):
-                    return self._send(200, reg.set_project_status(m.group(1), body.get("to"), body.get("expected")))
-                m = re.match(r"^/api/projects/([^/]+)/tasks/([^/]+)/status$", path)
-                if m and ID_RE.match(m.group(1)) and ID_RE.match(m.group(2)):
-                    return self._send(200, reg.set_task_status(m.group(1), m.group(2), body.get("to"),
-                                                               body.get("expected")))
-                return self._send(404, {"ok": False, "error": "not found"})
-            except WriteError as e:
-                return self._err(e)
-            except Exception as e:  # noqa: BLE001
-                return self._send(500, {"ok": False, "error": f"{type(e).__name__}: {e}"})
+            # 本文は読まず、トークンも比べず、どこにも書かない
+            return self._send(405, {"ok": False, "error": "VIEWER_READ_ONLY: " + READONLY_MESSAGE})
+
+        do_POST = do_PUT = do_PATCH = do_DELETE = do_OPTIONS = do_TRACE = do_CONNECT = _reject_mutation
 
     return Handler
 
@@ -935,9 +733,11 @@ def build_server(db: Path, root: Path, port: int = 0, token: str | None = None, 
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="AI-PLC Registry ビューア（ローカル専用）")
+    ap = argparse.ArgumentParser(description="AI-PLC Registry ビューア（ローカル専用・閲覧専用）")
     ap.add_argument("--port", type=int, default=8765, help="待ち受けポート（0=空きポート。既定 8765）")
-    ap.add_argument("--db", type=Path, default=None, help="既定: 環境変数 AIPLC_DB → <root>/.claude/db/ai_plc.db → <root>/.cursor/db/ai_plc.db")
+    ap.add_argument("--db", type=Path, default=None,
+                    help="既定: 環境変数 AIPLC_DB → aiplc_paths.py があれば .ai-plc/config.yaml の db_path・本体の DB"
+                         "（git-common-dir）→ <root>/.claude/db/ai_plc.db → <root>/.cursor/db/ai_plc.db")
     ap.add_argument("--root", type=Path, default=REPO, help="Flow/ を含むプロジェクトのルート（既定: 上にたどって .claude/db/ai_plc.db がある所）")
     ap.add_argument("--no-browser", action="store_true", help="ブラウザを開かない")
     args = ap.parse_args(argv)
@@ -949,6 +749,12 @@ def main(argv=None):
     if not args.db.is_file():
         print(f"DB が見つかりません: {args.db}", file=sys.stderr)
         return 2
+    paths = _aiplc_paths()
+    if paths is not None and hasattr(paths, "warn_read"):
+        try:
+            paths.warn_read(args.db)  # 閲覧だけなので止めない
+        except Exception:  # noqa: BLE001
+            pass
     try:
         httpd, _token, _ = build_server(args.db.resolve(), args.root.resolve(), args.port)
     except FileNotFoundError as e:
@@ -958,7 +764,7 @@ def main(argv=None):
         print(f"ポート {args.port} を開けません（{e}）。--port 0 で空きポートを使えます", file=sys.stderr)
         return 2
     reg = httpd.RequestHandlerClass.registry
-    print(f"mode: {reg.mode}" + (f"（{reg.mode_reason}）" if reg.mode_reason else ""), flush=True)
+    print(f"mode: {reg.mode}（{reg.mode_reason}）", flush=True)
     url = f"http://127.0.0.1:{httpd.server_address[1]}/"
     print(f"AI-PLC Registry ビューア: {url}  （止めるときは Ctrl-C）", flush=True)
     if not args.no_browser:

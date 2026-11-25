@@ -13,6 +13,24 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-26
+
+実験版パッケージ（`experimental/jev/`）は **1.12.0-exp.2 のまま**です。installer が配るファイルのうち変わるのは `ppm-viewer` の説明だけです。
+
+### 変更: Registry ビューア 0.3.0-alpha（`experimental/registry-viewer/`。installer の対象外）
+
+- **破壊的な変更: 閲覧専用になりました。** 画面から Project と Task の status を変える機能と、そのための API を外しました（GET・HEAD 以外は 405）。status は `/plc-lifecycle`（中止・再開）や各 Stage の実行で変えます。0.2.x までの変更の記録（`viewer_log.jsonl`）は使わなくなりました。0.2.x では、中止した Project が一覧に出ず、status を変えられる構成では中止した Project を画面から進行中に戻せたため、閲覧専用にそろえました
+- **中止した Project の表示:** cancelled を絞り込みと件数に足し、詳細に中止の記録を出します。中止した Project には起動プロンプトを出しません
+- **進捗の数え方:** 運用タスク（`recurrence`）を進捗と未完了の数から外します。タスクの表に実行時期（`scheduled_for`）と期限（`due`）を出します。起動プロンプトは本体版のコマンド（`-jev` なし）です
+- **並び順:** 一覧を作業記録（backlog・context）の更新が新しい順に並べられます（更新順・開始日順・ID 順の3つ）。ID は数として比べます（`-12` が `-2` より前に来ていたのを直しました）
+- **Program・業務プロジェクトごとの表示:** 業務プロジェクトの表（`core/db/business_registry.py`）があり、移行済みの DB（`sync.py adopt-existing` で新しい識別子の形にしたもの）では、案件を Program・業務プロジェクトごとにまとめて見られます。画面共有モードでは private の Program の名前を伏せます。表が無い DB では今までどおりの一覧です
+- **起動まわり:** 起動確認用の `/api/health`、一覧の 15 秒キャッシュ、切断時のエラーの無視、Mac のメニューバーアプリの起動確認とログ表示。DB の場所は `aiplc_paths.py` があればそれで決め、無ければ隣の DB を使います
+- 更新するときは、古い `<プロジェクト>/.claude/db/registry_viewer` を消してから `experimental/registry-viewer` をコピーし直してください
+
+### 変更: `ppm-viewer` の説明
+
+- `core/skills/ppm-viewer/SKILL.md` と Codex の入口を、閲覧専用の説明に直しました
+
 ## [2.1.0] - 2026-11-26
 
 実験版パッケージ（`experimental/jev/`）は **1.12.0-exp.2 のまま**です。

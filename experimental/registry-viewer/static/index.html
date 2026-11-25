@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI-PLC Registry</title>
 <style>
+[hidden] { display: none !important; }
 :root {
   --bg: #f7f7f5; --panel: #ffffff; --text: #1f2328; --muted: #6a737d; --line: #e3e3de;
   --accent: #2f6fdb; --accent-soft: #e8f0fd;
@@ -60,11 +61,20 @@ main { display: grid; grid-template-columns: minmax(340px, 44%) 1fr; gap: 0; min
 .s-active { color: var(--active); background: var(--active-soft); }
 .s-completed { color: var(--completed); background: var(--completed-soft); }
 .s-paused { color: var(--paused); background: var(--paused-soft); }
+.s-cancelled { color: #a40e26; background: #ffebe9; }
 .s-planned { color: var(--planned); background: var(--planned-soft); }
 .warn { color: var(--warn); background: var(--warn-soft); }
 .cls { color: var(--accent); background: var(--accent-soft); }
 .clsrow { grid-column: 1 / -1; display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
 .lock { color: var(--muted); border-color: var(--line); }
+.memb { color: var(--text); background: var(--panel); border-color: var(--line); }
+.memb.rel { color: var(--muted); border-style: dashed; }
+.grp { display: flex; gap: 6px; align-items: baseline; padding: 6px 12px 6px calc(12px + var(--depth, 0) * 18px);
+  border-bottom: 1px solid var(--line); background: var(--panel); position: relative; }
+.grp.g0 { background: var(--accent-soft); font-size: 13px; }
+.grp.g1 { font-size: 13px; color: var(--text); }
+.grp .caret { cursor: pointer; }
+.grp .cnt { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .caret { width: 14px; color: var(--muted); display: inline-block; text-align: center; }
 h2 { font-size: 18px; margin: 4px 0 2px; }
 .goal { white-space: pre-wrap; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
@@ -110,10 +120,12 @@ dialog ul { padding-left: 18px; }
   <label class="meta" id="shareLabel"><input type="checkbox" id="share" data-testid="header-share-toggle"> 画面共有モード</label>
   <button id="reload" data-testid="header-reload-button">再読み込み</button>
 </header>
-<main>
+<main id="registryMain">
   <div id="list">
     <div class="filters">
       <input type="search" id="q" placeholder="scope_id・名前で絞り込み" data-testid="filter-search-input">
+      <label class="note">並び順 <select id="sortOrder" data-testid="sort-order" aria-label="Projectの並び順"><option value="updated">更新順（新しい順）</option><option value="started">開始日順（従来）</option><option value="id">ID順</option></select></label>
+      <label class="note" id="groupModeLabel" hidden>表示 <select id="groupMode" data-testid="group-mode" aria-label="一覧のまとめ方"><option value="tree">親子ツリー</option><option value="program">Program別</option></select></label>
       <span id="statusChips"></span>
       <button class="chip" id="issuesOnly" aria-pressed="false" data-testid="filter-issues-chip">食い違いあり</button>
       <span id="clsFilters" hidden>
@@ -122,37 +134,27 @@ dialog ul { padding-left: 18px; }
         <select id="fExec" data-testid="filter-executor" title="実行環境"></select>
       </span>
     </div>
+    <p class="note" id="activityNotice" style="padding:0 14px" data-testid="activity-notice"></p>
     <div id="rows" data-testid="project-list"></div>
   </div>
   <div id="detail" data-testid="project-detail"><div class="empty">左の一覧から Project を選んでください</div></div>
 </main>
-<dialog id="confirm" data-testid="confirm-dialog">
-  <form method="dialog">
-    <h3 id="cfTitle" style="margin-top:0"></h3>
-    <div id="cfBody"></div>
-    <p class="ops" style="justify-content:flex-end">
-      <button value="cancel" data-testid="confirm-cancel-button">やめる</button>
-      <button value="ok" class="primary" data-testid="confirm-ok-button">変更する</button>
-    </p>
-  </form>
-</dialog>
 <div id="toast" role="status"></div>
 <script>
 "use strict";
 const TOKEN = "__VIEWER_TOKEN__";
-const STATUSES = ["active", "planned", "paused", "completed"];
-const PROJECT_CHOICES = ["active", "paused", "completed"];
-const TASK_CHOICES = ["pending", "in_progress", "completed", "blocked", "deferred", "cancelled"];
-const INTENT_WRITE = { active: "active", completed: "completed", paused: "deferred" };
+const STATUSES = ["active", "planned", "paused", "completed", "cancelled"];
 const st = { data: null, sel: null, filter: new Set(["active"]), issuesOnly: false, q: "", collapsed: new Set(),
   cls: { affiliation: "", kind: "", executor: "" },
-  share: false, detail: null };
+  share: false, detail: null, sort: "updated", group: "tree" };
 try { const saved = JSON.parse(localStorage.getItem("rv-prefs") || "{}");
+  if (["updated", "started", "id"].includes(saved.sort)) st.sort = saved.sort;
+  if (["tree", "program"].includes(saved.group)) st.group = saved.group;
   if (Array.isArray(saved.filter)) st.filter = new Set(saved.filter); st.share = !!saved.share;
   if (saved.cls && typeof saved.cls === "object") st.cls = Object.assign(st.cls, saved.cls); } catch (e) {}
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-function savePrefs() { try { localStorage.setItem("rv-prefs", JSON.stringify({ filter: [...st.filter], share: st.share, cls: st.cls })); } catch (e) {} }
+function savePrefs() { try { localStorage.setItem("rv-prefs", JSON.stringify({ filter: [...st.filter], share: st.share, cls: st.cls, sort: st.sort, group: st.group })); } catch (e) {} }
 const EXECUTORS = ["claude-code", "codex", "cursor"];
 const NONE = "__none__";
 // 分類の表示名。機密の所属は画面共有モードでは「機密」にする
@@ -197,6 +199,10 @@ function toast(msg, err) { const t = $("toast"); t.textContent = msg; t.classNam
 const masked = (p) => st.share && p.confidential;
 const label = (p) => masked(p) ? p.hash_id : p.scope_id;
 const pname = (p) => masked(p) ? "（機密のため非表示）" : p.name;
+// Program・業務Project。画面共有モードでは、私生活（private）の Program 名をコードにし、業務Project は名前を出さず BIZ-xxxx だけにする
+const progName = (g) => !g ? "" : st.share && g.sensitive ? g.masked : g.name;
+const bizName = (b) => !b ? "" : st.share ? b.display_id : `${b.display_id} ${b.name}`;
+const grouping = () => st.group === "program" && !!st.data.membership;
 const badge = (s) => `<span class="badge s-${esc(s)}">${esc(s)}</span>`;
 function pct(pr) { return pr.total ? Math.round((pr.done / pr.total) * 100) : null; }
 
@@ -206,9 +212,7 @@ async function api(path, opts) {
   if (!r.ok) { const e = new Error(j.error || `HTTP ${r.status}`); e.body = j; e.status = r.status; throw e; }
   return j;
 }
-async function post(path, body) {
-  return api(path, { method: "POST", headers: { "Content-Type": "application/json", "X-Viewer-Token": TOKEN }, body: JSON.stringify(body) });
-}
+
 
 async function load(keepSel) {
   $("rows").innerHTML = '<div class="empty">読み込み中…</div>';
@@ -226,7 +230,7 @@ function renderHeader() {
   $("modeBadge").textContent = ro ? "閲覧のみ" : "";
   $("modeBadge").title = st.data.viewer_mode_reason || "";
   // 機密判定（status_audit）か分類（機密の所属）のどちらかがあれば、画面共有モードを出す
-  $("shareLabel").hidden = noAudit && !st.data.classification_available;
+  $("shareLabel").hidden = noAudit && !st.data.classification_available && !st.data.membership;
   $("issuesOnly").hidden = noAudit;
   renderClsFilters();
   $("counts").innerHTML = STATUSES.map((s) => `<span class="badge s-${s}">${s} ${c.by_status[s] || 0}</span>`).join("") +
@@ -238,21 +242,51 @@ function renderHeader() {
     const s = b.dataset.s; st.filter.has(s) ? st.filter.delete(s) : st.filter.add(s); savePrefs(); renderHeader(); renderList(); });
   $("issuesOnly").setAttribute("aria-pressed", st.issuesOnly);
   $("share").checked = st.share;
+  $("sortOrder").value = st.sort;
+  $("groupModeLabel").hidden = !st.data.membership;
+  $("groupMode").value = st.group;
+  $("activityNotice").textContent = st.data.activity_notice || "更新情報未確認。再読み込みしてください。";
 }
 
-function tree() {
-  const by = new Map(st.data.projects.map((p) => [p.scope_id, p]));
+function tree(list = st.data.projects) {
+  const by = new Map(list.map((p) => [p.scope_id, p]));
   const kids = new Map();
   const roots = [];
-  for (const p of st.data.projects) {
+  for (const p of list) {
     const par = p.parent_scope && by.has(p.parent_scope) && p.parent_scope !== p.scope_id ? p.parent_scope : null;
     if (par) { if (!kids.has(par)) kids.set(par, []); kids.get(par).push(p); } else roots.push(p);
   }
-  const key = (p) => p.scope_id;
-  // 新しい順: start_date（無ければ最後）→ scope_id の降順
-  const sortFn = (a, b) => (b.start_date || "").localeCompare(a.start_date || "") || key(b).localeCompare(key(a));
-  roots.sort(sortFn); for (const v of kids.values()) v.sort((a, b) => key(a).localeCompare(key(b)));
-  return { roots, kids };
+  const byId = (x, y) => x.scope_id.localeCompare(y.scope_id, "en", { numeric: true });
+  const effective = new Map();
+  // Only matching descendants affect ordering; preserve the parent/child layout.
+  const collect = (p) => {
+    let recent = matches(p) ? p : null;
+    for (const c of kids.get(p.scope_id) || []) {
+      const candidate = collect(c);
+      if (candidate && (!recent || activityCompare(candidate, recent) < 0)) recent = candidate;
+    }
+    effective.set(p.scope_id, recent); return recent;
+  };
+  for (const p of roots) collect(p);
+  const sortFn = st.sort === "started" ? (a, b) => (b.start_date || "").localeCompare(a.start_date || "") || byId(b, a)
+    : st.sort === "id" ? byId
+    : (a, b) => activityCompare(effective.get(a.scope_id), effective.get(b.scope_id)) || byId(a, b);
+  roots.sort(sortFn);
+  for (const v of kids.values()) v.sort(st.sort === "started" ? byId : sortFn);
+  return { roots, kids, effective };
+}
+
+function activityCompare(a, b) {
+  const rank = (p) => ({local_save: 0, created: 1})[p?.activity?.kind] ?? 2;
+  const stamp = (p) => Number.isFinite(p?.activity?.epoch_ms) ? p.activity.epoch_ms : 0;
+  return rank(a) - rank(b) || stamp(b) - stamp(a);
+}
+function activityText(p) {
+  if (masked(p)) return "更新情報は非表示";
+  const a = p.activity;
+  if (!a || !a.at) return "更新未確認";
+  const at = a.at.replace("T", " ").replace("+09:00", " JST");
+  return `${a.kind === "local_save" ? "保存" : "作成（更新未確認）"} ${at} · ${a.source}${a.precision === "day" ? "・日単位" : ""}${a.warnings?.length ? "・一部未確認" : ""}`;
 }
 
 function matches(p) {
@@ -270,14 +304,75 @@ function matches(p) {
     if (st.cls.executor && st.cls.executor !== NONE && !c.executors.includes(st.cls.executor)) return false;
   }
   if (st.q) { const q = st.q.toLowerCase();
-    const hay = (label(p) + " " + (masked(p) ? "" : p.name + " " + p.scope_id)).toLowerCase();
+    const m = p.membership;
+    const memb = m && !masked(p) ? [progName(m.program), bizName(m.primary_business), ...m.related_business.map(bizName)].join(" ") : "";
+    const hay = (label(p) + " " + (masked(p) ? "" : p.name + " " + p.scope_id) + " " + memb).toLowerCase();
     if (!hay.includes(q)) return false; }
   return true;
 }
 
+function membershipRow(p) {
+  const m = p.membership;
+  if (!m || masked(p)) return "";
+  const parts = [];
+  if (!grouping()) {
+    if (m.program) parts.push(`<span class="badge memb" title="Program">${esc(progName(m.program))}</span>`);
+    if (m.primary_business) parts.push(`<span class="badge memb" title="主な業務Project">${esc(bizName(m.primary_business))}</span>`);
+  }
+  for (const b of m.related_business) parts.push(`<span class="badge memb rel" title="関連する業務Project（件数には入れない）">関連: ${esc(bizName(b))}</span>`);
+  return parts.length ? `<div class="clsrow" data-testid="project-membership"><span class="caret"></span>${parts.join("")}</div>` : "";
+}
+
 function renderList() {
-  const { roots, kids } = tree();
   const out = [];
+  if (grouping()) renderGroups(out); else renderProjects(st.data.projects, 0, out);
+  $("rows").innerHTML = out.length ? out.join("") : '<div class="empty">条件に合う Project はありません</div>';
+  $("rows").querySelectorAll(".row, .grp").forEach((el) => el.onclick = (ev) => {
+    const tg = ev.target.closest("[data-toggle]");
+    if (tg && tg.textContent) { const s = tg.dataset.toggle; st.collapsed.has(s) ? st.collapsed.delete(s) : st.collapsed.add(s); renderList(); return; }
+    if (el.dataset.sid) openDetail(el.dataset.sid);
+  });
+}
+
+// Program → 業務Project(primary) → Project。グループ内では parent_scope の入れ子を保つ（親が別グループならグループ内の最上位）
+function renderGroups(out) {
+  const UNL = "__unlinked__", NOBIZ = "__nobiz__", CONF = "__confidential__";
+  const progs = new Map((st.data.membership.programs || []).map((g) => [g.uid, g]));
+  const groups = new Map();
+  for (const p of st.data.projects) {
+    // 共有モードの 🔒 Project はグループの位置からも所属が分からないよう、まとめて別グループにする
+    const m = masked(p) ? null : p.membership;
+    const gk = masked(p) ? CONF : m && m.program ? m.program.uid : (m && m.primary_business ? NOBIZ + "prog" : UNL);
+    const bk = m && m.primary_business ? m.primary_business.uid : NOBIZ;
+    if (!groups.has(gk)) groups.set(gk, new Map());
+    const g = groups.get(gk);
+    if (!g.has(bk)) g.set(bk, { biz: m && m.primary_business, list: [] });
+    g.get(bk).list.push(p);
+  }
+  const hits = (list) => list.filter(matches).length;
+  const order = [...groups.entries()].map(([k, bmap]) => ({ k, bmap, n: [...bmap.values()].reduce((a, b) => a + hits(b.list), 0) }))
+    .sort((a, b) => (a.k === CONF) - (b.k === CONF) || (a.k === UNL) - (b.k === UNL) || b.n - a.n || progName(progs.get(a.k)).localeCompare(progName(progs.get(b.k)), "ja"));
+  for (const { k, bmap, n } of order) {
+    if (!n) continue;
+    const key = "g:" + k, col = st.collapsed.has(key), g = progs.get(k);
+    const title = k === CONF ? "機密（画面共有モードのため所属は非表示）" : k === UNL ? "未紐付け（Program・業務Project 未設定）" : g ? progName(g) : "Program 未設定（業務Project のみ）";
+    out.push(`<div class="grp g0" style="--depth:0" data-testid="group-program"><span class="caret" data-toggle="${esc(key)}">${col ? "▸" : "▾"}</span>
+      <b>${esc(title)}</b><span class="cnt">${n}件</span></div>`);
+    if (col) continue;
+    const bizOrder = [...bmap.entries()].map(([bk, v]) => ({ bk, v, n: hits(v.list) })).filter((x) => x.n)
+      .sort((a, b) => (a.bk === NOBIZ) - (b.bk === NOBIZ) || b.n - a.n || a.v.biz.display_id.localeCompare(b.v.biz.display_id));
+    for (const { bk, v, n: bn } of bizOrder) {
+      if (k === UNL || k === CONF) { renderProjects(v.list, 1, out); continue; }
+      const bkey = key + "/" + bk, bcol = st.collapsed.has(bkey);
+      out.push(`<div class="grp g1" style="--depth:1" data-testid="group-business"><span class="caret" data-toggle="${esc(bkey)}">${bcol ? "▸" : "▾"}</span>
+        ${esc(bk === NOBIZ ? "業務Project なし（Program に直接所属）" : bizName(v.biz))}<span class="cnt">${bn}件</span></div>`);
+      if (!bcol) renderProjects(v.list, 2, out);
+    }
+  }
+}
+
+function renderProjects(list, base, out) {
+  const { roots, kids, effective } = tree(list);
   const visit = (p, depth) => {
     const ch = kids.get(p.scope_id) || [];
     const childHtml = [];
@@ -289,7 +384,7 @@ function renderList() {
     if (!self && !childHit) return false;
     const col = st.collapsed.has(p.scope_id);
     const pr = p.progress, pc = pct(pr);
-    out.push(`<div class="row${st.sel === p.scope_id ? " sel" : ""}${self ? "" : " ghost"}" style="--depth:${depth}" data-sid="${esc(p.scope_id)}" data-testid="project-row">
+    out.push(`<div class="row${st.sel === p.scope_id ? " sel" : ""}${self ? "" : " ghost"}" style="--depth:${base + depth}" data-sid="${esc(p.scope_id)}" data-testid="project-row">
       <div class="t"><span class="caret" data-toggle="${esc(p.scope_id)}">${ch.length ? (col ? "▸" : "▾") : ""}</span>
         <span class="sid">${esc(label(p))}</span><span class="nm">${esc(pname(p))}</span></div>
       <div class="r">${p.confidential ? '<span class="badge lock" title="機密判定（status_audit と同じ基準・機密の所属を含む）">🔒</span>' : ""}
@@ -300,17 +395,12 @@ function renderList() {
         `<span class="bar"><i style="width:${pc}%"></i></span>${pr.done}/${pr.total}（${pc}%）`}
         ${p.layer_path ? "" : '<span title="Layer フォルダが見つからない">Layerなし</span>'}
         ${p.deadline ? `<span>期限 ${esc(p.deadline)}</span>` : ""}</div>
-      ${clsBadges(p) ? `<div class="clsrow"><span class="caret"></span>${clsBadges(p)}</div>` : ""}</div>`);
+      <div class="clsrow note" data-testid="project-activity"><span class="caret"></span>${esc(activityText(p))}${!masked(p) && st.sort === "updated" && effective.get(p.scope_id) && effective.get(p.scope_id) !== p ? `<span> ／ グループ順位: ${esc(label(effective.get(p.scope_id)))} · ${esc(activityText(effective.get(p.scope_id)))}</span>` : ""}</div>
+      ${clsBadges(p) ? `<div class="clsrow"><span class="caret"></span>${clsBadges(p)}</div>` : ""}${membershipRow(p)}</div>`);
     if (!col) out.push(...sub);
     return true;
   };
   for (const r of roots) visit(r, 0);
-  $("rows").innerHTML = out.length ? out.join("") : '<div class="empty">条件に合う Project はありません</div>';
-  $("rows").querySelectorAll(".row").forEach((el) => el.onclick = (ev) => {
-    const tg = ev.target.closest("[data-toggle]");
-    if (tg && tg.textContent) { const s = tg.dataset.toggle; st.collapsed.has(s) ? st.collapsed.delete(s) : st.collapsed.add(s); renderList(); return; }
-    openDetail(el.dataset.sid);
-  });
 }
 
 async function openDetail(sid) {
@@ -325,10 +415,10 @@ async function openDetail(sid) {
 function renderDetail() {
   const d = st.detail, m = st.share && d.confidential;
   const pr = d.progress, pc = pct(pr);
+  const sched = d.tasks.some((t) => t.scheduled_for || t.due || t.recurrence);
   const byId = new Map(st.data.projects.map((p) => [p.scope_id, p]));
   const link = (s) => { const p = byId.get(s); return p ? `<a href="#" data-go="${esc(s)}">${esc(label(p))}</a>` : esc(s); };
   const copy = (text, tid) => `<span class="copyline"><code>${esc(text)}</code><button data-copy="${esc(text)}" data-testid="${tid}">コピー</button></span>`;
-  const ro = !d.writable;
   $("detail").innerHTML = `
     <div class="note">${m ? esc(d.hash_id) : esc(d.scope_id)} ${d.confidential ? "🔒" : ""}</div>
     <h2 data-testid="detail-title">${m ? "（機密のため非表示）" : esc(d.name)}</h2>
@@ -342,40 +432,41 @@ function renderDetail() {
       ${d.classification && m ? '<dt>分類</dt><dd>（機密のため非表示）</dd>' : ""}
       ${d.classification && !m ? `<dt>分類</dt><dd>所属: ${esc(clsLabel(d.classification.affiliation) || "未設定")} ／ 種類: ${esc(clsLabel(d.classification.kind) || "未設定")} ／ 実行環境: ${esc(d.classification.executors.join("・") || "未設定")}
         <span class="note">（変えるときは intent.yaml の classification を直して classify.py sync）</span></dd>` : ""}
+      <dt>作業記録の更新</dt><dd data-testid="detail-activity">${esc(activityText(d))}${m ? "" : `<div class="note">根拠: ${esc(d.activity?.path || d.activity?.source || "不明")}<br>${esc(d.activity_notice || "")}${d.activity?.warnings?.length ? `<br>未確認: ${esc(d.activity.warnings.join(" / "))}` : ""}</div>`}</dd>
       <dt>期間</dt><dd>${esc(d.start_date || "—")} 〜 ${esc(d.deadline || "—")}</dd>
+      ${d.membership_available ? `<dt>所属</dt><dd data-testid="detail-membership">${m ? "（機密のため非表示）" : !d.membership ? '<span class="note">未紐付け（Program・業務Project 未設定）</span>' : `
+        <div>Program: ${d.membership.program ? esc(progName(d.membership.program)) + (d.membership.program_source === "business" ? ' <span class="note">（主な業務Project 経由）</span>' : "") : "—"}</div>
+        <div>主な業務Project: ${d.membership.primary_business ? esc(bizName(d.membership.primary_business)) : "—"}</div>
+        <div>関連する業務Project: ${d.membership.related_business.length ? d.membership.related_business.map((b) => esc(bizName(b))).join("、") : "—"}</div>
+        <div class="note">業務Project の所属は下の「親・子」（AI-PLC の親子）とは別です。紐付けを変えるときは <code>business_registry.py link</code> / <code>unlink</code> で</div>`}</dd>` : ""}
       <dt>親</dt><dd>${d.parent_scope ? link(d.parent_scope) : "—"}</dd>
       <dt>子</dt><dd>${d.children.length ? d.children.map(link).join("、") : "—"}</dd>
       <dt>Layer</dt><dd>${d.layer_path ? (m ? "（機密のため非表示）" : copy(d.layer_path, "detail-layer-copy")) : '<span class="badge warn">Layer フォルダが見つかりません</span>'}</dd>
       <dt>起動</dt><dd>${d.launch_prompt ? (m ? "（機密のため非表示）" : copy(d.launch_prompt, "detail-prompt-copy")) : "—"}</dd>
     </dl>
     <section>
-      <h3>Project の status を変える</h3>
-      <div class="ops">
-        <select id="pStatus" ${ro ? "disabled" : ""} data-testid="project-status-select">
-          ${PROJECT_CHOICES.includes(d.status) ? "" : `<option value="" disabled selected>${esc(d.status)}（現在の値・画面からは選べません）</option>`}
-          ${PROJECT_CHOICES.map((s) => `<option ${s === d.status ? "selected" : ""}>${s}</option>`).join("")}</select>
-        <button id="pApply" ${ro ? "disabled" : ""} data-testid="project-status-apply">変更</button>
-        <span class="note">${ro ? `読み取り専用: ${esc(d.readonly_reason)}` : "intent.yaml → backlog の summary → Registry の順に書きます"}</span>
-      </div>
+      <h3>Projectの状態</h3>
+      <p class="note" data-testid="viewer-readonly">このビューアは閲覧専用です。status の変更は <code>/plc-lifecycle</code>（中止・再開）や各 Stage の実行（<code>/04-operation</code> など）で行います。</p>
+      ${d.status === "cancelled" ? `<p class="note">中止済み（Goal未達の終了）。Task実績と成果物は保持されています。再開するときは <code>/plc-lifecycle</code> で再計画と承認を経ます。</p>` : ""}
+      ${d.cancellation ? `<p data-testid="project-cancellation-record">${m ? "（機密のため中止判断は非表示）" : `中止理由: ${esc(d.cancellation.reason)} / 判断: ${esc(d.cancellation.decided_at)} / 承認: ${esc(d.cancellation.approved_by)} (${esc(d.cancellation.approval_ref)}) / 保持成果: ${esc((d.cancellation.retained_artifacts || []).join("、"))} / 置換先: ${esc(d.cancellation.replacement_scope_id || "なし")} / 再検討: ${esc(d.cancellation.reconsider_when || "未指定")}`}</p>` : ""}
     </section>
     <section>
       <h3>タスク（${d.tasks.length}）</h3>
-      ${d.tasks.length ? `<table data-testid="task-table"><thead><tr><th>ID</th><th>名前</th><th>pri</th><th>backlog</th><th>Registry</th>${d.classification_available ? "<th>実行環境</th>" : ""}<th>変更</th></tr></thead><tbody>
+      ${d.tasks.length ? `<table data-testid="task-table"><thead><tr><th>ID</th><th>名前</th><th>pri</th><th>backlog</th><th>Registry</th>${sched ? "<th>実行時期・期限</th>" : ""}${d.classification_available ? "<th>実行環境</th>" : ""}</tr></thead><tbody>
       ${d.tasks.map((t) => `<tr class="${t.mismatch ? "mismatch" : ""}" data-testid="task-row">
         <td class="mono">${esc(t.task_id)}</td><td>${m ? "—" : esc(t.name)}</td><td class="mono">${esc(t.priority ?? "")}</td>
         <td class="mono">${t.in_layer ? esc(t.layer_status ?? "—") : '<span class="note">なし</span>'}</td>
         <td class="mono">${t.in_registry ? esc(t.registry_status) : '<span class="note">なし</span>'}</td>
+        ${sched ? `<td class="mono" data-testid="task-schedule">${t.recurrence ? `<span class="badge cls" title="運用タスク（進捗の数に入れない）">運用・${esc(typeof t.recurrence === "string" ? t.recurrence : "あり")}</span> ` : ""}${t.scheduled_for ? `時期 ${esc(t.scheduled_for)}` : ""}${t.scheduled_for && t.due ? " ／ " : ""}${t.due ? `期限 ${esc(t.due)}` : ""}${!t.recurrence && !t.scheduled_for && !t.due ? "—" : ""}</td>` : ""}
         ${d.classification_available ? `<td class="mono">${esc(t.executed_by || "—")}</td>` : ""}
-        <td>${!ro && !t.editable ? `<span class="note" title="${esc(t.readonly_reason)}">変更不可</span>` : `<span class="ops"><select data-task="${esc(t.task_id)}" ${ro ? "disabled" : ""} data-testid="task-status-select">
-          ${TASK_CHOICES.map((s) => `<option ${s === currentTaskChoice(t) ? "selected" : ""}>${s}</option>`).join("")}</select>
-          <button data-apply="${esc(t.task_id)}" ${ro ? "disabled" : ""} data-testid="task-status-apply">変更</button></span>`}</td></tr>`).join("")}
+        </tr>`).join("")}
       </tbody></table>
-      <p class="note">色つきの行は backlog と Registry の値が対応していないタスクです。「変更」は backlog.yaml → Registry の順に、ある写しをすべて同じ値にします。</p>` : '<p class="note">タスクはありません</p>'}
+      <p class="note">色つきの行は backlog と Registry の値が対応していないタスクです。運用タスク（recurrence のあるタスク）は進捗の数に入れません。</p>` : '<p class="note">タスクはありません</p>'}
     </section>
     <section>
       <h3>食い違い（aiplc_status_audit）</h3>
       ${!d.audit_available ? '<p class="note">aiplc_status_audit.py が無いため表示しません</p>' : d.issues.length ? `<ul class="issues">${d.issues.map((i) => `<li><span class="badge warn">${esc(i.kind)}</span> ${m ? "（機密のため理由は非表示）" : esc(i.reason)}</li>`).join("")}</ul>
-        <p class="note">反映は <code>python3 ${esc(d.audit_path || "aiplc_status_audit.py")} --quiet --approval-template --layer &lt;Layer&gt;</code> から（承認つき）</p>` : '<p class="note">食い違いはありません</p>'}
+        <p class="note">反映は <code>python3 ${esc(st.share ? "aiplc_status_audit.py" : (d.audit_path || "aiplc_status_audit.py"))} --quiet --approval-template --layer &lt;Layer&gt;</code> から（承認つき）</p>` : '<p class="note">食い違いはありません</p>'}
     </section>
     <div class="legend"><b>読み方</b> ${STATUSES.map(badge).join("")}
       <span>進捗＝完了 / 対象（cancelled・deferred は除外）</span>
@@ -383,61 +474,27 @@ function renderDetail() {
   $("detail").querySelectorAll("[data-go]").forEach((a) => a.onclick = (e) => { e.preventDefault(); openDetail(a.dataset.go); });
   $("detail").querySelectorAll("[data-copy]").forEach((b) => b.onclick = async () => {
     try { await navigator.clipboard.writeText(b.dataset.copy); toast("コピーしました"); } catch (e) { toast("コピーできませんでした", true); } });
-  const pa = $("pApply"); if (pa) pa.onclick = () => changeProject($("pStatus").value);
-  $("detail").querySelectorAll("[data-apply]").forEach((b) => b.onclick = () =>
-    changeTask(b.dataset.apply, $("detail").querySelector(`select[data-task="${CSS.escape(b.dataset.apply)}"]`).value));
 }
 
-// select の初期値: backlog の値。backlog に無いタスクは Registry の値から逆に対応づける（押し間違いで戻さないため）
-const REG_TO_CHOICE = { "完了": "completed", "completed": "completed", "進行中": "in_progress", "active": "in_progress" };
-function currentTaskChoice(t) {
-  if (t.in_layer) return String(t.layer_status ?? "").toLowerCase();
-  return REG_TO_CHOICE[t.registry_status] || "pending";
+function changeView() {
+  // #<scope_id> で開いたときは、その Project の詳細を出す
+  if (location.hash && st.data) {
+    try { const sid = decodeURIComponent(location.hash.slice(1)); if (st.data.projects.some(p => p.scope_id === sid)) openDetail(sid); } catch (e) {}
+  }
 }
-
-function confirmDialog(title, lines) {
-  $("cfTitle").textContent = title;
-  $("cfBody").innerHTML = `<ul>${lines.map((l) => `<li>${l}</li>`).join("")}</ul>`;
-  const dlg = $("confirm");
-  return new Promise((res) => { dlg.onclose = () => res(dlg.returnValue === "ok"); dlg.returnValue = ""; dlg.showModal(); });
-}
-
-async function changeProject(to) {
-  const d = st.detail;
-  if (!PROJECT_CHOICES.includes(to)) { toast("変更後の status を選んでください"); return; }
-  if (to === d.status && (INTENT_WRITE[to] === String(d.intent_status))) { toast("すでにその値です"); return; }
-  const m = st.share && d.confidential, lp = m ? "（機密のため非表示）" : esc(d.layer_path), who = m ? d.hash_id : d.scope_id;
-  const lines = [`<code>${lp}/intent.yaml</code> の status: ${esc(d.intent_status)} → ${esc(INTENT_WRITE[to])}`];
-  if (d.summary_status != null) lines.push(`<code>backlog.yaml</code> の summary.status: ${esc(d.summary_status)} → ${esc(INTENT_WRITE[to])}`);
-  lines.push(`Registry projects.status: ${esc(d.status)} → ${esc(to)}`);
-  if (!(await confirmDialog(`${who} を ${to} にします`, lines))) return;
-  try {
-    const r = await post(`/api/projects/${encodeURIComponent(d.scope_id)}/status`, { to, expected: { intent: d.intent_status, registry: d.status } });
-    toast(m ? "変更しました" : `変更しました（${r.wrote.join("・") || "変更なし"}）`);
-  } catch (e) { toast(m ? `変更できませんでした（HTTP ${e.status || "?"}）` : e.message, true); }
-  await load(true);
-}
-
-async function changeTask(tid, to) {
-  const d = st.detail, t = d.tasks.find((x) => x.task_id === tid);
-  const m = st.share && d.confidential, lp = m ? "（機密のため非表示）" : esc(d.layer_path), who = m ? d.hash_id : d.scope_id;
-  const lines = [];
-  if (t.in_layer) lines.push(`<code>${lp}/backlog.yaml</code> の ${esc(tid)}.status: ${esc(t.layer_status)} → ${esc(to)}`);
-  if (t.in_registry) lines.push(`Registry tasks.status: ${esc(t.registry_status)} → （${esc(to)} に対応する値）`);
-  if (!(await confirmDialog(`${who} / ${tid} を ${to} にします`, lines))) return;
-  try {
-    const r = await post(`/api/projects/${encodeURIComponent(d.scope_id)}/tasks/${encodeURIComponent(tid)}/status`,
-      { to, expected: { backlog: t.in_layer ? t.layer_status : null, registry: t.in_registry ? t.registry_status : null } });
-    toast(m ? "変更しました" : `変更しました（${r.wrote.join("・") || "変更なし"}）`);
-  } catch (e) { toast(m ? `変更できませんでした（HTTP ${e.status || "?"}）` : e.message, true); }
-  await load(true);
-}
-
+window.addEventListener("hashchange", changeView);
 $("reload").onclick = () => load(true);
+$("groupMode").onchange = (e) => { if (["tree", "program"].includes(e.target.value)) { st.group = e.target.value; savePrefs(); renderList(); } };
+$("sortOrder").onchange = (e) => { if (["updated", "started", "id"].includes(e.target.value)) { st.sort = e.target.value; savePrefs(); renderList(); } };
 $("q").oninput = (e) => { st.q = e.target.value.trim(); renderList(); };
 $("issuesOnly").onclick = () => { st.issuesOnly = !st.issuesOnly; renderHeader(); renderList(); };
-$("share").onchange = (e) => { st.share = e.target.checked; savePrefs(); renderClsFilters(); renderList(); if (st.detail) renderDetail(); };
-load(false);
+$("share").checked = st.share;
+$("share").onchange = (e) => {
+  st.share = e.target.checked; savePrefs();
+  if (st.data) { renderHeader(); renderList(); }
+  if (st.detail) renderDetail();
+};
+load(false).then(changeView);
 </script>
 </body>
 </html>

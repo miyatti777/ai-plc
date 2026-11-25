@@ -68,13 +68,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     func applicationWillTerminate(_ notification: Notification) { stopServer() }
 
     // MARK: server
+    // 起動確認は軽い /api/health で行う（一覧 /api/projects は数秒かかるため判定に使わない）。
+    // /api/health の無い旧版サーバが動いているときだけ、時間をかけて /api/projects で確かめる
     private func isServerUp(_ done: @escaping (Bool) -> Void) {
-        var req = URLRequest(url: baseURL.appendingPathComponent("api/projects"), timeoutInterval: 3)
+        probe("api/health", timeout: 5) { ok, status in
+            if ok || status != 404 { done(ok); return }
+            self.probe("api/projects", timeout: 30) { ok, _ in done(ok) }
+        }
+    }
+
+    private func probe(_ path: String, timeout: TimeInterval, _ done: @escaping (Bool, Int) -> Void) {
+        var req = URLRequest(url: baseURL.appendingPathComponent(path), timeoutInterval: timeout)
         req.cachePolicy = .reloadIgnoringLocalCacheData
         URLSession.shared.dataTask(with: req) { data, resp, _ in
-            let ok = (resp as? HTTPURLResponse)?.statusCode == 200 &&
+            let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+            let ok = status == 200 &&
                 (try? JSONSerialization.jsonObject(with: data ?? Data())) as? [String: Any] != nil
-            DispatchQueue.main.async { done(ok) }
+            DispatchQueue.main.async { done(ok, status) }
         }.resume()
     }
 
@@ -135,21 +145,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
 
     // MARK: window
     @objc private func openWindow() {
+        showWindow(at: baseURL)
+    }
+
+    private func showWindow(at url: URL) {
         ensureServer { ok in
             guard ok else { return }
-            if self.window == nil { self.makeWindow() } else { self.webView?.reload() }
+            if self.window == nil { self.makeWindow(at: url) }
+            else { self.webView?.load(URLRequest(url: url)) }
             NSApp.activate(ignoringOtherApps: true)
             self.window?.makeKeyAndOrderFront(nil)
         }
     }
 
-    private func makeWindow() {
+    private func makeWindow(at url: URL) {
         let cfg = WKWebViewConfiguration()
         cfg.websiteDataStore = .default()  // 絞り込み・画面共有モードの保存（localStorage）を残す
         let wv = WKWebView(frame: .zero, configuration: cfg)
         wv.uiDelegate = self
         wv.navigationDelegate = self
-        wv.load(URLRequest(url: baseURL))
+        wv.load(URLRequest(url: url))
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 820),
                          styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         w.title = "AI-PLC Registry"
@@ -179,7 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     }
 
     @objc private func reloadPage() { ensureServer { ok in if ok { self.webView?.reload() } } }
-    @objc private func openInBrowser() { ensureServer { ok in if ok { NSWorkspace.shared.open(baseURL) } } }
+    @objc private func openInBrowser() { ensureServer { ok in if ok { NSWorkspace.shared.open(self.webView?.url ?? baseURL) } } }
     @objc private func restartServer() {
         if server == nil {
             isServerUp { up in
@@ -193,8 +208,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     }
     @objc private func quit() { NSApp.terminate(nil) }
 
+    // 長いログは本文に入れずスクロール欄に出す（本文が長いとダイアログが画面からはみ出し OK を押せなくなる）
     private func alert(_ title: String, _ text: String) {
-        let a = NSAlert(); a.messageText = title; a.informativeText = text
+        let a = NSAlert(); a.messageText = title
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: true)
+        if text.count <= 300 && lines.count <= 6 {
+            a.informativeText = text
+        } else {
+            a.informativeText = "サーバのログ（末尾）を下に表示します。メニューの「サーバを再起動」で再試行できます。"
+            let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 520, height: 220))
+            scroll.hasVerticalScroller = true
+            scroll.borderType = .bezelBorder
+            let tv = NSTextView(frame: scroll.bounds)
+            tv.isEditable = false
+            tv.isSelectable = true
+            tv.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+            tv.autoresizingMask = [.width]
+            tv.string = String(text.suffix(4000))
+            scroll.documentView = tv
+            a.accessoryView = scroll
+            tv.scrollToEndOfDocument(nil)
+        }
+        a.addButton(withTitle: "OK")
         NSApp.activate(ignoringOtherApps: true); a.runModal()
     }
 
