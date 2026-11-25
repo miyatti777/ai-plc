@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BacklogLive</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="title-row">
+    <span class="scope" id="scope">—</span>
+    <h1 id="name">読み込み中…</h1>
+  </div>
+  <div class="where">
+    <span class="mode" id="mode"></span>
+    <span class="stage" id="stage"></span>
+    <span class="path" id="path"></span>
+    <button type="button" class="follow-btn" id="follow-btn" hidden>追従に戻す</button>
+  </div>
+  <p class="goal" id="goal"></p>
+  <div class="meta">
+    <span class="live" id="live"><span class="dot"></span><span id="live-text">接続中</span></span>
+    <span id="mtime"></span>
+  </div>
+</header>
+
+<details class="picker" id="picker">
+  <summary>Layer を選ぶ</summary>
+  <div class="picker-actions">
+    <span class="picker-note" id="picker-note"></span>
+  </div>
+  <ol class="layer-list" id="layer-list"></ol>
+</details>
+
+<div class="banner" id="banner" hidden></div>
+
+<main>
+  <section class="now" id="now" aria-live="polite">
+    <div class="now-label" id="now-label">いま</div>
+    <div class="now-title"><span class="now-id" id="now-id"></span><span id="now-name"></span></div>
+    <div class="now-meta" id="now-meta"></div>
+    <div class="now-deps" id="now-deps"></div>
+  </section>
+
+  <section class="progress">
+    <div class="progress-head">
+      <span class="big" id="done-count">0 / 0</span>
+      <span class="sub">完了</span>
+      <span class="pct" id="pct">0%</span>
+    </div>
+    <div class="bar" id="bar" role="img" aria-label="状態別のタスク数"></div>
+    <ul class="legend" id="legend"></ul>
+  </section>
+
+  <section class="tasks">
+    <div class="tasks-head">
+      <h2>タスク</h2>
+      <div class="tabs" role="tablist" aria-label="表示の切り替え">
+        <button type="button" role="tab" id="tab-flow" data-view="flow">流れ</button>
+        <button type="button" role="tab" id="tab-list" data-view="list">一覧</button>
+        <button type="button" role="tab" id="tab-ops" data-view="ops" hidden>運用・予定</button>
+      </div>
+    </div>
+    <div class="flow" id="flow"></div>
+    <p class="flow-legend" id="flow-legend"></p>
+    <ol class="task-list" id="tasks"></ol>
+    <div class="ops-tab" id="ops"></div>
+  </section>
+</main>
+
+<div class="detail-backdrop" id="detail-backdrop" hidden></div>
+<aside class="detail" id="detail" role="dialog" aria-labelledby="detail-name" hidden>
+  <div class="detail-head">
+    <div class="detail-title"><span class="detail-id" id="detail-id"></span><h2 id="detail-name"></h2></div>
+    <button type="button" class="detail-close" id="detail-close" aria-label="詳細を閉じる">×</button>
+  </div>
+  <div class="detail-chips" id="detail-chips"></div>
+  <div class="detail-body" id="detail-body"></div>
+</aside>
+<script src="/app.js"></script>
+</body>
+</html>

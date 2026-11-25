@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YAML を読む</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-row">
+    <label class="picker">置き場
+      <select id="source"></select>
+    </label>
+    <span id="head-name" class="head-name"></span>
+    <span id="head-meta" class="head-meta"></span>
+  </div>
+  <div class="top-row">
+    <nav id="tabs" class="tabs" aria-label="ファイル"></nav>
+    <input id="filter" class="filter" type="search" placeholder="絞り込み（ID・言葉）" autocomplete="off">
+    <span id="status" class="status" aria-live="polite"></span>
+  </div>
+</header>
+<main class="main">
+  <section id="table-wrap" class="table-wrap"></section>
+  <aside id="detail" class="detail" hidden></aside>
+</main>
+<footer class="foot">閲覧専用。ファイルは変えません。127.0.0.1 の中だけで動きます。</footer>
+<script src="/app.js"></script>
+</body>
+</html>

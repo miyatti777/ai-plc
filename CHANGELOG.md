@@ -13,6 +13,24 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-26
+
+実験版パッケージ（`experimental/jev/`）は **1.12.0-exp.2 のまま**です。
+
+### 追加: ビューア2つ（アルファ版・installer の対象外）
+
+- **`experimental/backlog-live/`（BacklogLive 0.1.0-alpha）:** Layer の `backlog.yaml` を読んで、タスク全体と「いまどこをやっているか」を図で表示します。backlog を保存すると数秒で表示が変わります。依存の流れの図、運用タスクと予定のタブ、タスクの詳細を見られます
+- **`experimental/yaml-viewer/`（YamlViewer 0.1.0-alpha）:** AIPM の箱の一覧（仮説・論点・WBS・節目・ToDo）と、Layer の intent・context・backlog を、表と札で読めます。箱の新しい形（`Sheets/`）と古い形（`Documents/aipm_project/registers/`）の両方を読めます
+- どちらも閲覧専用で、127.0.0.1 でだけ待ち受け、外部への送信はありません。`install.sh` では入らないので、各フォルダの README の手順でプロジェクトの `tools/` にコピーして使います。必要なのは Python 3.9 以上と pyyaml です
+
+### 変更: Stage の本文のライブ表示の扱い
+
+- `/01-collection`〜`/04-operation` と Codex の共通の参照で、「公開版にはライブ表示は無い」としていた1行を、「`tools/BacklogLive/server.py` があるときだけ、対象 Layer の画面を開く。無ければ何もしない」に変えました。BacklogLive を入れていないプロジェクトの動きは変わりません
+
+### この版に入れていないもの
+
+- Registry ビューア（`experimental/registry-viewer/`）は 0.2.1-alpha のままです。YamlViewer の Mac アプリ（Finder から `.yaml` を開く形）は入れていません
+
 ## [2.0.0] - 2026-11-26
 
 名前が変わり、旧名では呼べなくなるので、版を 2.0.0 に上げました。実験版パッケージ（`experimental/jev/`）は **1.12.0-exp.2 のまま**です。

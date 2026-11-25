@@ -254,7 +254,7 @@ git pull             # 最新の版を取ってくる（失敗したら git stat
 - **既存の Layer はそのまま使えます。** `intent.yaml`・`backlog.yaml` の書き換えは要りません。`recurrence`・`scheduled_for` の無い Task は今までどおり扱われ、`work_style: aipm` と書いた Layer は同梱の AIPM を選んだものとして読まれます
 - **増えるもの:** rules `ai-plc-model-routing.md`、ユーティリティ `plc-next`・`plc-decision`・`plc-brief`・`plc-lifecycle`（v1.14.0 では `plc-project-status`）・`plc-model-routing`・`ppm-someday`（v1.14.0 では `plc-someday`）、同梱アドオン AIPM（`.claude/skills/aipm-guided/`）と `/pm-` コマンド8本、アドオンの判定スクリプト（`.claude/skills/ai-plc/scripts/`）、DB のスクリプト `project_lifecycle.py`・`plc_explain.py`、Codex の入口 14本
 - **消えるもの:** 配らなくなったファイルはありません（`--dry-run` に `DELETE:` は出ません）。Codex の入口の診断モード（`AI-PLC prerequisite diagnostics`）は無くなり、正本が欠けていれば欠けたパスを報告して止まります
-- **本文に名前が出るが、公開版に無いもの:** ステータス点検（実験版 `--with-jev` にだけ入る）、ライブの進捗表示、`plc-brief` の HTML モード、Project の分類（`experimental/registry-viewer` にある）、社内向けの共有 Stock・業務 Project への割り当て、本人専用の情報の保存先。どれも「無ければスキップ」と書いてあり、無くても Stage は止まりません
+- **本文に名前が出るが、公開版に無いもの:** ステータス点検（実験版 `--with-jev` にだけ入る）、ライブの進捗表示（v2.0.0 まで。v2.1.0 からは `experimental/backlog-live` を手でコピーすると使えます）、`plc-brief` の HTML モード、Project の分類（`experimental/registry-viewer` にある）、社内向けの共有 Stock・業務 Project への割り当て、本人専用の情報の保存先。どれも「無ければスキップ」と書いてあり、無くても Stage は止まりません
 - **実験版（Jev 監視）を入れている人:** 実験版は 1.12.0-exp.2 のまま変わりません。`--with-jev` を付けても付けなくても、core だけが 1.14.0 に上がります
 - DB（`.claude/db/ai_plc.db`）は書き換えません。`plc_query.py someday` は既存の `projects` テーブルを使うので、DB の作り直しは要りません
 
@@ -802,6 +802,20 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 - 0.2.0-alpha から、各 Project に分類（所属・種類・実行環境）を付けて、一覧のバッジと絞り込みで見分けられます（`classify.py`。手順は同じ README の「分類」）
 - macOS のメニューバーアプリのソース（自分でビルドする）も同梱しています。試した結果の報告は Issue で歓迎します
 
+### 進み具合と YAML を画面で見る（アルファ版: `experimental/backlog-live/`・`experimental/yaml-viewer/`。v2.1.0〜）
+
+Layer のファイルを読むだけの、閲覧専用のビューアを2つ置いています。どちらも installer の対象外で、プロジェクトの `tools/` に手でコピーして使います（127.0.0.1 だけ・外部送信なし。Python 3.9 以上と pyyaml）。
+
+```bash
+cp -R experimental/backlog-live <プロジェクト>/tools/BacklogLive
+cp -R experimental/yaml-viewer <プロジェクト>/tools/YamlViewer
+cd <プロジェクト> && python3 tools/BacklogLive/server.py   # http://127.0.0.1:8770/
+cd <プロジェクト> && python3 tools/YamlViewer/server.py    # http://127.0.0.1:8772/
+```
+
+- **BacklogLive:** `backlog.yaml` からタスクの流れと「いまどこをやっているか」を図にします。保存すると数秒で表示が変わるので、Claude Code デスクトップの右ペインに出したまま作業できます。入れておくと、Stage の実行中に対象 Layer の画面を開くよう頼めます（[`experimental/backlog-live/README.md`](experimental/backlog-live/README.md)）
+- **YamlViewer:** AIPM の箱の一覧（仮説・論点・WBS・節目・ToDo）と、Layer の intent・context・backlog を表と札で読めます（[`experimental/yaml-viewer/README.md`](experimental/yaml-viewer/README.md)）
+
 ---
 
 ## 🛠 同梱スキル
@@ -913,7 +927,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 ./install.sh --target /path/to/your/project cc --with-jev
 ```
 
-- 現在のcheckoutでは core も同時に 2.0.0 に上がります。上がったかどうかは、`.ai-plc-version` が `2.0.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
+- 現在のcheckoutでは core も同時に 2.1.0 に上がります。上がったかどうかは、`.ai-plc-version` が `2.1.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
 - `--with-jev` を付けずに更新すると、core だけが上がり、実験版は前の版のまま残ります。前の版の実験版スキルは core 1.8.1 の時点のもので、Construction を既定で省く変更と自動完走（/goal）に対応していないので、実験版も一緒に上げてください
 - 1.12.0-exp.2 を入れた後に、前の実験版を配る checkout の installer で `--with-jev` を付けると、`[CONFLICT] component downgrade refused: experimental_jev` などの行を出して止まり、何も書き換えません。前の版に戻したいときは、今の checkout で `uninstall.sh cc` してから、前の版の checkout で入れ直します
 
@@ -921,7 +935,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 
 - **会話監視 hook と成功条件カバー判定を凍結しました。** `/02-inception-jev` はカバー判定を呼ばず（`jev_monitor: true` でも）、`/02-inception-jev`・`/03-construction-jev`・`/04-operation-jev` の会話監視の案内は「登録しない（登録済みなら外してよい）」に変えました。スクリプトは残しますが更新しません。Backtrack の異常ヒント（`/04-operation-jev` の 5.5b・6b）とステータス点検は変わりません
 - **`KNOWN_RELEASES.sha256`:** 1.12.0-exp.1 の配布物のハッシュを足しました
-- この実験版リリースでは Python のコードと installer の処理は変えていません。現在のcoreは2.0.0ですが、この実験版はcore 1.12.0時点のままです
+- この実験版リリースでは Python のコードと installer の処理は変えていません。現在のcoreは2.1.0ですが、この実験版はcore 1.12.0時点のままです
 
 それより前の変更（1.12.0-exp.1 など）は CHANGELOG にあります。
 
@@ -1159,6 +1173,8 @@ ai-plc/
 ├── examples/kotonoha/     # 試せるサンプル
 ├── experimental/jev/      # 実験版（--with-jev のときだけ入る。Claude Code 専用）
 ├── experimental/registry-viewer/  # Registry ビューア（アルファ版。installer 対象外・手でコピー）
+├── experimental/backlog-live/     # BacklogLive（進み具合のライブ表示。アルファ版・手でコピー）
+├── experimental/yaml-viewer/      # YamlViewer（箱の一覧と Layer の YAML を表で読む。アルファ版・手でコピー）
 └── docs/                  # ARCHITECTURE.md
 ```
 </details>
