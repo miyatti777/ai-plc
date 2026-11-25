@@ -849,6 +849,9 @@ cd <プロジェクト> && python3 tools/YamlViewer/server.py    # http://127.0.
 | `plc-lifecycle` | Goal 未達のまま意図的に中止（cancelled）し、理由を残す。再計画の後の再開も（v1.14.0〜。v2.0.0 で `plc-project-status` から改名） | いつでも |
 | `plc-model-routing` | タスクに合う担当モデルと Advisor 相談を選び、実行環境のモデル指定へ渡す（v1.14.0〜） | 頼んだとき、または `model_routing: true` の Layer/Task |
 | `ppm-someday` | 「いつかやる」Project を Registry に貯め、1件選んで `/01-collection` の起動プロンプトにする（Layer は作らない。v1.14.0〜） | いつでも |
+| `ppm-collection` | 依頼の言葉に似た既存の案件を最大3件出し、行き先（続き・新しい Layer・再開・いつかやる）を1つ勧める（読み取り専用。v2.3.0〜） | いつでも（`/01-collection` の前に呼ぶと、同じ目的の Layer を重ねて作るのを防げます） |
+| `ppm-scan` | 指定した範囲の Notion と、自分の公開 Slack 発言から、まだ一覧に無い案件の候補を根拠つきで1回集めてメモにする（外のサービスと案件は読むだけ。書くのは収集メモ1つ。v2.3.0〜） | Notion・Slack の接続があるとき（無ければ「未取得」と返して止まります） |
+| `ppm-pmo` | 複数案件の PMO。案件間の依存の遅れ・共有する人や資源の上限超過・共通の課題を洗い出し、責任者向けの判断メモと、決定の案件別の要求・反映の照合を作る（v2.3.0〜） | 頼んだとき（Python 3 の標準ライブラリだけで動きます） |
 
 名前の決まりは `.claude/rules/ai-plc-system.md` の §6 にあります（Stage は `0N-<stage>`、案件の中のユーティリティは `plc-<機能>`、案件をまたぐものは `ppm-<機能>`、AIPM の箱の操作は `pm-<機能>`）。3つの層の定義は `.claude/skills/ai-plc/references/three-tiers.md` です。
 
@@ -928,7 +931,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 ./install.sh --target /path/to/your/project cc --with-jev
 ```
 
-- 現在のcheckoutでは core も同時に 2.2.0 に上がります。上がったかどうかは、`.ai-plc-version` が `2.2.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
+- 現在のcheckoutでは core も同時に 2.3.0 に上がります。上がったかどうかは、`.ai-plc-version` が `2.3.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
 - `--with-jev` を付けずに更新すると、core だけが上がり、実験版は前の版のまま残ります。前の版の実験版スキルは core 1.8.1 の時点のもので、Construction を既定で省く変更と自動完走（/goal）に対応していないので、実験版も一緒に上げてください
 - 1.12.0-exp.2 を入れた後に、前の実験版を配る checkout の installer で `--with-jev` を付けると、`[CONFLICT] component downgrade refused: experimental_jev` などの行を出して止まり、何も書き換えません。前の版に戻したいときは、今の checkout で `uninstall.sh cc` してから、前の版の checkout で入れ直します
 
@@ -936,7 +939,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 
 - **会話監視 hook と成功条件カバー判定を凍結しました。** `/02-inception-jev` はカバー判定を呼ばず（`jev_monitor: true` でも）、`/02-inception-jev`・`/03-construction-jev`・`/04-operation-jev` の会話監視の案内は「登録しない（登録済みなら外してよい）」に変えました。スクリプトは残しますが更新しません。Backtrack の異常ヒント（`/04-operation-jev` の 5.5b・6b）とステータス点検は変わりません
 - **`KNOWN_RELEASES.sha256`:** 1.12.0-exp.1 の配布物のハッシュを足しました
-- この実験版リリースでは Python のコードと installer の処理は変えていません。現在のcoreは2.2.0ですが、この実験版はcore 1.12.0時点のままです
+- この実験版リリースでは Python のコードと installer の処理は変えていません。現在のcoreは2.3.0ですが、この実験版はcore 1.12.0時点のままです
 
 それより前の変更（1.12.0-exp.1 など）は CHANGELOG にあります。
 
@@ -1162,7 +1165,8 @@ ai-plc/
 │   ├── skills/aipm-guided/  # 同梱アドオン AIPM（pm- の操作は ops/）
 │   ├── skills/plc-*/      # plc-db-sync / plc-consult / plc-backfill / plc-auto / plc-next / plc-decision / plc-brief
 │   │                      # plc-lifecycle / plc-model-routing
-│   ├── skills/ppm-*/      # ppm-registry / ppm-audit / ppm-viewer / ppm-someday（AI-PLC の PPM スキル）
+│   ├── skills/ppm-*/      # ppm-registry / ppm-audit / ppm-viewer / ppm-someday / ppm-collection / ppm-scan / ppm-pmo
+│   │                      # （AI-PLC の PPM スキル）
 │   ├── rules/             # system / session / adaptive / model-routing
 │   └── db/                # init_db.py / plc_query.py / sync.py / project_lifecycle.py / plc_explain.py
 │                          # aiplc_paths.py / business_registry.py / shared_stock.py

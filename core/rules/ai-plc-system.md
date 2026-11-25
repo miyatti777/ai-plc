@@ -55,13 +55,13 @@ RUL_plc_system（本ファイル）→ 全SKL_plc_* が参照。補助ルール:
 
 | 層 | 種別 | 形 | 置き場所（CC） | 例 |
 | --- | --- | --- | --- | --- |
-| ポートフォリオ層 | 案件をまたいで全体を見る・振る（PPM＝プロジェクトポートフォリオマネジメント） | `ppm-<機能>` | `.claude/skills/ppm-<機能>/SKILL.md`（audit・registry・someday・viewer。スキルだけ） | `/ppm-registry` ・ `/ppm-audit` |
+| ポートフォリオ層 | 案件をまたいで全体を見る・振る（PPM＝プロジェクトポートフォリオマネジメント） | `ppm-<機能>` | `.claude/skills/ppm-<機能>/SKILL.md`（audit・registry・someday・viewer・pmo・scan・collection。scan・collection は `.claude/commands/` にも呼び出し用ラッパーがある） | `/ppm-registry` ・ `/ppm-audit` |
 | プロジェクト層 | パイプライン Stage | `0N-<stage>`（Jev 実験版の末尾 `-jev` は凍結中 — RUL_plc_adaptive §5 ルール6） | `.claude/skills/ai-plc/`（本体）＋ `.claude/commands/`（呼び出し用ラッパー） | `/01-collection` ・ `/04-operation` |
 | プロジェクト層 | ユーティリティ（案件の中を見る・直す補助） | `plc-<機能>`（kebab-case） | `.claude/skills/plc-<機能>/SKILL.md`（直下。CC は `.claude/skills/` の1階層だけを認識する。中身は SKILL.md 1ファイルで、処理は既存スクリプトを呼ぶ） | `/plc-brief` ・ `/plc-lifecycle` |
 | ワークパッケージ層 | AIPM の箱の操作（同梱の PM アドオンを選んだ Layer だけ） | `pm-<機能>` | `.claude/commands/`＋`.claude/skills/aipm-guided/` | `/pm-issue` ・ `/pm-suggest` |
 
 - **`ppm-` と `pm-` は1文字違い。** `ppm-`＝ポートフォリオ層（案件をまたいで全体を見る・振る）、`pm-`＝ワークパッケージ層（1つの案件の AIPM の箱の中を操作する）。外に出すときは「AI-PLC の PPM スキル」と書く（単独の「AI-PPM」と書かない）。日本語の説明では初出で「プロジェクトポートフォリオマネジメント（PPM）」と書き、プロダクト・ポートフォリオ・マネジメントと区別する
-- 現行のポートフォリオ層（公開版に入っているもの）: ppm-audit（点検。スクリプトは実験版）/ ppm-registry / ppm-someday / ppm-viewer。日次の計画・振り返りなどの入口は公開版に無い（あなたの TODO 管理で行う。AI-PLC の範囲外）。現行のユーティリティ（論理名は `SKL_plc_<機能>`。例: SKL_plc_brief）: plc-lifecycle（Project中止/再開・§21） / plc-consult / plc-brief / plc-decision / plc-next / plc-backfill / plc-auto / plc-model-routing / plc-db-sync（旧 `ai-plc-db-sync`。Cowork プラグイン版は作り直しまで旧名で残る）。現行のワークパッケージ層: pm-init / pm-persona / pm-story / pm-issue / pm-hypothesis / pm-todo / pm-today / pm-suggest
+- 現行のポートフォリオ層（公開版に入っているもの、7つ）: ppm-audit（点検。スクリプトは実験版）/ ppm-registry / ppm-someday / ppm-viewer / ppm-pmo（複数案件の PMO）/ ppm-scan（外から案件の候補を集める）/ ppm-collection（依頼に似た既存の案件を照らす）。日次の計画・振り返りなどの入口は公開版に無い（あなたの TODO 管理で行う。AI-PLC の範囲外）。現行のユーティリティ（論理名は `SKL_plc_<機能>`。例: SKL_plc_brief）: plc-lifecycle（Project中止/再開・§21） / plc-consult / plc-brief / plc-decision / plc-next / plc-backfill / plc-auto / plc-model-routing / plc-db-sync（旧 `ai-plc-db-sync`。Cowork プラグイン版は作り直しまで旧名で残る）。現行のワークパッケージ層: pm-init / pm-persona / pm-story / pm-issue / pm-hypothesis / pm-todo / pm-today / pm-suggest
 - **旧名は残さない:** v2.0.0 で改名したスキル（ポートフォリオ層の4つ・plc-lifecycle・pm-suggest）の旧名は使わない。新旧の読み替えは CHANGELOG の v2.0.0 の表にある
 - **語の書き分け**（層／Layer／tier、プロジェクト層／案件／業務プロジェクト、プログラム、WBS の行、Stock、PPM）と**日本語の呼び名の対応表**は `.claude/skills/ai-plc/references/three-tiers.md` §4・§5 が正本。新しく書くものから従い、過去の記録は一括で書き換えない
 
