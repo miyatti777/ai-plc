@@ -10,7 +10,7 @@
 | 2段目 | **プロジェクト層**（project tier） | AI-PLC（`0N-<stage>`・`plc-`） | 現場統括。1つの Goal を1つの案件（Layer）として進め、成果物と検証を残す |
 | 3段目 | **ワークパッケージ層**（work package tier） | `pm-`（AIPM の箱の操作） | 本当の現場。方式（AIPM など）の箱の中で、論点・仮説・ToDo・WBS などを細かく持つ |
 
-- **公開版に入っているポートフォリオ層のスキルは4つだけ:** `ppm-audit`（点検。スクリプトは Jev 実験版にある。無ければスキップ）・`ppm-registry`・`ppm-someday`・`ppm-viewer`。日次の計画・差し込み・振り返り・棚卸しの入口は公開版に無い。人の今日の予定や残作業は、あなたの TODO 管理（AI-PLC の範囲外）で扱う
+- **公開版に入っているポートフォリオ層のスキルは7つだけ:** `ppm-audit`（点検。スクリプトは Jev 実験版にある。無ければスキップ）・`ppm-registry`・`ppm-someday`・`ppm-viewer`・`ppm-pmo`（複数案件の PMO。週次の整理・依存・資源の競合・判断メモ・決定の反映の照合）・`ppm-scan`（指定した範囲の Notion・Slack から案件の候補を1回だけ集める）・`ppm-collection`（依頼に似た既存の案件を探し、行き先を勧める。読み取り専用）。日次の計画・差し込み・振り返り・棚卸しの入口は公開版に無い。人の今日の予定や残作業は、あなたの TODO 管理（AI-PLC の範囲外）で扱う
 - **担い手と場所を呼び分ける。** 担い手は **オーケストレーター**（Claude Code の親セッション・Codex・Cursor など、Stage やスキルを動かす実行環境）、場所は **ポートフォリオ層**
 - 外に出すときは単独の「AI-PPM」ではなく「AI-PLC の PPM スキル」と書く
 - 層の外にあって全員が読むもの: 仕組みの正本（`.claude/rules`・`.claude/skills`・`.claude/commands`・`AGENTS.md`・`CLAUDE.md`）、横断の知見（`.claude/wiki/`）、本人専用のもの（native memory など）
@@ -22,8 +22,8 @@
 | **役割** | 仕事を下へ振り、下から結果を**引き継いで要約する**。細かい ToDo を全部並べる場所ではない | 1つの Goal を1つの案件として Collection〜Operation で進め、成果物と検証を残す | 案件の中で、方式に沿った文書と一覧を細かく持つ |
 | **持つもの** | Registry ビューア（画面）、いつかやる（Registry の S-）、点検の結果。人が今かかえている案件の一覧と1日の予定は、あなたの TODO 管理（AI-PLC の範囲外） | Layer の `intent.yaml`・`context.yaml`・`backlog.yaml`・`Context/`・`Documents/`・`Agents/`・`sublayers/`、Registry の projects（Layer の写し）、Stock（`Stock/programs/` の確定版） | AIPM の箱（新しい箱は Layer の直下の `Sheets/`、それより前の形は `Documents/aipm_project/`。文書・工程記録・一覧〔論点 I・仮説 H・ToDo D・WBS W・ロードマップ M。sheets_v1 は `Sheets/` の直下、それより前の形は `registers/`〕・nested_v1 だけ箱の中の `Stock/`） |
 | **正本** | 中身の正本は下の層にある（全部を見る場所ではない） | 案件の Goal・status は `intent.yaml`、Task は `backlog.yaml` が唯一の正。Registry の projects はその写し。Stock は**箱や Flow から抜き出して合わせたプロジェクト層の正本**（確定版・年月つき） | 論点・ToDo などは箱の一覧が正（TODO 管理へ書き写さない）。nested_v1 の箱の中の `Stock/` は検査に通った同じ版 |
-| **書く人・入口** | 人、オーケストレーター。`/ppm-someday`・`/ppm-registry`、点検の反映は `/ppm-audit` の承認行だけ | 各案件の実行スレッド。`/01-collection`〜`/04-operation`・`/plc-backfill`・`/plc-lifecycle`。Registry の projects は Phase 7 で更新 | 人の確定の後に `/pm-issue`・`/pm-todo`・`/pm-hypothesis`、aipm-guided、04-operation Phase 6（WBS の完了候補） |
-| **読む人** | 人と全オーケストレーター（`/ppm-viewer`・`/ppm-registry`） | その案件の担当、plc-brief・plc-consult・plc-next、ポートフォリオ層の集計（ppm-audit） | その案件の担当、`/pm-today` |
+| **書く人・入口** | 人、オーケストレーター。`/ppm-someday`・`/ppm-registry`、点検の反映は `/ppm-audit` の承認行だけ（`/ppm-pmo`・`/ppm-scan` は自分の出力のファイルだけを書く） | 各案件の実行スレッド。`/01-collection`〜`/04-operation`・`/plc-backfill`・`/plc-lifecycle`。Registry の projects は Phase 7 で更新 | 人の確定の後に `/pm-issue`・`/pm-todo`・`/pm-hypothesis`、aipm-guided、04-operation Phase 6（WBS の完了候補） |
+| **読む人** | 人と全オーケストレーター（`/ppm-viewer`・`/ppm-registry`・`/ppm-collection`・`/ppm-pmo`） | その案件の担当、plc-brief・plc-consult・plc-next、ポートフォリオ層の集計（ppm-audit） | その案件の担当、`/pm-today` |
 
 ## 2. 上下の受け渡し
 

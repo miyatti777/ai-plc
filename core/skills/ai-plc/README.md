@@ -58,7 +58,7 @@ LLM Wiki方式（Karpathy Second Brain系）の構造化知識ベース。規約
 | TPL_* | Templates | TPL_role_developer |
 | AGT_plc_* | Agents | AGT_plc_linter |
 
-上は論理名。Claude Code で打つ名前は、パイプライン Stage が `/01-collection`〜`/04-operation`（Jev 実験版の `-jev` は凍結中 — RUL_plc_adaptive §5 ルール6）、ユーティリティが `/plc-<機能>`（`.claude/skills/plc-<機能>/SKILL.md`。この `ai-plc/` の下ではなく `.claude/skills/` 直下に置く）、Registry を見る・点検するもの（AI-PLC の PPM スキル）が `/ppm-<機能>`（同じく直下）。定義は RUL_plc_system §6、3層の区別は references/three-tiers.md。
+上は論理名。Claude Code で打つ名前は、パイプライン Stage が `/01-collection`〜`/04-operation`（Jev 実験版の `-jev` は凍結中 — RUL_plc_adaptive §5 ルール6）、ユーティリティが `/plc-<機能>`（`.claude/skills/plc-<機能>/SKILL.md`。この `ai-plc/` の下ではなく `.claude/skills/` 直下に置く）、案件をまたいで見る・振るもの（AI-PLC の PPM スキル）が `/ppm-<機能>`（同じく直下）。定義は RUL_plc_system §6、3層の区別は references/three-tiers.md。
 
 | ユーティリティ | 用途 |
 |---|---|
@@ -66,6 +66,9 @@ LLM Wiki方式（Karpathy Second Brain系）の構造化知識ベース。規約
 | `/ppm-registry` | Project Registry の照会・追加 |
 | `/ppm-audit` | ステータス点検（食い違いの洗い出しと承認後の反映） |
 | `/ppm-viewer` | Registry ビューアの起動 |
+| `/ppm-pmo` | 複数案件の PMO（週次の整理・案件間の依存・共有資源の競合・判断メモ・決定の案件別の要求と反映の照合） |
+| `/ppm-scan` | 指定した範囲の Notion・本人の公開 Slack 発言から案件の候補を1回だけ集め、収集メモにする |
+| `/ppm-collection` | 依頼に似た既存の案件を最大3件出し、行き先を勧める（読み取り専用。`/01-collection` の前に呼べる） |
 | `/plc-jev-monitor` | Jev 判定の回収と記録（Jev 実験版パッケージ `--with-jev` に入っている。無ければ使わない） |
 | `/plc-consult` | アイデア相談（判定と次のコマンドだけ返す・読み取り専用） |
 | `/plc-backfill` | スキルを通さずに済ませた作業の事後記録（承認後に backlog へ ad-hoc で追加し Phase 5.5〜7 を通す） |

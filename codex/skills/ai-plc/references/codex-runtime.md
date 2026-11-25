@@ -16,7 +16,7 @@
 ## コマンド・ツール・権限
 
 - 分類の実行環境の値は `codex`。01-collection の intent.yaml の `classification.executor` と、04-operation の Phase 6 でタスクに書く `executed_by` に使う（正本の雛形の `claude-code` を置き換える）。
-- `/01-collection`〜`/04-operation`、`/plc-*`、`/ppm-*`（`/ppm-audit`・`/ppm-registry`・`/ppm-someday`・`/ppm-viewer`）は同名の `$skill-name` 指定に読み替える（各 `-jev` 版は凍結中。`$0N-*-jev` が指定されたら実行せず、凍結中であることと本体版の `$0N-*` を案内する。`pipeline_variant: jev` の Layer も本体版として扱う）。引数・Layer・Task・variantは保持し、正本に追加された入力もそのまま扱う。
+- `/01-collection`〜`/04-operation`、`/plc-*`、`/ppm-*`（`/ppm-audit`・`/ppm-registry`・`/ppm-someday`・`/ppm-viewer`・`/ppm-pmo`・`/ppm-scan`・`/ppm-collection`）は同名の `$skill-name` 指定に読み替える（各 `-jev` 版は凍結中。`$0N-*-jev` が指定されたら実行せず、凍結中であることと本体版の `$0N-*` を案内する。`pipeline_variant: jev` の Layer も本体版として扱う）。引数・Layer・Task・variantは保持し、正本に追加された入力もそのまま扱う。
 - スキル一覧に未掲載なら、該当アダプターの絶対パスを添えて「このSKILL.mdを読んで実行」と案内できる。スキル追加の自動検出が反映されない場合はCodexを再起動する。
 - Codexアダプターがないコマンドを存在する `$skill` として案内しない。`.claude/commands/<command>.md` を読み、そこで指す正本SKILL.mdの絶対パスで案内する（この参照だけでは実行・書き込みの承認にならない）。
 - ClaudeのRead/Grep/Glob/Bash/Editは、利用可能なファイル読み取り・`rg`・シェル・編集ツールに置き換える。AGTの `tools` は役割の権限宣言として扱い、利用不能なClaude tool名を呼ばない。
