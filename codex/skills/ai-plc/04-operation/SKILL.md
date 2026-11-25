@@ -17,5 +17,3 @@ description: AI-PLC Stage 4 Operation。Backlog（Agent定義があればそれ�
 8. 独立レビュー対象でのセルフ検証へのフォールバックは、sub-agent機能が利用不能、起動失敗、またはreviewer出力を取得できない場合に限る。フォールバック時は理由をVerification recordへ1行記録する。
 
 正本が見つからない場合はタスク実行やbacklog.yaml更新を行わず、欠落パスを報告して停止する。
-
-**モデルの既定:** `.claude/rules/ai-plc-model-routing.md` の「実行環境の既定」に従う。本人のモデル指定が無ければ Operation は Claude Code（Opus）へ切り替える案内を出して止まり、本人が Codex での実行を明示したときだけ続行する。

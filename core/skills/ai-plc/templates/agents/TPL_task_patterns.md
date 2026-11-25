@@ -23,7 +23,7 @@
 4. 「動くシステム」ルール — implementationタスクは実際に動くDatabase/システムを生み出さなければ完了としない（設計書だけでは不可）
 5. maker≠checker — 独立レビューは 04-operation Phase 5.5 に従う（Agent 定義の有無によらない）。frontmatter の `delegable` は backlog の値を写す（03-construction Phase 3）
 
-## 開発方式bindingの引継ぎ（全ティア共通）
+## 開発方式bindingの引継ぎ（全ての定義の型に共通）
 
 選択された開発Taskだけ、元Taskと同一のdevelopment binding blockをInputへ一度転記する。Flow/Output/Guardrailsへ既存入口と必要規約/Skill版、上流実判断、段階別許可、有限枠/既消費、writer、入力/返却/停止条件を引き継ぐ。Task/request/run/分類/対象repo/profile/二項目snapshot/source hashが欠けたり違ったりすれば生成前に停止する。
 Liteでは既存の暗黙Flowにこの指示を含め、Fullでは明示Flowへ含める。Task固有のstyle上書き、別loop複製、独立検証免除をしない。Construction Phase2から本共通patternを明示的に読み、Operationが実Task/必要AGTのblockを照合する。

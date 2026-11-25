@@ -229,6 +229,18 @@ git pull             # 最新の版を取ってくる（失敗したら git stat
 
 **実験版（Jev 監視）を入れている人:** 実験版も一緒に上げるときは `--with-jev` を付けます（`./install.sh --target /path/to/your/project cc --with-jev`）。付けずに更新すると、実験版のファイルは今のまま残ります。前の実験版 1.8.0-exp.1 を入れた環境の `.ai-plc-version` は、その時点の core の版の `1.7.1` と出ます。前の実験版から今の実験版 1.12.0-exp.2 への上げ方は[実験版の節](#-実験版-jev-監視)にあります。
 
+### v1.14.0 から v2.0.0 へ
+
+流すコマンドは 2. と同じです（`--dry-run` で確かめてから、最初に入れたときと同じ指定で実行）。
+
+- **名前が変わります。** `plc-registry`・`plc-status-audit`・`plc-viewer`・`plc-someday` は `ppm-registry`・`ppm-audit`・`ppm-viewer`・`ppm-someday` に、`plc-project-status` は `plc-lifecycle` に、`pm-capture` は `pm-suggest` になりました。旧名のファイルは消えます（`--dry-run` に `DELETE:` が出ます）
+- **既存の Layer は、続きを実行する前に方式を1回記録します。** `python3 .claude/skills/ai-plc/01-collection/recommendation.py default --layer <Layer のパス> --apply`（既にある方式は変えません。`work_style: aipm` と書いた Layer は AIPM のまま読まれます）。記録が無い Layer は Inception・Construction・Operation・plc-backfill の最初で止まります。`aipm-light` を記録した Layer で ToDo と WBS の表を使うなら、続けて `python3 .claude/skills/aipm-guided/package.py init --layer <Layer のパス> --light` で箱を作ります
+- **AIPM の箱:** 新しく作る箱は一覧を `Sheets/` の直下に置きます。v1.14.0 で作った箱（`Documents/aipm_project`）はそのまま読めます
+- **`init_db.py` を手で実行するとき**は `--allow-production` を付けます
+- **Notion と同期している人**は、同期の前に移行が要ります（[CHANGELOG.md](CHANGELOG.md) の「DB の道具」）
+- 実験版（Jev 監視）は 1.12.0-exp.2 のまま変わりません
+- 変更の全体は [CHANGELOG.md](CHANGELOG.md) にあります
+
 ### v1.13.x から v1.14.0 へ
 
 流すコマンドは 2. と同じです（`--dry-run` で確かめてから、最初に入れたときと同じ指定で実行）。
@@ -240,7 +252,7 @@ git pull             # 最新の版を取ってくる（失敗したら git stat
 
 - **配ったファイルを自分で編集していたら** `[CONFLICT] user-modified managed file: …` で止まります（何も書き換わりません）。`--backup-modified` を付けると、編集したファイルを `.bak` に退避して進みます（[3-1.](#3-1-自分で編集したファイルがある場合)）。v1.14.0 は rules を v3.0 に書き直しているので、rules を編集していた人は、`.bak` と diff して自分の追記を戻してください。自分用の追記は、AI-PLC が配らない別のファイルに書くと次の更新で止まりません
 - **既存の Layer はそのまま使えます。** `intent.yaml`・`backlog.yaml` の書き換えは要りません。`recurrence`・`scheduled_for` の無い Task は今までどおり扱われ、`work_style: aipm` と書いた Layer は同梱の AIPM を選んだものとして読まれます
-- **増えるもの:** rules `ai-plc-model-routing.md`、ユーティリティ `plc-next`・`plc-decision`・`plc-brief`・`plc-project-status`・`plc-model-routing`・`plc-someday`、同梱アドオン AIPM（`.claude/skills/aipm-guided/`）と `/pm-` コマンド8本、アドオンの判定スクリプト（`.claude/skills/ai-plc/scripts/`）、DB のスクリプト `project_lifecycle.py`・`plc_explain.py`、Codex の入口 14本
+- **増えるもの:** rules `ai-plc-model-routing.md`、ユーティリティ `plc-next`・`plc-decision`・`plc-brief`・`plc-lifecycle`（v1.14.0 では `plc-project-status`）・`plc-model-routing`・`ppm-someday`（v1.14.0 では `plc-someday`）、同梱アドオン AIPM（`.claude/skills/aipm-guided/`）と `/pm-` コマンド8本、アドオンの判定スクリプト（`.claude/skills/ai-plc/scripts/`）、DB のスクリプト `project_lifecycle.py`・`plc_explain.py`、Codex の入口 14本
 - **消えるもの:** 配らなくなったファイルはありません（`--dry-run` に `DELETE:` は出ません）。Codex の入口の診断モード（`AI-PLC prerequisite diagnostics`）は無くなり、正本が欠けていれば欠けたパスを報告して止まります
 - **本文に名前が出るが、公開版に無いもの:** ステータス点検（実験版 `--with-jev` にだけ入る）、ライブの進捗表示、`plc-brief` の HTML モード、Project の分類（`experimental/registry-viewer` にある）、社内向けの共有 Stock・業務 Project への割り当て、本人専用の情報の保存先。どれも「無ければスキップ」と書いてあり、無くても Stage は止まりません
 - **実験版（Jev 監視）を入れている人:** 実験版は 1.12.0-exp.2 のまま変わりません。`--with-jev` を付けても付けなくても、core だけが 1.14.0 に上がります
@@ -754,8 +766,8 @@ python3 .claude/db/plc_query.py sql "SELECT ..."  # 任意SQL
 ### 作り直したいとき
 
 ```bash
-python3 .claude/db/init_db.py            # スキーマを保証（既存データは残す）
-python3 .claude/db/init_db.py --reset    # まっさらに作り直す
+python3 .claude/db/init_db.py --allow-production            # スキーマを保証（既存データは残す）
+python3 .claude/db/init_db.py --allow-production --reset    # まっさらに作り直す
 ```
 
 ### Notion と同期したい場合（任意・上級）
@@ -805,25 +817,25 @@ cd <プロジェクト> && python3 .claude/db/registry_viewer/server.py   # http
 
 この2本は `/spec-story-starter`・`/wire-aa-authoring` で呼びます（v1.9.0 から `.claude/commands/` にラッパーを同梱。それまでは `.claude/skills/utility/` の下に入るだけで、Claude Code から呼べませんでした）。
 
-**AI-PLC ユーティリティ（`plc-<機能>`・v1.9.0〜）:** Registry・同期・点検などの道具です。`.claude/skills/plc-<機能>/SKILL.md` に入り、`/plc-<機能>` か自然な言葉で呼べます（書き込みを伴う操作は `/plc-<機能>` で明示的に呼ぶのが確実です）。
+**AI-PLC ユーティリティ（`plc-<機能>`・`ppm-<機能>`）:** Registry・同期・点検などの道具です。1つの案件の中を見る・直すものは `plc-<機能>`、案件をまたいで全体を見るもの（AI-PLC の PPM スキル。PPM はプロジェクトポートフォリオマネジメント）は `ppm-<機能>` です（v2.0.0 で `plc-registry`・`plc-status-audit`・`plc-viewer`・`plc-someday` を `ppm-` に改名。読み替えは [CHANGELOG.md](CHANGELOG.md)）。`.claude/skills/<名前>/SKILL.md` に入り、`/<名前>` か自然な言葉で呼べます（書き込みを伴う操作は `/plc-<機能>` で明示的に呼ぶのが確実です）。
 
 | スキル | 用途 | 使える条件 |
 |--------|------|------|
-| `plc-registry` | Project Registry（`.claude/db/ai_plc.db`）の照会と追加 | いつでも |
+| `ppm-registry` | Project Registry（`.claude/db/ai_plc.db`）の照会と追加 | いつでも |
 | `plc-db-sync` | ローカル DB ⇔ Notion DB の同期（旧 `ai-plc-db-sync`） | Notion の設定をしたとき |
-| `plc-status-audit` | ステータス点検（intent・backlog・Registry の食い違いの洗い出しと、承認した行だけの反映） | 実験版（`--with-jev`）を入れたとき |
-| `plc-viewer` | Registry ビューア（ブラウザ）の起動・停止 | `experimental/registry-viewer` を手でコピーしたとき（status の変更は実験版も入れたときだけ。無ければ閲覧のみ） |
+| `ppm-audit` | ステータス点検（intent・backlog・Registry の食い違いの洗い出しと、承認した行だけの反映） | 実験版（`--with-jev`）を入れたとき |
+| `ppm-viewer` | Registry ビューア（ブラウザ）の起動・停止 | `experimental/registry-viewer` を手でコピーしたとき（status の変更は実験版も入れたときだけ。無ければ閲覧のみ） |
 | `plc-consult` | アイデア相談。「ここをこうしたい」を今の Layer と照らして 却下／今のタスク内で修正／Re-Inception／Re-Collection／いつかやる に振り分け、所感と次に打つコマンドを返す（読み取り専用。v1.10.0〜） | いつでも |
 | `plc-auto` | 固定本文をnative Goalに設定し、この会話のLayerを自動完走する専用入口（v1.13.0〜）。表示名も `plc-auto` | 利用者の明示実行・Goal管理ツールが利用可能。使えない場合は未設定で停止して `/goal` を案内（[詳細](docs/plc-auto.md)） |
 | `plc-backfill` | スキル外作業の事後記録。スキルを通さずに済ませた作業を、承認を得てから対象 Layer の backlog に ad-hoc タスクとして足し、04-operation の Phase 5.5〜7（検証・ステータス更新・Propagation）を通す（v1.11.0〜） | いつでも |
 | `plc-next` | 欠けた「次のアクション」（選択肢・おすすめ・開始文）を、直前の結果と Layer の正本から補う（読み取り専用。v1.14.0〜） | いつでも |
 | `plc-decision` | 承認・選択の質問1件を、決めること・変わる範囲・負担・推奨の根拠・返信の案まで短く説明する（読み取り専用。承認は代行しない。v1.14.0〜） | いつでも |
 | `plc-brief` | Project が何のためで、何ができ、どう使うかを成果物から平易に説明する（読み取り専用。v1.14.0〜） | いつでも |
-| `plc-project-status` | Goal 未達のまま意図的に中止（cancelled）し、理由を残す。再計画の後の再開も（v1.14.0〜） | いつでも |
+| `plc-lifecycle` | Goal 未達のまま意図的に中止（cancelled）し、理由を残す。再計画の後の再開も（v1.14.0〜。v2.0.0 で `plc-project-status` から改名） | いつでも |
 | `plc-model-routing` | タスクに合う担当モデルと Advisor 相談を選び、実行環境のモデル指定へ渡す（v1.14.0〜） | 頼んだとき、または `model_routing: true` の Layer/Task |
-| `plc-someday` | 「いつかやる」Project を Registry に貯め、1件選んで `/01-collection` の起動プロンプトにする（Layer は作らない。v1.14.0〜） | いつでも |
+| `ppm-someday` | 「いつかやる」Project を Registry に貯め、1件選んで `/01-collection` の起動プロンプトにする（Layer は作らない。v1.14.0〜） | いつでも |
 
-名前の決まりは `.claude/rules/ai-plc-system.md` の §6 にあります（Stage は `0N-<stage>`、ユーティリティは `plc-<機能>`）。
+名前の決まりは `.claude/rules/ai-plc-system.md` の §6 にあります（Stage は `0N-<stage>`、案件の中のユーティリティは `plc-<機能>`、案件をまたぐものは `ppm-<機能>`、AIPM の箱の操作は `pm-<機能>`）。3つの層の定義は `.claude/skills/ai-plc/references/three-tiers.md` です。
 
 ### 同梱アドオン AIPM と `pm-` コマンド（v1.14.0〜）
 
@@ -845,11 +857,11 @@ AIPM の Layer では、論点・仮説・ToDo の「箱」を `pm-` で1件ず�
 | `/pm-issue` | 「価格をいくらにするか、を論点に足して」 |
 | `/pm-hypothesis` | 「『週1回しか家計簿を開かない』を仮説に足して。インタビューの結果で判定の案も」 |
 | `/pm-todo` | 「来週のインタビュー3件の準備を ToDo に。遅れているものも見せて」 |
-| `/pm-capture` | 「今日の会議のメモから、論点・仮説・ToDo の候補を拾って」（書かずに候補を出す） |
+| `/pm-suggest` | 「今日の会議のメモから、論点・仮説・ToDo の候補を拾って」（書かずに候補を出す） |
 | `/pm-today` | 「今日はどれを動かすのがいい？」（1件を選ぶ） |
 | `/pm-persona` / `/pm-story` | 「新しいインタビューを受けて、ペルソナの文書のどこを直すべき？」（直す範囲の案だけ） |
 
-Codex では `$pm-issue` のように `$` で呼びます。日次・週次の締めや引継ぎは扱いません。社内の Registry と共有する保存先（`registry_stock_v1`）は公開版には無く、Layer の中（`Documents/aipm_project`）に保存します。
+Codex では `$pm-issue` のように `$` で呼びます。日次・週次の締めや引継ぎは扱いません。箱の一覧（論点・仮説・ToDo・WBS）は Layer の `Sheets/` の直下に置かれます（v2.0.0〜。v1.14.0 の `Documents/aipm_project` の箱もそのまま読めます）。19文書を作らずに WBS と ToDo の表だけで進める **AIPM ライトモード**（`aipm-light`）もあり、Collection で方式の答えが無いときの既定です。完成した箱の保存先は `.ai-plc/config.yaml` の `aipm_archive` で決められ、設定が無ければ Layer の中に保存します。
 
 ---
 
@@ -901,7 +913,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 ./install.sh --target /path/to/your/project cc --with-jev
 ```
 
-- 現在のcheckoutでは core も同時に 1.14.0 に上がります。上がったかどうかは、`.ai-plc-version` が `1.14.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
+- 現在のcheckoutでは core も同時に 2.0.0 に上がります。上がったかどうかは、`.ai-plc-version` が `2.0.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
 - `--with-jev` を付けずに更新すると、core だけが上がり、実験版は前の版のまま残ります。前の版の実験版スキルは core 1.8.1 の時点のもので、Construction を既定で省く変更と自動完走（/goal）に対応していないので、実験版も一緒に上げてください
 - 1.12.0-exp.2 を入れた後に、前の実験版を配る checkout の installer で `--with-jev` を付けると、`[CONFLICT] component downgrade refused: experimental_jev` などの行を出して止まり、何も書き換えません。前の版に戻したいときは、今の checkout で `uninstall.sh cc` してから、前の版の checkout で入れ直します
 
@@ -909,7 +921,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 
 - **会話監視 hook と成功条件カバー判定を凍結しました。** `/02-inception-jev` はカバー判定を呼ばず（`jev_monitor: true` でも）、`/02-inception-jev`・`/03-construction-jev`・`/04-operation-jev` の会話監視の案内は「登録しない（登録済みなら外してよい）」に変えました。スクリプトは残しますが更新しません。Backtrack の異常ヒント（`/04-operation-jev` の 5.5b・6b）とステータス点検は変わりません
 - **`KNOWN_RELEASES.sha256`:** 1.12.0-exp.1 の配布物のハッシュを足しました
-- この実験版リリースでは Python のコードと installer の処理は変えていません。現在のcoreは1.14.0ですが、この実験版はcore 1.12.0時点のままです
+- この実験版リリースでは Python のコードと installer の処理は変えていません。現在のcoreは2.0.0ですが、この実験版はcore 1.12.0時点のままです
 
 それより前の変更（1.12.0-exp.1 など）は CHANGELOG にあります。
 
@@ -1133,10 +1145,12 @@ ai-plc/
 │   ├── skills/utility/    # spec-story-starter / wire-aa-authoring
 │   ├── skills/ai-plc/scripts/  # アドオンの判定（plc_addon_select.py ほか）
 │   ├── skills/aipm-guided/  # 同梱アドオン AIPM（pm- の操作は ops/）
-│   ├── skills/plc-*/      # plc-db-sync / plc-registry / plc-status-audit / plc-viewer / plc-consult / plc-backfill / plc-auto
-│   │                      # plc-next / plc-decision / plc-brief / plc-project-status / plc-model-routing / plc-someday
+│   ├── skills/plc-*/      # plc-db-sync / plc-consult / plc-backfill / plc-auto / plc-next / plc-decision / plc-brief
+│   │                      # plc-lifecycle / plc-model-routing
+│   ├── skills/ppm-*/      # ppm-registry / ppm-audit / ppm-viewer / ppm-someday（AI-PLC の PPM スキル）
 │   ├── rules/             # system / session / adaptive / model-routing
 │   └── db/                # init_db.py / plc_query.py / sync.py / project_lifecycle.py / plc_explain.py
+│                          # aiplc_paths.py / business_registry.py / shared_stock.py
 ├── claude/                # Claude Code固有（commands〔pm- 8本を含む〕 / agents / templates）
 ├── cursor/                # Cursor固有（.mdc rules）
 ├── codex/                 # Codex adapter Skills / AGENTS template

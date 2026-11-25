@@ -1,6 +1,6 @@
-# pm-capture｜会議の後の取込（AIPM）
+# pm-suggest｜会議の後の取込（AIPM）
 
-会議・インタビュー・FB のメモから、AIPM の箱の中へ入れる候補（仮説の判定の案・論点・ToDo）を拾う操作の型です。AI-PLC の Stage は箱づくりを含めた外側の命令で、pm-capture はその箱の中に効きます。拾った候補を書くのは pm-hypothesis・pm-issue・pm-todo。
+会議・インタビュー・FB のメモから、AIPM の箱の中へ入れる候補（仮説の判定の案・論点・ToDo）を拾う操作の型です。AI-PLC の Stage は箱づくりを含めた外側の命令で、pm-suggest はその箱の中に効きます。拾った候補を書くのは pm-hypothesis・pm-issue・pm-todo。
 
 **依頼文の例**：「今日のインタビューのメモ（Context/…）から、仮説の判定と論点と ToDo を拾って」
 
@@ -18,11 +18,12 @@
 ## 進め方
 
 1. `package.py op --name capture.context --layer <Layer> --input <YAML（notes: メモのパス）>` で材料を読む
-2. メモに書かれたことだけから候補を作る：仮説ごとの判定の案（supported・not_supported・undetermined と理由）、新しい論点（答えの候補が2つ以上・答えで後の計画が変わる・手続きだけではない問い）、ToDo（由来の I・H・会議名）。発言者の名前・評価は書かない。分からない owner・期限は空のまま
+2. メモに書かれたことだけから候補を作る：仮説ごとの判定の案（supported・not_supported・undetermined と理由）、新しい論点（答えの候補が2つ以上・答えで後の計画が変わる・手続きだけではない問い）、ToDo（由来の I・H・会議名）。発言者の名前・評価は書かない。鍵・トークン・パスワード・口座番号も書かない。分からない owner・期限は空のまま
 3. 候補の束を Layer の中の YAML に置き、`--name capture.check` で試す。問題が出た候補は直すか外す
 4. 候補を本人に見せ、確定したものだけを pm-hypothesis（propose）・pm-issue（add）・pm-todo（add）の `--apply` で書く。本人・判断者の判定（owner／decider）は、回答を受領記録にしてから `package.py judge`
+5. 版を持てる保存済みの箱（archive 済みの sheets_v1・box_root_v1。共有 Stock の箱は除く）では、pm-hypothesis の propose・pm-issue の add・pm-todo の add は止まる。確定した論点・ToDo の新しい行と、既存の行への材料・note の追記は redit の入力（`edits[]`）にして、SKILL.md の「保存した箱の一覧の追記（redit）」で入れる。判定の案は一覧に書かず、判定が要るものは本人の回答から `package.py judge`（論点は pm-issue の resolve・close）。採否の印のついた抽出案があれば、`package.py redit-extract` で行を分けてから入力を作る
 
 ## 守ること
 
-- pm-capture 自身は何も書かない。AI-PLC の backlog・Task の状態も変えない
+- pm-suggest 自身は何も書かない。AI-PLC の backlog・Task の状態も変えない
 - メモに無いことを足さない（判定の理由はメモの該当箇所から）

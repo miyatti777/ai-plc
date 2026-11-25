@@ -6,21 +6,23 @@ AIPM の19文書のうち、ペルソナと課題の文書（01_ペルソナ作�
 
 ## 使える Layer（最初に確かめる）
 
-`python3 .claude/skills/aipm-guided/package.py op --layer <Layer> --name persona.revise` を呼ぶ（入力なしでも可）。`unselected`（AIPM を選んでいない）か `held`（19文書の記録がまだ無い・選択が Hold・保存済み）なら、理由を伝えて止まる。
+`python3 .claude/skills/aipm-guided/package.py op --layer <Layer> --name persona.revise` を呼ぶ（入力なしでも可）。`unselected`（AIPM を選んでいない）か `held`（19文書の記録がまだ無い・選択が Hold・版の無い保存済み）なら、理由を伝えて止まる（版を登録した保存済みの箱は止まらず、範囲と apply の流れを返す）。
 
 ## 動き
 
 | 動き | 何をするか | 書くか |
 | --- | --- | --- |
-| revise | 改訂の対象の文書と状態、後ろの工程で見直す文書（解決策・ストーリー。検証〔validation〕は文書ではなく本人の確認として出る）、指定した仮説 id（`hypothesis_ids`）を含む文書、やり直しになる本人の確認を返す。保存済み（archived）の文書があれば止まる | 書かない |
+| revise | 改訂の対象の文書と状態、後ろの工程で見直す文書（解決策・ストーリー。検証〔validation〕は文書ではなく本人の確認として出る）、指定した仮説 id（`hypothesis_ids`）を含む文書、やり直しになる本人の確認を返す。保存済み（archived）の文書があれば止まる（版を登録した箱は止まらず、変更案からの apply を案内する） | 書かない |
 
 ## 進め方
 
 1. 見直す理由（新しい観測・崩れた仮説の id）を聞き、`--input` の YAML（`hypothesis_ids`・`reason`）で `persona.revise` を呼ぶ
 2. 改訂の案（何をどう直すか）と、返った範囲を本人に見せる。人物の属性や実際の反応を推測で足さない
-3. **19文書はその場で書き換えない。** 書き換えると、manifest の hash・工程の時刻・本人の確認の対象が合わなくなり、直すには記録を偽るしかなくなる。改訂すると決めたら、Re-Inception（/02-inception）で改訂の Task を足し、/04-operation でその工程をやり直す
+3. **19文書はその場で書き換えない。** 書き換えると、manifest の hash・工程の時刻・本人の確認の対象が合わなくなり、直すには記録を偽るしかなくなる。改訂すると決めたら:
+   - 版を登録した箱（manifest に `applies` がある箱。保存した箱は register で登録できる）: 変更案から apply する。`package.py clone` → `change`（候補の YAML。dry-run で影響の一覧を見る）→ `change-list` で番号つきの一覧を本人に見せる → 本人の返事を `judge-change` で記録 → `apply`（採用した変更案だけを反映）→ `apply --push`。流れと止まる場面は SKILL.md の「保存した箱の改訂（apply）」
+   - それ以外の箱: Re-Inception（/02-inception）で改訂の Task を足し、/04-operation でその工程をやり直す
 
 ## 守ること
 
 - pm-persona は何も書かない。AI-PLC の backlog・Task の状態も変えない
-- 保存済みの文書は改訂しない（止まって、工程のやり直しを案内する）
+- 版の無い保存済みの文書は改訂しない（止まって、register で版を登録するか工程のやり直しを案内する）。版を登録した箱は止めずに範囲を返し、変更案から apply で改訂する流れを案内する

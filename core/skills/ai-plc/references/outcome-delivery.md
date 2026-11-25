@@ -6,7 +6,7 @@ InceptionのTask生成、simpleの直接Task生成、Constructionの担当指示
 
 現在Intentの `mode`、選ばれたアドオン（同梱の PM アドオンは旧い欄 `work_style` を含む。判定は `.claude/skills/ai-plc/scripts/plc_addon_select.py`。intent の `work_style` が null 以外か `addons` が空でないときだけ）、明示選択された `dev_style`、品質extensionsと実選択出典を先に照合する。該当する既存正本の工程順・必須成果物・入力/判断・承認・検証・保存条件を制約にして、その中で成果スライスを切る。モード指定を通常方式へ戻したり、工程/文書/本人判断をまとめて省略したりしない。未選択の方式は追加適用せず、未知/衝突は既存の選択契約に従う。
 
-- 同梱の PM アドオン（旧い欄 `work_style: aipm` も同じ）は [AIPM正本](../../aipm-guided/SKILL.md)のコース・19必須文書・13工程フォルダ×2と、Init→persona→problem→validation→solution→story→archiveの依存を保持する。各段階の判断可能な成果をスライスにできるが、必須工程/形式・実仮説検証・本人回答・保存ゲートを省略/代行しない。
+- 同梱の PM アドオン（旧い欄 `work_style: aipm` も同じ）は [AIPM正本](../../aipm-guided/SKILL.md)のコース・19必須文書・工程フォルダ（新しい形は箱の直下に1組、古い形は2組）と、Init→persona→problem→validation→solution→story→archiveの依存を保持する。各段階の判断可能な成果をスライスにできるが、必須工程/形式・実仮説検証・本人回答・保存ゲートを省略/代行しない。
 - `mode: platform_builder` は [既存正本](../04-operation/platform-builder.md)のProduction Skill生成→量産→Evalまでを全体の残範囲に含める。一件の試作成功でdirectの完了へ変換しない。
 - 任意DevStyleは [既存接続契約](../extensions/contract.yaml)を保持する。共通分解からprivate入口を新規探索せず、未選択/非開発はprivate読取0。auto/forceも既存の許可/停止の適用であり、方式の必須条件を解除する理由にしない。
 

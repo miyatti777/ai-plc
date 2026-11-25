@@ -11,7 +11,7 @@ Covered: automatic detection for every legacy group (G1-G6) x CC/Cursor, dry-run
 zero changes, idempotent re-run, edited files (stop + hint, or --backup-modified), ambiguity and the
 below-threshold stop, the superset rule (G3 contains G2) and its cancellation when only G3's db is
 edited, targets upgraded step by step with the old installers, different releases per environment,
---with-jev, ordinary updates from v1.7.0 / v1.7.1 / v1.8.0-exp.1 / v1.13.0 (clean, edited, and
+--with-jev, ordinary updates from v1.7.0 / v1.7.1 / v1.8.0-exp.1 / v1.13.0 / v1.14.0 (clean, edited, and
 Layers written for v1.13.0), the manifest-write fault injection
 (rollback restores the target; the next run succeeds), legacy uninstall and catalog index errors.
 """
@@ -51,7 +51,7 @@ GROUPS = {
     "1.5.0": ("v1.5.0",),
     "1.6.0": ("v1.6.0",),
 }
-MANIFEST_TAGS = ("v1.7.0", "v1.7.1", "v1.8.0-exp.1", "v1.13.0")
+MANIFEST_TAGS = ("v1.7.0", "v1.7.1", "v1.8.0-exp.1", "v1.13.0", "v1.14.0")
 JEV_MARKER_FILE = ".claude/skills/ai-plc-jev/README.md"
 RULE = ".claude/rules/ai-plc-system.md"
 CURSOR_RULE = ".cursor/rules/ai-plc-system.mdc"
@@ -564,12 +564,20 @@ class FromV1130(Base):
             self.assertEqual((root / ".ai-plc-version").read_text(), "1.13.0\n")
             summary, stderr = self.dry(root, "all")
             self.assertEqual(summary["conflicts"], [])
-            self.assertEqual([w for w in summary["writes"] if w.startswith("DELETE:")], [])
+            # v2.0.0 renamed the portfolio utilities (plc-registry / plc-status-audit / plc-viewer -> ppm-*):
+            # the old paths are the only files an upgrade drops.
+            self.assertEqual([w for w in summary["writes"] if w.startswith("DELETE:")],
+                             [f"DELETE:{base}/{name}/SKILL.md" for base in
+                              (".agents/skills/ai-plc", ".claude/skills", ".cursor/skills")
+                              for name in ("plc-registry", "plc-status-audit", "plc-viewer")])
             self.assertNotIn("[INFO] legacy", stderr)
             result = self.installed(root, "all")
             self.assertNotIn("legacy", result.stderr)
             self.assertNotIn("user_backups", manifest(root))
             self.assertTrue(all(v["version"] == VERSION for v in manifest(root)["environments"].values()))
+            for path in (".claude/skills/ppm-registry/SKILL.md", ".claude/skills/ppm-audit/SKILL.md",
+                         ".agents/skills/ai-plc/ppm-viewer/SKILL.md"):
+                self.assertTrue((root / path).is_file(), path)
             for path in (".claude/rules/ai-plc-model-routing.md", ".claude/skills/aipm-guided/SKILL.md",
                          ".claude/commands/pm-issue.md", ".agents/skills/ai-plc/plc-next/SKILL.md",
                          ".claude/db/project_lifecycle.py", ".cursor/db/plc_explain.py"):
@@ -607,6 +615,52 @@ class FromV1130(Base):
             self.assertEqual([r["path"] for r in backups], [RULE])
             self.assertTrue((root / backups[0]["backup"]).read_text().endswith("\nmy rule\n"))
             self.assertNotIn("my rule", (root / RULE).read_text())
+
+
+class FromV1140(Base):
+    """v1.14.0 -> v2.0.0: the renamed utilities and commands are dropped under their old names and arrive
+    under the new ones; the new DB scripts and the three-tier reference are distributed; a Layer without a
+    recorded method is reported by --require-method and still reads without it."""
+
+    OLD = ("plc-registry", "plc-status-audit", "plc-viewer", "plc-someday", "plc-project-status")
+    NEW = ("ppm-registry", "ppm-audit", "ppm-viewer", "ppm-someday", "plc-lifecycle")
+    LAYER = "Flow/202610/2026-10-23/sample-layer"
+
+    def test_clean_upgrade_renames_and_adds(self) -> None:
+        with fixture(("v1.14.0", "all")) as root:
+            self.assertEqual((root / ".ai-plc-version").read_text(), "1.14.0\n")
+            summary, _ = self.dry(root, "all")
+            self.assertEqual(summary["conflicts"], [])
+            deletes = {w.removeprefix("DELETE:") for w in summary["writes"] if w.startswith("DELETE:")}
+            expected = {f"{base}/{name}/SKILL.md" for base in (".agents/skills/ai-plc", ".claude/skills", ".cursor/skills")
+                        for name in self.OLD}
+            expected |= {".agents/skills/ai-plc/pm-capture/SKILL.md",
+                         ".claude/commands/pm-capture.md", ".claude/commands/plc-project-status.md"}
+            self.assertEqual(deletes, expected)
+            self.installed(root, "all")
+            self.assertEqual((root / ".ai-plc-version").read_text(), VERSION + "\n")
+            for rel in expected:
+                self.assertFalse((root / rel).exists(), rel)
+            for name in self.NEW:
+                for base in (".agents/skills/ai-plc", ".claude/skills", ".cursor/skills"):
+                    self.assertTrue((root / base / name / "SKILL.md").is_file(), f"{base}/{name}")
+            for path in (".claude/commands/pm-suggest.md", ".claude/commands/plc-lifecycle.md",
+                         ".agents/skills/ai-plc/pm-suggest/SKILL.md",
+                         ".claude/skills/ai-plc/references/three-tiers.md",
+                         ".claude/skills/aipm-guided/light.py", ".claude/skills/aipm-guided/shared_stock.py",
+                         ".claude/db/aiplc_paths.py", ".claude/db/business_registry.py",
+                         ".claude/db/shared_stock.py", ".cursor/db/business_registry.py"):
+                self.assertTrue((root / path).is_file(), path)
+            layer = root / self.LAYER
+            layer.mkdir(parents=True)
+            (layer / "intent.yaml").write_text(
+                "scope_id: L-0001\nscope_name: sample\ngoal: sample goal\nworkflow_depth: standard\nmode: direct\n")
+            select = ".claude/skills/ai-plc/scripts/plc_addon_select.py"
+            plain = run(sys.executable, select, "--layer", self.LAYER, cwd=root)
+            self.assertEqual(plain.returncode, 0, plain.stdout + plain.stderr)
+            self.assertEqual(json.loads(plain.stdout)["route"], "unselected")
+            required = run(sys.executable, select, "--layer", self.LAYER, "--require-method", cwd=root)
+            self.assertIn("method_required", required.stdout + required.stderr)
 
 
 class FaultInjection(Base):

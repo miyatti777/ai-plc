@@ -452,15 +452,21 @@ class RegistryVocabTest(unittest.TestCase):
         self.assertIsNone(audit_mod.detect_task_vocab(self._conn(SCHEMA_NO_CHECK)))
         self.assertIsNone(audit_mod.detect_task_vocab(self._conn("CREATE TABLE other (x TEXT);")))
 
-    def test_public_schema_file_is_english(self):
-        init_db = next((p / "core" / "db" / "init_db.py" for p in Path(__file__).resolve().parents
-                        if (p / "core" / "db" / "init_db.py").is_file()), None)
-        if init_db is None:
+    def test_public_schema_files_vocab(self):
+        # v1.14.0 までの公開版 init_db.py は英語、v2.0.0 からは日本語（本体と同じ・Notion と同じ）
+        root = next((p for p in Path(__file__).resolve().parents
+                     if (p / "core" / "db" / "init_db.py").is_file()), None)
+        if root is None:
             self.skipTest("core/db/init_db.py not in this checkout")
-        src = init_db.read_text(encoding="utf-8")
-        i = src.index("CREATE TABLE IF NOT EXISTS tasks")
-        ddl = src[i:src.index(");", i) + 2].replace("IF NOT EXISTS ", "")
-        self.assertEqual(audit_mod.detect_task_vocab(self._conn(ddl)), "en")
+        for rel, vocab in (("tests/db/fixtures/init_db_v1_14_0.py", "en"), ("core/db/init_db.py", "ja")):
+            path = root / rel
+            if not path.is_file():
+                continue
+            src = path.read_text(encoding="utf-8")
+            i = src.index("CREATE TABLE IF NOT EXISTS tasks")
+            ddl = src[i:src.index(");", i) + 2].replace("IF NOT EXISTS ", "")
+            with self.subTest(rel=rel):
+                self.assertEqual(audit_mod.detect_task_vocab(self._conn(ddl)), vocab)
 
     def test_reg_task_target(self):
         en, ja = audit_mod.task_vocab("en"), audit_mod.task_vocab("ja")

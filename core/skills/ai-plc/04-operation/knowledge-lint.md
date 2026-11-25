@@ -13,7 +13,7 @@
    - 🟡 非ASCIIファイル名: `find .claude/wiki -type f | LC_ALL=C grep '[^ -~]'`（git 未登録のページも見る）
    - 🟡 Last Updated 欠落: 概念ページのうち `grep -qE '\*\*Last Updated:\*\*|^last_updated:'` が当たらないもの（コールアウトか YAML のどちらかがあれば可）
    - 60KB（61,440 B）超の概念ページ: `find .claude/wiki -maxdepth 1 -name '*.md' -size +60k` から log.md・wiki.md・index.md を除いた名前を1行出す（移さない。移すかは下の「節の退避」）
-3. log.md に `| YYYY-MM-DD | lint | 軽量 | 概念ページ N枚 / 🔴x 🟡y |` を1行足す。🔴は Phase 7 の出力で知らせ、6日以上 open のものは**いつかやるストック（`/plc-someday`、Registry の planned・S-ID）に「wiki 矛盾の解決: [ページ名]」として登録**するか、登録しない理由を1行書く（実行中の Layer の backlog には入れない。Layer の Goal と無関係なため）
+3. log.md に `| YYYY-MM-DD | lint | 軽量 | 概念ページ N枚 / 🔴x 🟡y |` を1行足す。🔴は Phase 7 の出力で知らせ、6日以上 open のものは**いつかやるストック（`/ppm-someday`、Registry の planned・S-ID）に「wiki 矛盾の解決: [ページ名]」として登録**するか、登録しない理由を1行書く（実行中の Layer の backlog には入れない。Layer の Goal と無関係なため）
 4. schedule / cron は任意（opt-in）のまま
 
 ## 節の退避（フルLint か手動の整理のとき。Phase 7 では行わない）
@@ -54,7 +54,7 @@
 
 ## 発見問題の後処理（レポート出して終わりにしない）
 
-- 🔴 Errors（CONTRADICTION等）→ その場で解決 or いつかやるストック（`/plc-someday`）に「wiki 矛盾の解決: [ページ名]」で登録（軽量Lint と同じ起票先）
+- 🔴 Errors（CONTRADICTION等）→ その場で解決 or いつかやるストック（`/ppm-someday`）に「wiki 矛盾の解決: [ページ名]」で登録（軽量Lint と同じ起票先）
 - 🟡 Warnings（孤立/引用なし/非ASCII名）→ レポート列挙、次のingest時に「ついで直し」
 - 🔵 Info → 記録のみ（読むべき3記事は次の学習の入口）
 

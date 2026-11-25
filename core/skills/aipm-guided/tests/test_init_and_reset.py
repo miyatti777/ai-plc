@@ -8,7 +8,7 @@ METHOD=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(METHOD));sys.path.insert(0,str(Path(__file__).resolve().parent))
 import package, validate_package
 import test_integration as ti   # module import: its TestCase classes are not collected again here
-fixture,write_yaml,sha=ti.fixture,ti.write_yaml,ti.sha
+fixture,write_yaml,sha,reg,pkg_of=ti.fixture,ti.write_yaml,ti.sha,ti.reg,ti.pkg_of
 
 CONTRACTS=[METHOD/'registers_contract.yaml',METHOD/'registers_contract.v1.yaml']
 def contract_hashes():return {str(q):sha(q) for q in CONTRACTS}
@@ -34,7 +34,7 @@ def old_generic_registers(c):
 
 def new_layer(base,name,registers=True,course='document_based/single_persona'):
     layer=base/name;layer.mkdir();(layer/'Context').mkdir()
-    write_yaml(layer/'intent.yaml',{'scope_id':'L-SYN-INIT','scope_name':'synthetic_init','owner':'Synthetic fixture','work_style':'aipm','goal':{'description':'架空の Goal（試験用）'},'aipm':{'project_id':'synthetic_t006','date':'2026-10-22','course':course,'registers':registers}})
+    write_yaml(layer/'intent.yaml',{'scope_id':'L-SYN-T006','scope_name':'synthetic_t006','owner':'Synthetic fixture','work_style':'aipm','goal':{'description':'架空の Goal（試験用）'},'aipm':{'layout':'nested_v1','project_id':'synthetic_t006','date':'2026-10-22','course':course,'registers':registers}})
     (layer/'Context/goal_notes.md').write_text('# 架空の Context\n\n試験用の資料。\n')
     return layer
 DRAFTS={'wbs':[{'deliverable':'架空の調査報告','exit_criteria':'問いごとに証拠と不足が書かれている','source_refs':['Context/goal_notes.md']},
@@ -50,23 +50,23 @@ class InitDrafts(unittest.TestCase):
         layer=new_layer(self.base,name,**kw);write_yaml(layer/'Context/wbs_drafts.yaml',drafts);return layer
     def test_drafts_fill_wbs_and_keep_human_fields_unknown(self):
         layer=self.with_drafts('a');out=package.init(layer,drafts='Context/wbs_drafts.yaml');root=Path(out['package'])
-        wbs=package.load(root/'registers/wbs.yaml')['wbs']
+        wbs=package.load(reg(root,'wbs'))['wbs']
         self.assertEqual([(r['id'],r['deliverable'],r['exit_criteria']) for r in wbs],[('W'+str(n),d['deliverable'],d['exit_criteria']) for n,d in enumerate(DRAFTS['wbs'],1)])
         for r in wbs:
             self.assertEqual((r['owner'],r['status'],r['schedule']['baseline'],r['schedule']['forecast']),('[unknown]','draft',None,None))
             self.assertNotIn('evidence_refs',r)
-        issues=package.load(root/'registers/issues.yaml')['issues']
+        issues=package.load(reg(root,'issues'))['issues']
         self.assertEqual(issues,[{'id':'I1','question':'架空の対象者を誰にするか？','status':'open','priority':'[unknown]','owner':'[unknown]','due':'undecided','sources':['Context/goal_notes.md']}])
-        self.assertEqual(package.load(root/'registers/hypotheses.yaml')['hypotheses'],[{'id':'H1','kind':'opportunity','claim':'[hypothesis] 架空の機会がある','status':'unknown'}])
+        self.assertEqual(package.load(reg(root,'hypotheses'))['hypotheses'],[{'id':'H1','kind':'opportunity','claim':'[hypothesis] 架空の機会がある','status':'unknown'}])
         self.assertEqual(out['wbs_source_refs'],{'W1':['Context/goal_notes.md'],'W2':['Context/goal_notes.md','Flow@abcdef1:202610/x.md']})
         self.assertEqual({o['path'] for o in out['outputs']},{o['path'] for o in package.existing_outputs(root,out['contract'])})
         result=validate_package.validate(root,phase='prearchive',layer=layer)
         self.assertEqual([e for e in result['errors'] if e['code']=='E_REGISTERS'],[])
     def test_wbs_only_keeps_generic_issue_and_hypothesis(self):
         layer=self.with_drafts('w',{'wbs':DRAFTS['wbs'][:1]});root=Path(package.init(layer,drafts='Context/wbs_drafts.yaml')['package'])
-        generic=old_generic_registers(package.build_contract(layer))
-        for rel in ('registers/issues.yaml','registers/hypotheses.yaml','registers/todo.yaml','registers/roadmap.yaml'):self.assertEqual((root/rel).read_text(),generic[rel],rel)
-        self.assertEqual(len(package.load(root/'registers/wbs.yaml')['wbs']),1)
+        c=package.build_contract(layer);generic=old_generic_registers(c);rc=package.registers_contract(c)
+        for rel in (rc['files'][n]['path'] for n in ('issues','hypotheses','todo','roadmap')):self.assertEqual((root/rel).read_text(),generic[rel],rel)
+        self.assertEqual(len(package.load(reg(root,'wbs'))['wbs']),1)
     def test_without_drafts_bytes_are_the_generic_ones(self):
         for n,(registers,course) in enumerate([(True,'document_based/single_persona'),(True,'question_based/single_persona'),(False,'document_based/single_persona')]):
             with self.subTest(registers=registers,course=course):
@@ -111,9 +111,9 @@ class BriefAndNote(unittest.TestCase):
         code,brief=run_cli('init','--layer',str(brief_layer),'--brief');self.assertEqual(code,0)
         self.assertIn('contract',full);self.assertNotIn('contract',brief)
         self.assertEqual(brief['outputs'],full['outputs']);self.assertEqual(brief['registers'],full['registers'])
-        self.assertEqual(brief['contract_version'],full['contract']['version']);self.assertEqual(brief['registers_contract_version'],2)
+        self.assertEqual(brief['contract_version'],full['contract']['version']);self.assertEqual(brief['registers_contract_version'],4)
         self.assertEqual(set(brief),{'route','created','package','state','required_documents','registers','outputs','note','contract_version','registers_contract_version'})
-        same=new_layer(self.base,'same');self.assertEqual(json.loads(json.dumps(package.init(same),ensure_ascii=False)),{**full,'package':str(same/'Documents/aipm_project')})
+        same=new_layer(self.base,'same');self.assertEqual(json.loads(json.dumps(package.init(same),ensure_ascii=False)),{**full,'package':str(same/pkg_of(same))})
         code,again=run_cli('init','--layer',str(brief_layer),'--brief');self.assertEqual((again['created'],sorted(again['outputs'],key=str)),(False,sorted(brief['outputs'],key=str)));self.assertNotIn('contract',again)
     def test_note_says_init_e_missing_is_normal_and_validate_is_unchanged(self):
         layer=new_layer(self.base,'n');out=package.init(layer);self.assertEqual(out['note'],package.INIT_NOTE);self.assertIn('E_MISSING',out['note']);self.assertIn('E_REGISTERS',out['note'])
@@ -129,7 +129,7 @@ class ResetToInit(unittest.TestCase):
     def drafted(self,name,course='document_based/single_persona'):
         layer,root,out=self.mode_init_layer(name,True,course);self.draft(layer);return layer,root,out
     def kept_hashes(self,layer,root):
-        return {q:sha(q) for q in [root/'format_contract.yaml',layer/'intent.yaml',layer/'Context/course_input.yaml',*sorted((root/'registers').glob('*.yaml'))]}
+        return {q:sha(q) for q in [root/'format_contract.yaml',layer/'intent.yaml',layer/'Context/course_input.yaml',*sorted(ti.reg_files(root))]}
     def test_draft_reset_draft_rebuilds_19_and_passes(self):
         def snapshots(name):   # course input reads the registers, so draft writes source_snapshots/
             layer,root=ti.CourseIntegration.registers_as_sources(self,name);self.draft(layer);return layer,root,None
@@ -144,7 +144,7 @@ class ResetToInit(unittest.TestCase):
                 self.assertTrue(result['applied']);self.assertTrue(result['continuable']);self.assertEqual(result['note'],package.RESET_NOTE);self.assertEqual(result['receipts'],['Context/receipt_old_q.yaml'])
                 retired=layer/'Documents/aipm_retired/t1'
                 for mv in result['moves']:
-                    src=mv['from'][len('Documents/aipm_project/'):]
+                    src=mv['from'][len(pkg_of(layer)+'/'):]
                     t=layer/mv['to']
                     files={src:t} if t.is_file() else {src+'/'+f.relative_to(t).as_posix():f for f in t.rglob('*') if f.is_file()}
                     for rel,f in files.items():self.assertEqual(f.read_bytes(),originals[rel],rel)
@@ -154,7 +154,7 @@ class ResetToInit(unittest.TestCase):
                 for q,h in kept.items():self.assertEqual(sha(q),h,q)
                 self.assertEqual(sha(layer/'Context/receipt_old_q.yaml'),receipt)
                 mi={o['path']:o['sha256'] for o in package.load(layer/'intent.yaml')['mode_init']['outputs']}
-                for rel in package.init_documents(layer,package.build_contract(layer)):self.assertEqual(sha(root/rel),mi['Documents/aipm_project/'+rel])
+                for rel in package.init_documents(layer,package.build_contract(layer)):self.assertEqual(sha(root/rel),mi[pkg_of(layer)+'/'+rel])
                 self.assertIsNotNone(package.mode_init_package(layer,root,package.build_contract(layer)))
                 self.draft(layer)
                 v=validate_package.validate(root,phase='prearchive',layer=layer);self.assertTrue(v['pass'],v['errors']);self.assertEqual(v['checked_documents'],19)
@@ -170,9 +170,9 @@ class ResetToInit(unittest.TestCase):
         self.assertEqual(state(layer),before);self.assertFalse((layer/'Documents/aipm_retired').exists())
     def test_case_variant_retire_inside_package_is_refused(self):   # case-insensitive file systems
         layer,root,out=self.drafted('case');before=state(layer)
-        probe=layer/'DOCUMENTS'
-        if not probe.exists():self.skipTest('case-sensitive file system')
-        with self.assertRaises(ValueError):package.reset_to_init(layer,apply=True,retire='documents/AIPM_PROJECT/retired')
+        variant=pkg_of(layer).swapcase()   # the package root of this layout in another case (Sheets -> sHEETS)
+        if not (layer/variant).exists():self.skipTest('case-sensitive file system')
+        with self.assertRaises(ValueError):package.reset_to_init(layer,apply=True,retire=variant+'/retired')
         self.assertEqual(state(layer),before)
     def test_failed_apply_leaves_no_new_folders(self):
         layer,root,out=self.drafted('fail');before=state(layer)
@@ -196,18 +196,19 @@ class ResetToInit(unittest.TestCase):
         def retire_exists(layer,root):(layer/'Documents/aipm_retired/t').mkdir(parents=True)
         def evidence_retired(layer,root):
             c=package.build_contract(layer);e=next(e for e in c['documents'] if not e.get('side'))
-            w=package.load(root/'registers/wbs.yaml');w['wbs'][0]['evidence_refs']=['Documents/aipm_project/'+c['flow_rel']+'/'+e['path']];write_yaml(root/'registers/wbs.yaml',w)
+            w=package.load(reg(root,'wbs'));w['wbs'][0]['evidence_refs']=[pkg_of(layer)+'/'+package.pkg_rel(c['flow_rel'],e['path'])];write_yaml(reg(root,'wbs'),w)
         def stray(layer,root):(root/package.build_contract(layer)['flow_rel']/'memo.md').write_text('hand note')
         cases=[(archived,None),(edited_init,None),(edited_readme,None),(no_mode_init,None),(pending,None),(goal_changed,None),(retire_exists,'Documents/aipm_retired/t'),
-               (lambda l,r:None,'Documents/aipm_project/retired'),(lambda l,r:None,'Documents/aipm_project'),(lambda l,r:None,'../outside'),(evidence_retired,None),(stray,None)]
+               (lambda l,r:None,'<package>/retired'),(lambda l,r:None,'<package>'),(lambda l,r:None,'../outside'),(evidence_retired,None),(stray,None)]
         for n,(change,retire) in enumerate(cases):
             with self.subTest(case=getattr(change,'__name__','retire '+str(retire))):
                 layer,root,out=self.drafted('x'+str(n));change(layer,root);before=state(layer)
+                if retire and retire.startswith('<package>'):retire=pkg_of(layer)+retire[len('<package>'):]   # a retire folder inside the package of this layout
                 with self.assertRaises(ValueError):package.reset_to_init(layer,apply=True,retire=retire or 'Documents/aipm_retired/t')
                 self.assertEqual(state(layer),before)
     def test_legacy_course_is_refused(self):
         layer=self.base/'legacy';fixture(layer)
-        i=package.load(layer/'intent.yaml');c=package.build_contract(layer);root=layer/'Documents/aipm_project'
+        i=package.load(layer/'intent.yaml');c=package.build_contract(layer);root=layer/pkg_of(layer)
         i['mode_init']={'state':'done','done_at':datetime.now(timezone.utc).isoformat(),'outputs':package.existing_outputs(root,c)};write_yaml(layer/'intent.yaml',i)
         before=state(layer)
         with self.assertRaises(ValueError):package.reset_to_init(layer,apply=True,retire='Documents/aipm_retired/t')
@@ -305,6 +306,6 @@ class BundledOnly(unittest.TestCase):
             self.assertEqual(sys.path,before)
             package._SELECTOR=None;self.assertTrue(package.select(layer));self.assertEqual(sys.path,before)
         finally:package._SELECTOR=saved
-        self.assertFalse((layer/'Documents/aipm_project').exists())
+        self.assertFalse((layer/pkg_of(layer)).exists())
 
 if __name__=='__main__':unittest.main()

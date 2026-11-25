@@ -1,13 +1,13 @@
 > 🏷️ **Type:** rule / **Context:** タスク別モデル選択・Advisor相談の共通契約
-> **Updated:** 2026-10-14（既定: Operation は Opus）/ 2026-10-02 / **Evidence:** 固定架空課題・既存ログインでのCLI試行、Codex での Operation の実測
+> **Updated:** 2026-10-29（現在の実行環境で実行する。Claude Code への切替案内と Codex での実行の再確認をやめた）/ 2026-10-14（旧既定: Operation は Opus）/ 2026-10-02 / **Evidence:** 固定架空課題・既存ログインでのCLI試行、Codex での Operation の実測
 
 # AI-PLC モデル選択とAdvisor
 
 ## 発動
 
-**実行環境の既定（2026-10-14。下の発動条件に関わらず常に適用）:** 本人のモデル指定が無いとき、Operation（/04-operation の Phase 4 実行と Phase 5.5 の修正）は **Claude Code の Opus**（effort は下表の deep 行＝low を既定）で行い、下のルーティング推奨（fast/standard）より優先する。Codex（gpt-6.1-sol・gpt-6-astra 等の全モデル）は Collection・調査・読取専用スキル（plc-brief / plc-consult / plc-next / plc-status-audit）を既定の範囲とする。**Codex で /04-operation を求められたら:** 本人のモデル指定が無ければ Claude Code への切替を案内して止まり、本人が Codex での実行を明示したときだけそのモデルで続行する（既定の上書き。「ユーザー指定モデルを優先する」）。根拠: Codex で Operation を実行した1件の Layer の実測（executor codex・本人申告では gpt-6.1-sol。3タスクで backlog 5,410 行・Documents 145・消費 1,248 分・2タスク blocked・成果 0）。1件の実測なので一般化せず、見直しは2環境比較の結果で行う。
+**実行環境:** Operationを含む各Stageは、依頼を受けた現在の実行環境とモデルで進める。Claude Codeへの切替案内や、Codexでの実行を明示し直すための確認は行わない。本人が実行環境・モデルを指定した場合は、その指定を優先する。
 
-本人がモデル選択/Advisorを依頼したとき、またはintent/backlogのLayer/Taskに `model_routing: true` を明示したときに適用する。TaskのfalseはLayerのtrueを上書きする。指定なしは既存の実行方法を維持する（ただし上の「実行環境の既定」は model_routing の指定に関わらず適用する）。親セッションの既定モデルやユーザー設定は書き換えない。
+本人がモデル選択/Advisorを依頼したとき、またはintent/backlogのLayer/Taskに `model_routing: true` を明示したときに適用する。TaskのfalseはLayerのtrueを上書きする。指定なしは既存の実行方法を維持する。親セッションの既定モデルやユーザー設定は書き換えない。
 
 Operation Phase 3でTask/Contextを読み、Phase 4の担当実行前に適用する。ConstructionのAgentが無くても同じ入口を使う。Agent定義等に既存モデル指定があれば `model_override` として優先する。
 

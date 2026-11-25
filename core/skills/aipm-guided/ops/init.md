@@ -20,7 +20,7 @@
 | question_pending | 推薦の質問に未回答 | 保存してある質問に本人が答える |
 | stale_recommendation | 推薦の根拠が変わり、保存してある質問が古い | Re-Collection で推薦を出し直す |
 | declined | 前に通常方式を選んだ | 考えを変えるなら Re-Collection |
-| selected_not_initialized | AIPM は選んだが箱が無い | Re-Collection で Phase 7.5 の初期化へ |
+| selected_not_initialized | AIPM は選んだが箱が無い | Re-Collection で Phase 7.5 の初期化へ（新しい形が既定。保存先を Stock にする設定〔SKILL.md の「保存先の設定」〕なら、archive 先の program_id を init の前に確かめる） |
 | initialized_no_tasks | 箱はあるが19文書の Task が無い | `/02-inception` の Re-Inception で19文書の Task を足す。今までの成果（完了 Task の output のうち Layer の中にあるもの）を document_based の取り込み候補として返す |
 | running | もう AIPM で動いている | pm-today・pm-issue などへ |
 

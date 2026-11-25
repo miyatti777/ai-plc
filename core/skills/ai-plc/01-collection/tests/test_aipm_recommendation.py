@@ -436,13 +436,76 @@ class BundledAddonWriteTests(RecommendationTests):
         after = self.current_intent()
         self.assertNotIn('work_style', after)
         self.assertNotIn('work_style_source', after)
-        self.assertEqual(after['addons'], [CASE])
+        self.assertEqual(after['addons'], [CASE])   # no AIPM ライトモード next to an undeclared case addon
         self.assertEqual(r.assess(self.root, apply=True)['route'], 'legacy_declined')
 
-    def test_decline_without_case_entries_drops_the_addons_field(self):
+    def test_default_method_records_aipm_light_once(self):
+        """No answer -> AIPM ライトモード, marked as a default (not the person's choice)."""
+        before = self.files()
+        planned = r.default_method(self.root)
+        self.assertEqual((planned['route'], planned['writes']), ('default_planned', False))
+        self.assertEqual(before, self.files())
+        done = r.default_method(self.root, apply=True)
+        self.assertEqual((done['route'], done['method']), ('default_recorded', 'aipm-light'))
+        entry, = self.current_intent()['addons']
+        self.assertEqual((entry['addon_id'], entry['selection_ref']), ('aipm-light', r.BASE + '/' + r.DEFAULT_RECORD))
+        record = json.loads((self.root / entry['selection_ref']).read_text())
+        self.assertEqual((record['kind'], record['choice']), ('default_on_no_answer', 'aipm-light'))
+        sel = r.selector().selected_addons(self.root, read_roots=[str(self.root)], require_method=True)
+        self.assertEqual((sel['route'], sel['method'], sel['selected'][0]['selection_verified']), ('selected', 'aipm-light', False))
+        again = r.default_method(self.root, apply=True)
+        self.assertEqual((again['route'], again['writes']), ('method_exists', False))
+
+    def test_default_method_keeps_an_existing_method_and_refuses_undeclared_case(self):
         self.assessed()
-        r.respond(self.root, self.receipt('通常方式で進める'), apply=True)
-        self.assertNotIn('addons', self.current_intent())
+        r.respond(self.root, self.receipt('AIPM方式で進める'), apply=True)
+        self.assertEqual(r.default_method(self.root, apply=True)['method'], 'aipm')
+        self.tearDown(); self.setUp()
+        obj = self.current_intent(); obj['addons'] = [dict(CASE)]; self.intent(obj)
+        before = self.files()
+        with self.assertRaises(ValueError):
+            r.default_method(self.root, apply=True)
+        self.assertEqual(before, self.files())
+
+    def test_case_declared_none_does_not_block_aipm_light(self):
+        """Only an undeclared case addon blocks the default; exclusive_group none does not."""
+        real = r.selector()
+
+        class Stub:
+            Hold = real.Hold
+            load_catalog = staticmethod(real.load_catalog)
+
+            def __init__(self, group):
+                self.group = group
+
+            def selected_addons(self, root, **kw):
+                return {'route': 'selected', 'method': None, 'default_method': 'aipm-light',
+                        'case_addons': [{'addon_id': 'synthetic-case', 'exclusive_group': self.group}]}
+
+        saved = r._SELECTOR
+        try:
+            r._SELECTOR = Stub('none')
+            self.assertFalse(r.blocks_default(self.root))
+            self.assertEqual(r.default_method(self.root)['route'], 'default_planned')
+            r._SELECTOR = Stub(None)
+            self.assertTrue(r.blocks_default(self.root))
+            with self.assertRaises(ValueError):
+                r.default_method(self.root)
+        finally:
+            r._SELECTOR = saved
+
+    def test_decline_records_aipm_light(self):
+        # the method is required, so declining AIPM records AIPM ライトモード (both answers)
+        for answer in ('通常方式で進める', 'AIPM ライトモードで進める'):
+            with self.subTest(answer=answer):
+                self.tearDown(); self.setUp()
+                self.assessed()
+                out = r.respond(self.root, self.receipt(answer), apply=True)
+                self.assertEqual((out['route'], out['method']), ('legacy_declined', 'aipm-light'))
+                entry, = self.current_intent()['addons']
+                self.assertEqual((entry['addon_id'], entry['source']), ('aipm-light', 'bundled'))
+                self.assertTrue(entry['selection_ref'].startswith(r.BASE + '/receipts/'))
+                self.assertFalse(r.pm_selected(self.current_intent()))
 
     def test_without_pm_drops_stale_bundled_entry(self):
         obj = {'scope_id': 'L-SYN', 'addons': [dict(CASE), {'addon_id': 'aipm', 'source': 'bundled',
@@ -522,7 +585,7 @@ class BundledAddonWriteTests(RecommendationTests):
                     self.assertTrue(after['addons'][0]['selection_ref'].startswith(r.BASE + '/receipts/'))
                     self.assertNotEqual(after['addons'][0]['selection_ref'], r.BASE + '/receipts/old-decline.json')
                 else:
-                    self.assertNotIn('addons', after)
+                    self.assertEqual([a['addon_id'] for a in after['addons']], ['aipm-light'])
 
     def test_null_addons_failure_restores_and_recovery_accepts(self):
         # addons: null before, the bundled entry after; the automatic recovery must accept it

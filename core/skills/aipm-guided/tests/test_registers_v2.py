@@ -25,19 +25,19 @@ class Base(unittest.TestCase):
     def result(self,root,layer):return validate_package.validate(root,layer=layer)
     def errors(self,root,layer):return [e for e in self.result(root,layer)['errors'] if e['code']=='E_REGISTERS']
     def warnings(self,root,layer):return [w for w in self.result(root,layer)['warnings'] if w['code']=='W_REGISTERS']
-    def issues(self,root,rows):base.write_yaml(root/'registers/issues.yaml',{'charter':{'change_conditions':['c'],'exit_conditions':['e']},'issues':rows})
-    def hyps(self,root,rows):base.write_yaml(root/'registers/hypotheses.yaml',{'hypotheses':rows})
+    def issues(self,root,rows):base.write_yaml(base.reg(root,'issues'),{'charter':{'change_conditions':['c'],'exit_conditions':['e']},'issues':rows})
+    def hyps(self,root,rows):base.write_yaml(base.reg(root,'hypotheses'),{'hypotheses':rows})
 
 class Version(Base):
     def test_v1_frozen_bytes_equal_the_contract_before_t005(self):
         self.assertEqual(hashlib.sha256((METHOD/'registers_contract.v1.yaml').read_bytes()).hexdigest(),V1_SHA256)
         self.assertEqual(package.registers_contract_path(1),METHOD/'registers_contract.v1.yaml')
-        latest=package.load(METHOD/'registers_contract.yaml');self.assertEqual((latest['version'],latest['contract_suffix']),(2,'+registers.2'))
+        latest=package.load(METHOD/'registers_contract.yaml');self.assertEqual((latest['version'],latest['contract_suffix']),(4,'+registers.4'))
 
     def test_v1_package_still_validates_after_the_change(self):
         layer=self.base/'v1';root,c=v1_registers_fixture(layer)
         saved=package.load(root/'format_contract.yaml')
-        self.assertEqual(saved['registers_contract_version'],1);self.assertTrue(saved['version'].endswith('+registers.1'));self.assertEqual(saved['registers_contract_sha256'],V1_SHA256)
+        self.assertEqual(saved['registers_contract_version'],1);self.assertTrue(saved['version'].endswith('+registers.1'+{'nested_v1':'','box_root_v1':'+box_root.1','sheets_v1':'+sheets.1'}[saved.get('layout','nested_v1')]));self.assertEqual(saved['registers_contract_sha256'],V1_SHA256)
         rebuilt=package.build_contract(layer);self.assertEqual(rebuilt,saved)   # the saved version is used, not the latest
         r=self.result(root,layer);self.assertTrue(r['pass'],r['errors'])
         again=package.init(layer);self.assertFalse(again['created'])           # init re-run is not refused as "another contract"
@@ -52,9 +52,9 @@ class Version(Base):
 
     def test_new_init_is_v2(self):
         layer=self.base/'init';layer.mkdir();(layer/'Context').mkdir()
-        base.write_yaml(layer/'intent.yaml',{'scope_id':'L-V2','scope_name':'v2','work_style':'aipm','aipm':{'date':'2026-10-22','registers':True},'goal':{'description':'synthetic'}})
+        base.write_yaml(layer/'intent.yaml',{'scope_id':'L-V2','scope_name':'v2','work_style':'aipm','aipm':{'layout':'nested_v1','date':'2026-10-22','registers':True},'goal':{'description':'synthetic'}})
         r=package.init(layer);c=package.load(Path(r['package'])/'format_contract.yaml')
-        self.assertTrue(c['version'].endswith('+registers.2'));self.assertEqual(c['registers_contract_version'],2)
+        self.assertTrue(c['version'].endswith('+registers.4'));self.assertEqual(c['registers_contract_version'],4)
         self.assertEqual(c['registers_contract_sha256'],base.sha(METHOD/'registers_contract.yaml'))
 
     def test_unknown_saved_version_is_refused(self):
@@ -104,8 +104,8 @@ class Schedule(Base):
     def setup_rows(self,root,w1=None,w2=None,period='2026-11-01〜2026-11-30',due='2026-11-15'):
         fc=lambda s,e:{'baseline':None,'forecast':{'start':s,'end':e},'actual':None,'history':[]}
         w={'deliverable':'d','exit_criteria':'e','owner':'o','status':'draft','milestone_id':'MS1'}
-        base.write_yaml(root/'registers/wbs.yaml',{'wbs':[dict(w,id='W1',schedule=fc(*(w1 or ('2026-11-01','2026-11-10')))),dict(w,id='W2',depends=['W1'],schedule=fc(*(w2 or ('2026-11-05','2026-11-20'))))]})
-        base.write_yaml(root/'registers/roadmap.yaml',{'roadmap':[{'id':'MS1','milestone':'m','period':period,'status':'draft','wbs_ids':['W1','W2']}]})
+        base.write_yaml(base.reg(root,'wbs'),{'wbs':[dict(w,id='W1',schedule=fc(*(w1 or ('2026-11-01','2026-11-10')))),dict(w,id='W2',depends=['W1'],schedule=fc(*(w2 or ('2026-11-05','2026-11-20'))))]})
+        base.write_yaml(base.reg(root,'roadmap'),{'roadmap':[{'id':'MS1','milestone':'m','period':period,'status':'draft','wbs_ids':['W1','W2']}]})
         self.issues(root,[{'id':'I1','question':'q','status':'open','priority':'high','owner':'PM','due':due}])
     def c8(self,root,layer):
         r=self.result(root,layer);self.assertTrue(r['pass'],r['errors'])   # warnings never change pass
@@ -129,7 +129,7 @@ class Schedule(Base):
     def test_init_drafts_have_no_c8_warning(self):
         layer=self.base/'c8i';root,c=reg.registers_fixture(layer)
         self.assertEqual(self.c8(root,layer),[])
-        rm=package.load(root/'registers/roadmap.yaml')['roadmap'];self.assertEqual(rm[0]['period'],'undecided')
+        rm=package.load(base.reg(root,'roadmap'))['roadmap'];self.assertEqual(rm[0]['period'],'undecided')
 
     def test_contract_period_meaning(self):
         rc=package.load(METHOD/'registers_contract.yaml');self.assertIn('作業の期間ではない',rc['files']['roadmap']['period_meaning'])

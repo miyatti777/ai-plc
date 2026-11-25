@@ -1,12 +1,14 @@
 # pm-hypothesis｜仮説の操作（AIPM）
 
-AIPM の箱の中の「仮説の一覧」（registers/hypotheses.yaml）の1件を扱う操作の型です。AI-PLC の Stage（Collection〜Operation）は箱づくりを含めた外側の命令で、pm-hypothesis はその箱の中の仮説に効きます。論点は pm-issue、やることは pm-todo。
+AIPM の箱の中の「仮説の一覧」（hypotheses.yaml。sheets_v1 は `Sheets/` の直下、それより前の形は `registers/` の中）の1件を扱う操作の型です。AI-PLC の Stage（Collection〜Operation）は箱づくりを含めた外側の命令で、pm-hypothesis はその箱の中の仮説に効きます。論点は pm-issue、やることは pm-todo。
 
 **依頼文の例**：「この仮説を足して」「今日のインタビューで H2 はどうだったか、判定の案を書いて」「崩れた仮説で見直すものを出して」
 
 ## 使える Layer（最初に確かめる）
 
 `python3 .claude/skills/aipm-guided/package.py op --layer <Layer> --name check` を呼ぶ。`unselected`（AIPM を選んでいない・一覧を選んでいない）か `pass: false`（選択が Hold）なら、何も書かずに理由を伝えて止まる。途中から AIPM にするなら pm-init。
+
+**保存済みの箱:** 版を持てる保存済みの箱（archive 済みの sheets_v1・box_root_v1。版の無い箱も含む。共有 Stock〔registry_stock_v1〕の箱は除き、今までどおり書ける）では add・propose は `held` で止まる。仮説を足すときは、SKILL.md の「保存した箱の一覧の追記（redit）」の流れ（`package.py redit` の add_row → `redit-list` → 本人の返事を `redit-judge` → `redit-apply`）で入れる。kind・claim・method・success・falsification のどれかが決まっていない仮説は保留になり書かれない。AI の判定の案（propose）は一覧に書かない：案は変更案の reason か、`redit-extract` の判定の下書き（judge_draft）の備考に残し、本人・判断者の判定は `package.py judge`（保存済みの箱でも今までどおり）。版が無い箱は先に `package.py register`。保存済みの nested_v1 の箱は止まらず、書いた結果に「先に migrate-sheets で sheets_v1 へ」の案内が付く。
 
 ## 動き
 

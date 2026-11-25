@@ -1,12 +1,14 @@
 # pm-todo｜ToDo の操作（AIPM）
 
-AIPM の箱の中の「案件のやること」（registers/todo.yaml）の1件を扱う操作の型です。AI-PLC の Stage（Collection〜Operation）は箱づくりを含めた外側の命令で、pm-todo はその箱の中の ToDo に効きます。論点は pm-issue、仮説は pm-hypothesis。
+AIPM の箱の中の「案件のやること」（todo.yaml。sheets_v1 は `Sheets/` の直下、それより前の形は `registers/` の中）の1件を扱う操作の型です。AI-PLC の Stage（Collection〜Operation）は箱づくりを含めた外側の命令で、pm-todo はその箱の中の ToDo に効きます。論点は pm-issue、仮説は pm-hypothesis。
 
 **依頼文の例**：「論点 I2 のためにやることを足して」「D3 を終わりにして」「D4 を WBS の W1.2 につないで」「遅れている ToDo を見せて」
 
 ## 使える Layer（最初に確かめる）
 
 `python3 .claude/skills/aipm-guided/package.py op --layer <Layer> --name check` を呼ぶ。`unselected`（AIPM を選んでいない・一覧を選んでいない）か `pass: false`（選択が Hold）なら、何も書かずに理由を伝えて止まる。途中から AIPM にするなら pm-init。
+
+**保存済みの箱:** 版を持てる保存済みの箱（archive 済みの sheets_v1・box_root_v1。版の無い箱も含む。共有 Stock〔registry_stock_v1〕の箱は除き、今までどおり書ける）では add・link は `held` で止まる。ToDo を足すとき・既存の ToDo に note を足すときは、SKILL.md の「保存した箱の一覧の追記（redit）」の流れ（`package.py redit` → `redit-list` → 本人の返事を `redit-judge` → `redit-apply`）で入れる。**既存の ToDo に WBS をつなぐ（link）は、wbs_id が空なら redit の fill（`{op: fill, register: todo, row: D3, field: wbs_id, value: W1}`）で付ける。** 付いている wbs_id の直しと source の付け直しは、今は redit でもできない（必要なら本人に確かめる）。期限・owner・priority が未定の ToDo も fill で埋められる。move（状態を変える）は保存済みの箱でも今までどおり。版が無い箱は先に `package.py register`。保存済みの nested_v1 の箱は止まらず、書いた結果に「先に migrate-sheets で sheets_v1 へ」の案内が付く。
 
 ## 動き
 
@@ -27,4 +29,4 @@ AIPM の箱の中の「案件のやること」（registers/todo.yaml）の1件�
 
 - AI-PLC の backlog・Task の状態は変えない。AI が成果物を作る仕事なら、ToDo ではなく Re-Inception で AI-PLC の Task にする
 - WBS の受入（accepted）は人。pm-todo は WBS を書き換えない
-- 人の名前・評価・連絡先などは書かない（owner は役割・所属）
+- 人の名前・評価・連絡先などは書かない（owner は役割・所属）。鍵・トークン・パスワード・口座番号も書かない

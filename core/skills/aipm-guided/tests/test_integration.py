@@ -10,6 +10,22 @@ import package, validate_package, rollback
 def now(): return datetime.now(timezone.utc).isoformat()
 def write_yaml(p,d): p.write_text(yaml.safe_dump(d,allow_unicode=True,sort_keys=False))
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def pkg_of(layer):
+    """Layer-relative package root of the Layer's layout (Sheets for sheets_v1, else Documents/aipm_project). A Layer whose
+    contract cannot be built (a test that broke its intent on purpose) is read from the package folder that exists."""
+    try:return package.build_contract(layer)['package_root']
+    except ValueError:return package.SHEETS_ROOT if (Path(layer)/package.SHEETS_ROOT).is_dir() else package.LEGACY_ROOT
+def reg_files(root):
+    """The registers files of the package at root that exist ([] when the contract has no registers)."""
+    c=package.load(root/'format_contract.yaml')
+    if 'registers_contract_version' not in c:return []
+    return [q for q in (root/s['path'] for s in package.registers_contract(c)['files'].values()) if q.is_file()]
+def reg_label(root,name):
+    """The package-relative path of the registers file <name> (the path validate names in its errors)."""
+    return reg(root,name).relative_to(root).as_posix()
+def reg(root,name):
+    """The registers file <name> of the package at root, where its contract puts it (sheets_v1: no registers/ folder)."""
+    return root/package.registers_contract(package.load(root/'format_contract.yaml'))['files'][name]['path']
 def models(c):
     """Manually authored, synthetic, source-shaped minimum; no user observations."""
     problem = {'id': 'PR1', 'summary': '[hypothesis] synthetic problem', 'causes': ['[hypothesis] synthetic cause'], 'impact': '[unknown] synthetic impact', 'linked_actions': ['A101'], 'occurs_in_phases': ['PH1']}
@@ -18,9 +34,11 @@ def models(c):
     init.update(program_id='synthetic_pilot', project_id='aipm_guided', participant_name='Synthetic fixture', flow_dir='aipm_guided', flow_base=c['flow_rel'], stock_base=c['stock_project_rel'], share_repo='disabled', share_local_dir='disabled')
     return {'write_init_yaml': init, 'generate_experience_yaml': {'persona': {'id': 'P001', 'name': 'Synthetic fixture', 'profile': {'age_gender': '[unknown]', 'occupation': '[unknown]', 'company_context': '[unknown]'}, 'behaviors': ['[hypothesis] synthetic activity'], 'values': ['[hypothesis] synthetic value']}, 'experience_map': {'phases': [{'id': 'PH1', 'name': 'Synthetic phase', 'description': '[hypothesis] synthetic context', 'actions': [{'id': 'A101', 'label': 'Synthetic action', 'notes': ['[hypothesis] synthetic only']}]}]}, 'opportunity_hypotheses_mapping': {}, 'numbering_policy': ['prefix: P=Persona, PH=Phase, A=Action']}, 'generate_integrated_experience_map': {'integrated_experience_map': {'meta': {'created_date': '2026-10-07', 'project': 'aipm_guided', 'phase': 'Discovery - ペルソナ作成', 'description': 'Synthetic fixture'}, 'personas': {'user': {'id': 'P001', 'name': 'Synthetic fixture', 'role': '[unknown]', 'focus': '[hypothesis] synthetic'}}, 'integrated_phases': [{'id': 'IPH1', 'name': 'Synthetic phase', 'description': '[hypothesis] synthetic', 'persona_mapping': {'P001': 'PH1: Synthetic phase'}, 'opportunity_hypotheses': []}], 'validation_priorities': {'critical': [], 'high': []}}}, 'export_customer_problem_map_yaml': {'customer_problem_map': {'persona_ref': 'P001', 'phases': [{'id': 'PH1', 'actions': [{'id': 'A101', 'thoughts': ['[hypothesis] synthetic'], 'emotions': ['[unknown]'], 'issues': ['PR1']}]}], 'problems': [copy.deepcopy(problem)], 'numbering_policy': [{'prefix': 'PH=Phase, A=Action, PR=Problem'}]}}, 'export_problem_map_yaml': {'problem_map': {'persona_ref': 'P001', 'problems': [problem], 'numbering_policy': [{'prefix': 'PR=Problem, A=Action'}]}}, 'export_solution_map_yaml': {'solution_map': {'persona_ref': 'P001', 'problems': ['PR1'], 'phases': [{'id': 'PH1', 'name': 'Synthetic phase', 'solutions': [{'id': 'SL1', 'label': '[hypothesis] synthetic solution', 'links': ['PR1', 'A101']}]}], 'numbering_policy': [{'prefix': 'SL=Solution, PH=Phase'}]}}, 'export_story_map_yaml': {'story_map': {'persona_ref': 'P001', 'problem_refs': ['PR1'], 'links': [{'chain': ['A101', 'PR1', 'SL1', 'ST1']}], 'stories': [{'id': 'ST1', 'summary': story, 'acceptance': ['[hypothesis] synthetic acceptance'], 'release': 'MVP', 'links': ['PR1', 'SL1', 'A101']}], 'releases': [{'name': 'MVP', 'includes': ['ST1']}], 'numbering_policy': [{'prefix': 'ST=Story'}]}}, 'export_viewer_integrated_yaml_final': {'integrated_story_map': {'meta': {'project_name': 'Synthetic fixture'}, 'version_definitions': {'order': ['MVP']}, 'story_map_structure': {'activities': [{'id': 'ACT-CASE', 'name': 'Synthetic activity'}], 'backbones': [{'id': 'BB-CASE', 'name': 'Synthetic backbone', 'sequence': 1, 'activity_id': 'ACT-CASE'}]}, 'display_order': {'backbones': ['BB-CASE']}, 'personas_stories': {'P001': {'name': 'Synthetic fixture', 'stories': [{'id': 'ST-001', 'story': story, 'backbone_id': 'BB-CASE', 'version': 'MVP', 'status': 'TODO', 'backbone_x_version_sort': 1}]}}, 'cross_persona_stories': [], 'story_mapping': {'ST-001': {'backbone_id': 'BB-CASE', 'sequence': 1}}}}}
 
-def fixture(layer,scope='L-SYN-1',project='alpha',pid='P001'):
-    layer.mkdir();(layer/'Context').mkdir()
-    write_yaml(layer/'intent.yaml',{'scope_id':scope,'scope_name':project,'owner':'Synthetic fixture','mode':'direct','work_style':'aipm','aipm':{'project_id':project,'persona_id':pid,'name_slug':'synthetic','date':'2026-10-07'},'goal':{'description':'Synthetic integration, not user evidence'}})
+def fixture(layer,scope='L-SYN-1',project='alpha',pid='P001',layout='nested_v1'):
+    """layout box_root_v1: program Sample; the archive copies go to the Stock of the repository that
+    holds the Layer (the caller makes <repository>/Flow/.../<layer> and <repository>/Stock/programs/Sample)."""
+    layer.mkdir();(layer/'Context').mkdir();(layer/'Documents').mkdir()   # a Layer has Documents/ (sheets_v1 does not make it)
+    write_yaml(layer/'intent.yaml',{'scope_id':scope,'scope_name':project,'owner':'Synthetic fixture','mode':'direct','work_style':'aipm','aipm':{'layout':layout,'project_id':project,'persona_id':pid,'name_slug':'synthetic','date':'2026-10-07',**({'program_id':'Sample'} if layout in package.FLAT_LAYOUTS else {})},'goal':{'description':'Synthetic integration, not user evidence'}})
     (layer/'Context/case.yaml').write_text('kind: hypothesis\nclaim: synthetic only\n')
     result=package.init(layer);c=result['contract'];root=Path(result['package'])
     data=models(c)
@@ -29,7 +47,7 @@ def fixture(layer,scope='L-SYN-1',project='alpha',pid='P001'):
         if isinstance(x,list):return [change(v) for v in x]
         if isinstance(x,dict):return {change(k):change(v) for k,v in x.items()}
         return x
-    data=change(data);b=c['bindings'];data['write_init_yaml'].update(program_id=b['program_id'],project_id=b['project_id'],flow_dir=b['flow_dir'])
+    data=change(data);b=c['bindings'];flow_base,stock_base=package.init_roots(c);data['write_init_yaml'].update(program_id=b['program_id'],project_id=b['project_id'],flow_dir=b['flow_dir'],flow_base=flow_base,stock_base=stock_base)
     evidence=[{'id':'F1','kind':'hypothesis','source':'Context/case.yaml','source_sha256':sha(layer/'Context/case.yaml'),'scope':'synthetic only'}]
     records=[];stages=[]
     for name in c['course']:
@@ -40,7 +58,7 @@ def fixture(layer,scope='L-SYN-1',project='alpha',pid='P001'):
             stage='init' if e.get('side') else {'01':'persona','02':'problem','03':'solution','04':'story'}[e['path'][:2]]
             if stage!=name:continue
             assert sha(METHOD/e['raw_template'])==e['template_sha256']
-            relative=(c['stock_project_rel'] if e.get('side')=='stock_project' else c['flow_rel'])+'/'+e['path'];q=root/relative;q.parent.mkdir(parents=True,exist_ok=True)
+            relative=package.doc_rel(c,e);q=root/relative;q.parent.mkdir(parents=True,exist_ok=True)
             if e['kind']=='yaml':write_yaml(q,data[e['step']])
             else:
                 graph='flowchart TD\n '+pid+' --> PH1\n PH1 --> A101\n A101 --> PR1\n PR1 --> SL1\n SL1 --> ST1'
@@ -56,7 +74,9 @@ def fixture(layer,scope='L-SYN-1',project='alpha',pid='P001'):
             if not result['pass']:raise AssertionError(result['errors'])
             for r in records:
                 if r['stage']=='init':continue
-                rel=r['path'][len(c['flow_rel'])+1:];dest=c['stock_project_rel']+'/documents/'+rel;q=root/dest;q.parent.mkdir(parents=True,exist_ok=True);q.write_bytes((root/r['path']).read_bytes());r.update(status='archived_local_final',archive_path=dest,archive_sha256=sha(q))
+                if layout in package.FLAT_LAYOUTS:dest=c['stock_target_rel']+'/documents/'+r['path'];q=package.stock_root_of(layer)/dest
+                else:rel=r['path'][len(c['flow_rel'])+1:];dest=c['stock_project_rel']+'/documents/'+rel;q=root/dest
+                q.parent.mkdir(parents=True,exist_ok=True);q.write_bytes((root/r['path']).read_bytes());r.update(status='archived_local_final',archive_path=dest,archive_sha256=sha(q))
         stages.append({'name':name,'started_at':start,'finished_at':now(),'checkpoint_actor':'auto_decision','checkpoint_status':'accepted_local','evidence_refs':['F1']})
     manifest['stages']=stages;manifest['records']=records;write_yaml(root/'manifest.yaml',manifest)
     return root,c
@@ -134,7 +154,7 @@ class Integration(unittest.TestCase):
                 except ValueError:result={'pass':False}
                 self.assertFalse(result['pass'])
     def test_traversal_symlink_duplicate_keys_and_existing_project(self):
-        layer=self.base/'bad';layer.mkdir();write_yaml(layer/'intent.yaml',{'scope_id':'L-X','scope_name':'x','work_style':'aipm','aipm':{'project_id':'../bad'}})
+        layer=self.base/'bad';layer.mkdir();write_yaml(layer/'intent.yaml',{'scope_id':'L-X','scope_name':'x','work_style':'aipm','aipm':{'layout':'nested_v1','project_id':'../bad'}})
         with self.assertRaises(ValueError):package.init(layer)
         write_yaml(layer/'intent.yaml',{'scope_id':'L-X','scope_name':'x','work_style':'aipm'});(layer/'Documents').symlink_to(self.base)
         with self.assertRaises(ValueError):package.init(layer)
@@ -252,7 +272,7 @@ class CourseIntegration(unittest.TestCase):
     def tearDown(self):self.temp.cleanup()
     def prepare(self,name='new',course='document_based/single_persona',pending=False,reuse=False):
         layer=self.base/name;layer.mkdir();(layer/'Context').mkdir()
-        write_yaml(layer/'intent.yaml',{'scope_id':'L-COURSE','scope_name':'course_fixture','work_style':'aipm','owner':'Synthetic fixture','goal':{'description':'Synthetic structural case, no user evidence'},'aipm':{'project_id':'course_fixture','persona_id':'P001','name_slug':'synthetic','date':'2026-10-13','course':course}})
+        write_yaml(layer/'intent.yaml',{'scope_id':'L-COURSE','scope_name':'course_fixture','work_style':'aipm','owner':'Synthetic fixture','goal':{'description':'Synthetic structural case, no user evidence'},'aipm':{'layout':'nested_v1','project_id':'course_fixture','persona_id':'P001','name_slug':'synthetic','date':'2026-10-13','course':course}})
         c=package.build_contract(layer);data=models(c)
         graph='flowchart TD\n P001 --> PH1\n PH1 --> A101\n A101 --> PR1\n PR1 --> SL1\n SL1 --> ST1'
         for e in c['documents']:
@@ -272,7 +292,8 @@ class CourseIntegration(unittest.TestCase):
         result=package.batch_draft(layer,'Context/course_input.yaml');return Path(result['package'])
     def mutate(self,root,fn):
         m=package.load(root/'manifest.yaml');fn(m);write_yaml(root/'manifest.yaml',m)
-        self.assertFalse(validate_package.validate(root,phase='prearchive',layer=root.parents[1])['pass'])
+        layer=root.parent if root.name==package.SHEETS_ROOT else root.parents[1]   # Sheets/ or Documents/aipm_project/
+        self.assertFalse(validate_package.validate(root,phase='prearchive',layer=layer)['pass'])
     def test_both_new_courses_generate_19_and_archive(self):
         for n,course in enumerate(['solution_based/single_persona','document_based/single_persona']):
             with self.subTest(course=course):
@@ -309,7 +330,7 @@ class CourseIntegration(unittest.TestCase):
         out=package.init(layer);self.assertTrue(out['created'])
         intent=package.load(layer/'intent.yaml');intent['mode_init']={'state':'done','done_at':datetime.now(timezone.utc).isoformat(),'outputs':out['outputs']};write_yaml(layer/'intent.yaml',intent)
         if registers:   # the validation hypothesis takes the next free id with kind validation (H1 is the Init opportunity)
-            root=Path(out['package']);h=package.load(root/'registers/hypotheses.yaml');h['hypotheses'].append({'id':'H2','kind':'validation','claim':'Synthetic structure','status':'unknown'});write_yaml(root/'registers/hypotheses.yaml',h)
+            root=Path(out['package']);h=package.load(reg(root,'hypotheses'));h['hypotheses'].append({'id':'H2','kind':'validation','claim':'Synthetic structure','status':'unknown'});write_yaml(reg(root,'hypotheses'),h)
             packet['validation_record']['hypotheses'][0]['id']='H2';write_yaml(layer/'Context/course_input.yaml',packet)
         return layer,Path(out['package']),out
     def test_batch_continues_a_package_made_only_by_mode_init(self):
@@ -317,9 +338,9 @@ class CourseIntegration(unittest.TestCase):
         for n,(registers,course) in enumerate(cases):
             with self.subTest(registers=registers,course=course):
                 layer,root,out=self.mode_init_layer('mi'+str(n),registers,course)
-                kept={o['path']:(layer/o['path']).read_bytes() for o in out['outputs'] if o['path'].endswith('format_contract.yaml') or '/registers/' in o['path']}
+                kept={o['path']:(layer/o['path']).read_bytes() for o in out['outputs'] if o['path'].endswith('format_contract.yaml') or (layer/o['path']) in reg_files(root)}
                 if registers:
-                    issues=root/'registers/issues.yaml';issues.write_text(issues.read_text()+'# edited by later work\n');kept['Documents/aipm_project/registers/issues.yaml']=issues.read_bytes()
+                    issues=reg(root,'issues');issues.write_text(issues.read_text()+'# edited by later work\n');kept[issues.relative_to(layer).as_posix()]=issues.read_bytes()
                 self.draft(layer)
                 for path,data in kept.items():self.assertEqual((layer/path).read_bytes(),data,path)
                 m=package.load(root/'manifest.yaml');self.assertEqual([e['name'] for e in m['stages']],['init','ingest','batch','gaps'])
@@ -337,7 +358,7 @@ class CourseIntegration(unittest.TestCase):
         def pending(layer,root):i=package.load(layer/'intent.yaml');i['mode_init']={'state':'pending'};write_yaml(layer/'intent.yaml',i)
         def stock_doc(layer,root):c=package.build_contract(layer);e=next(e for e in c['documents'] if not e.get('side'));q=root/c['stock_project_rel']/'documents'/e['path'];q.parent.mkdir(parents=True,exist_ok=True);q.write_text('archived copy')
         def stray_file(layer,root):(root/package.build_contract(layer)['flow_rel']/'memo.md').write_text('hand note')
-        def registers_gone(layer,root):(root/'registers/issues.yaml').unlink()
+        def registers_gone(layer,root):(reg(root,'issues')).unlink()
         for n,change in enumerate([edited_init,has_document,has_manifest,no_mode_init,pending,stock_doc,stray_file,registers_gone]):
             with self.subTest(case=change.__name__):
                 layer,root,out=self.mode_init_layer('ref'+str(n));change(layer,root)
@@ -361,7 +382,7 @@ class CourseIntegration(unittest.TestCase):
         layer,root,out=self.mode_init_layer(name)
         packet=package.load(layer/'Context/course_input.yaml')
         for n,f in enumerate(['issues','hypotheses','roadmap'],1):
-            rel='Documents/aipm_project/registers/'+f+'.yaml';packet['sources'].append({'id':'R'+str(n),'domain':'layer','path':rel,'sha256':sha(layer/rel)})
+            rel=reg(root,f).relative_to(layer).as_posix();packet['sources'].append({'id':'R'+str(n),'domain':'layer','path':rel,'sha256':sha(layer/rel)})
         write_yaml(layer/'Context/course_input.yaml',packet);return layer,root
     def test_registers_can_change_after_archive_when_they_were_sources(self):
         layer,root=self.registers_as_sources('snap');self.draft(layer)
@@ -370,15 +391,15 @@ class CourseIntegration(unittest.TestCase):
             read=next(r for r in m['source_reads'] if r['id']==sid);q=layer/rel
             self.assertEqual((sha(q),q.stat().st_mtime_ns),(read['sha256'],read['source_mtime_ns']))
         final=package.archive_course(layer);self.assertTrue(final['pass'],final['errors'])
-        h=package.load(root/'registers/hypotheses.yaml');h['hypotheses'][0].setdefault('judgements',[]).append({'date':'2026-10-20','event':'meeting','verdict':'undetermined','judged_by':'ai_proxy'});write_yaml(root/'registers/hypotheses.yaml',h)
-        i=package.load(root/'registers/issues.yaml');i['issues'][0].update(status='on_hold',reason='later',review_at='2026-11-01');write_yaml(root/'registers/issues.yaml',i)
-        r=package.load(root/'registers/roadmap.yaml');r['roadmap'][0]['period']='2026-11';write_yaml(root/'registers/roadmap.yaml',r)
+        h=package.load(reg(root,'hypotheses'));h['hypotheses'][0].setdefault('judgements',[]).append({'date':'2026-10-20','event':'meeting','verdict':'undetermined','judged_by':'ai_proxy'});write_yaml(reg(root,'hypotheses'),h)
+        i=package.load(reg(root,'issues'));i['issues'][0].update(status='on_hold',reason='later',review_at='2026-11-01');write_yaml(reg(root,'issues'),i)
+        r=package.load(reg(root,'roadmap'));r['roadmap'][0]['period']='2026-11';write_yaml(reg(root,'roadmap'),r)
         result=validate_package.validate(root,phase='final',layer=layer);self.assertTrue(result['pass'],result['errors'])
         snap=layer/m['source_snapshots']['R2'];snap.write_text(snap.read_text()+'# tampered\n')
         result=validate_package.validate(root,phase='final',layer=layer);self.assertFalse(result['pass']);self.assertTrue(any(e['code']=='E_COURSE' for e in result['errors']))
     def test_snapshot_must_mirror_a_package_source(self):
         layer,root=self.registers_as_sources('mirror');self.draft(layer)
-        base=package.load(root/'manifest.yaml');issues_copy='Documents/aipm_project/source_snapshots/registers/issues.yaml'
+        base=package.load(root/'manifest.yaml');issues_copy=pkg_of(layer)+'/source_snapshots/'+reg(root,'issues').relative_to(root).as_posix()
         def outside(m):m['source_snapshots']['M1']=issues_copy
         def swapped(m):m['source_snapshots']['R2']=issues_copy
         def evidence_only(m):m['evidence'].append({'id':'X1','kind':'observed','source':'Context/does_not_exist.md','source_sha256':sha(layer/issues_copy),'scope':'probe'});m['source_snapshots']['X1']=issues_copy
@@ -388,7 +409,7 @@ class CourseIntegration(unittest.TestCase):
                 result=validate_package.validate(root,phase='prearchive',layer=layer);self.assertTrue(any(e['code']=='E_COURSE' and 'snapshot' in e['message'] for e in result['errors']),result['errors'])
     def test_package_source_overwritten_by_the_batch_is_kept_as_read(self):
         layer,root,out=self.mode_init_layer('overwrite');c=package.build_contract(layer)
-        rel='Documents/aipm_project/'+c['flow_rel']+'/project_init.yaml';packet=package.load(layer/'Context/course_input.yaml')
+        rel=pkg_of(layer)+'/'+package.pkg_rel(c['flow_rel'],'project_init.yaml');packet=package.load(layer/'Context/course_input.yaml')
         packet['sources'].append({'id':'PI','domain':'layer','path':rel,'sha256':sha(layer/rel)});write_yaml(layer/'Context/course_input.yaml',packet);read=sha(layer/rel)
         self.draft(layer);m=package.load(root/'manifest.yaml')
         self.assertNotEqual(sha(layer/rel),read);self.assertEqual(sha(layer/m['source_snapshots']['PI']),read)
@@ -397,7 +418,7 @@ class CourseIntegration(unittest.TestCase):
         layer,root,out=self.mode_init_layer('nosnap');self.draft(layer)
         self.assertNotIn('source_snapshots',package.load(root/'manifest.yaml'))
     def test_saved_legacy_contract_value_is_identical(self):
-        layer=self.base/'old';layer.mkdir();write_yaml(layer/'intent.yaml',{'scope_id':'OLD','scope_name':'old','work_style':'aipm','aipm':{'date':'2026-10-13'}})
+        layer=self.base/'old';layer.mkdir();write_yaml(layer/'intent.yaml',{'scope_id':'OLD','scope_name':'old','work_style':'aipm','aipm':{'layout':'nested_v1','date':'2026-10-13'}})
         c=package.build_contract(layer);schema=package.load(METHOD/'format_schema.yaml');schema.pop('local_courses');expected=copy.deepcopy(schema);b=c['bindings'];expected.update(scope_id='OLD',bindings=b,package_root=c['package_root'],flow_rel=c['flow_rel'],stock_project_rel=c['stock_project_rel'])
         for e in expected['documents']:e['path']=e['path'].format(**b)
         expected['id_mapping']['persona']='P001';self.assertEqual(c,expected);self.assertNotIn('course_id',c)
@@ -406,7 +427,7 @@ class CourseIntegration(unittest.TestCase):
         with self.assertRaises(ValueError):self.draft(layer)
         self.assertEqual(before,{str(q):q.read_bytes() for q in root.rglob('*') if q.is_file()})
     def test_fake_metadata_and_no_question_scope_rejected(self):
-        mutations=[lambda m:m.update(course_contract_sha256='fake'),lambda m:m['source_reads'][0].update(read_at='2999-01-01T00:00:00+00:00'),lambda m:m['source_reads'][0].update(source_mtime_ns=0),lambda m:m['decisions']['persona'].update(state='confirmed_actual'),lambda m:m['decisions']['persona'].update(reason=''),lambda m:m['decisions']['persona'].update(scope='actual_effect'),lambda m:m['records'][0].update(generation_kind='reused',reused_from='M1'),lambda m:m['records'][0].update(generated_mtime_ns=0),lambda m:m['stages'][0].update(finished_at='2999-01-01T00:00:00+00:00'),lambda m:m['claims'][0].update(kind='user_reported')]
+        mutations=[lambda m:m.update(course_contract_sha256='fake'),lambda m:m['source_reads'][0].update(read_at='2999-01-01T00:00:00+00:00'),lambda m:m['decisions']['persona'].update(state='confirmed_actual'),lambda m:m['decisions']['persona'].update(reason=''),lambda m:m['decisions']['persona'].update(scope='actual_effect'),lambda m:m['records'][0].update(generation_kind='reused',reused_from='M1'),lambda m:m['records'][0].update(generated_mtime_ns=0),lambda m:m['stages'][0].update(finished_at='2999-01-01T00:00:00+00:00'),lambda m:m['claims'][0].update(kind='user_reported')]
         for n,mut in enumerate(mutations):
             layer,c,packet=self.prepare(str(n));root=self.draft(layer);self.mutate(root,mut)
     def test_original_pending_and_material_gaps_cannot_be_erased_in_manifest(self):
@@ -418,7 +439,7 @@ class CourseIntegration(unittest.TestCase):
             self.assertTrue(all(r['archive_path'] is None for r in package.load(root/'manifest.yaml')['records']))
     def test_pending_decision_resolves_only_via_target_bound_receipt(self):
         layer,c,packet=self.prepare('answer',pending=True);packet['gaps'].append({'kind':'unknown','reason':'Actual persona must be chosen','requires_user':True,'decision_key':'persona','question':'Which persona?'})
-        write_yaml(layer/'Context/course_input.yaml',packet);root=self.draft(layer);m=package.load(root/'manifest.yaml');record=next(r for r in m['records'] if r['source_step']=='generate_persona_md');target_path='Documents/aipm_project/'+record['path'];answer='Synthetic structural reply only; no real user observation'
+        write_yaml(layer/'Context/course_input.yaml',packet);root=self.draft(layer);m=package.load(root/'manifest.yaml');record=next(r for r in m['records'] if r['source_step']=='generate_persona_md');target_path=pkg_of(layer)+'/'+record['path'];answer='Synthetic structural reply only; no real user observation'
         receipt={'kind':'user_reported','actor':'actual_user','origin':'actual_user_reply','scope_id':c['scope_id'],'stage':'persona','answer':answer,'question_id':'SYNTHETIC-QUESTION','source_thread_id':'SYNTHETIC-ONLY','received_at':now(),'target_path':target_path,'target_sha256':sha(root/record['path'])}
         source=layer/'Context/answer.yaml';write_yaml(source,receipt);m['human_responses']={'persona':{k:receipt[k] for k in ['answer','target_path','target_sha256']}};m['human_responses']['persona'].update(source='Context/answer.yaml',source_sha256=sha(source));m['checkpoint_targets']={'persona':receipt['target_sha256']};m['evidence'].append({'id':'USR','kind':'user_reported','source':'Context/answer.yaml','source_sha256':sha(source),'scope':'synthetic receipt fixture only'});m['decisions']['persona']['state']='confirmed_actual';m['stages'][-1]['finished_at']=now();write_yaml(root/'manifest.yaml',m)
         result=package.archive_course(layer);self.assertTrue(result['pass'],result['errors'])

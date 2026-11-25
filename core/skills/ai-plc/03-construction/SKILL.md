@@ -15,7 +15,7 @@ Backlogの各タスクに対して実行可能なAgent定義を生成するス�
 
 **自動完走モード:** セッション中に RUL_plc_session §10 を指す /goal があるときは §10 に従い、Mob Checkpoint・Next Action・タスク選択で待たずに進める（無ければ本 SKILL のとおり止まる）。明示 force は §10.1。
 
-**選択した方式だけ読む:** 同梱の PM アドオン（目録 [addon-catalog.yaml](../references/addon-catalog.yaml) の aipm。旧い欄 `work_style: aipm` も同じ）が選ばれた Layer は [aipm-guided](../../aipm-guided/SKILL.md) の工程を AGT の Flow に写す。`dev_style: <your_style>`（本人が選んだ開発方式）の Layer は AGT の Guardrails に「完成ゲートはその開発方式の規約（チェックポイント・PR の作り方・レビュー）」の1行だけ書く。どれが選ばれているかは、intent の `work_style` が null 以外か `addons` が空でないときだけ、判定関数 `python3 -B .claude/skills/ai-plc/scripts/plc_addon_select.py --layer <Layer>`（持ち込みの件があるときは `--read-root <実許可root>`、scope: common なら `--common-root <root>` も付ける。plc_addon.py と同じ）の返却の `selected[].addon_id` で確かめる（`route` が `held` なら `hold_reasons` を出して止める）。どれも無い Layer は本 SKILL だけで生成する。
+**選択した方式だけ読む:** 同梱の PM アドオン（目録 [addon-catalog.yaml](../references/addon-catalog.yaml) の aipm。旧い欄 `work_style: aipm` も同じ）が選ばれた Layer は [aipm-guided](../../aipm-guided/SKILL.md) の工程を AGT の Flow に写す。`dev_style: <your_style>`（本人が選んだ開発方式）の Layer は AGT の Guardrails に「完成ゲートはその開発方式の規約（チェックポイント・PR の作り方・レビュー）」の1行だけ書く。どれが選ばれているかは、intent の `work_style` が null 以外か `addons` が空でないときだけ、判定関数 `python3 -B .claude/skills/ai-plc/scripts/plc_addon_select.py --layer <Layer>`（持ち込みの件があるときは `--read-root <実許可root>`、scope: common なら `--common-root <root>` も付ける。plc_addon.py と同じ）の返却の `selected[].addon_id` で確かめる（`route` が `held` なら `hold_reasons` を出して止める）。方式のほかに選んだものが無い Layer は、本 SKILL だけで生成する。方式（目録の work_method）が記録されていない Layer は止める: `python3 -B .claude/skills/ai-plc/scripts/plc_addon_select.py --layer <Layer> --require-method`（持ち込みの件があるときは上と同じ `--read-root`・`--common-root` を付ける）の `hold_reasons` に `method_required` があれば、01-collection の Phase 7 の手順5（方式の記録）へ案内して止まる。ほかの理由で `held` のときも `hold_reasons` を出して止まる。方式は自動では書かない（自動完走中だけ、手順5と同じく `python3 .claude/skills/ai-plc/01-collection/recommendation.py default --layer <Layer> --apply` で既定を記録してログに残す）。
 
 ## 入力
 
@@ -28,9 +28,9 @@ Backlogの各タスクに対して実行可能なAgent定義を生成するス�
 
 ## 実行フロー
 
-### Phase 1: Backlog読み込み + ティア判定
+### Phase 1: Backlog読み込み + 定義の型の判定
 
-backlog.yamlを読み込み、各タスクのcommand / command_template_ref を確認し、typeからAgent定義ティアを自動判定する（ユーザー指定優先）:
+backlog.yamlを読み込み、各タスクのcommand / command_template_ref を確認し、typeからAgent定義の型（Lite・Full）を自動判定する（ユーザー指定優先。旧称「ティア」— 層〔tier〕と分けるため呼び直した）:
 
 - **Lite**（design / research / content / planning）: Goal + Input + Output + Guardrails の4セクション。Execution FlowとInstructionsはテンプレートから暗黙適用し、Guardrails内に独立レビュー契約を必ず含める
 - **Full**（implementation / validation / complex / coding）: 全6セクション（Goal / Input / Output / Execution Flow / Guardrails / Agent Instructions）
@@ -45,7 +45,7 @@ commandフィールドがないタスクはスキップする。
 
 ### Phase 3: 生成計画 + Agent一括生成
 
-1. 各タスクに最適なテンプレートを特定し、ティアに応じたAgent定義を生成して `Agents/` に配置する
+1. 各タスクに最適なテンプレートを特定し、定義の型に応じたAgent定義を生成して `Agents/` に配置する
 2. Task未指定時は `construction.tasks` のタスクを一括生成（Mob CPは1回のみ）。Task指定時は単体生成
 3. Agent定義はHITL統合型（Autonomous Phase + Mob Checkpoint交互）を標準構造とし（delegable: true のタスクは4項のとおり Autonomous-only）、実行可能な詳細度で書く
 4. **Subagent互換frontmatterを全AGTに付与する**: `name`（kebab-case）/ `description` / `tools`（最小権限。reviewer系はWrite/Edit除外）/ `delegable`（backlog の `delegable` の値を写す。backlog が正。true のタスクは Mob Checkpoint を挟まない Autonomous-only で生成する）。Guardrailsに「変更禁止ファイル」欄（backlog.yaml / context.yaml / intent.yaml / sqlite / rules / SKILL等）を必ず含める。AGT本文はそのままAgent toolのpromptに渡せる自己完結指示書にする
@@ -56,13 +56,13 @@ commandフィールドがないタスクはスキップする。
 ```
 【発見されたテンプレート・参考Agent】[一覧]
 【生成対象Agent】
-✅ [TaskID]: AGT_[タスク名] — ティア / 参考: [テンプレート名] / Goal: [概要]
+✅ [TaskID]: AGT_[タスク名] — [定義の型: Lite/Full] / 参考: [テンプレート名] / Goal: [概要]
 ⏭️ [TaskID]: [タスク名]（commandなし → スキップ）
 ```
 
 ### Phase 4: Mob Checkpoint — 生成結果確認（停止）
 
-ここで必ず停止し、承認を待つ（§9.1）: 生成Agent一覧（ティア・参考TPL・Goal概要）を提示し、🙋承認待ちブロック（OK / 修正: [指示] / 差し戻し）を出力。修正指示があれば反映して再提示する。
+ここで必ず停止し、承認を待つ（§9.1）: 生成Agent一覧（定義の型・参考TPL・Goal概要）を提示し、🙋承認待ちブロック（OK / 修正: [指示] / 差し戻し）を出力。修正指示があれば反映して再提示する。
 
 ### Phase 5: Mob Checkpoint — 次ステージ提案（停止）
 
@@ -79,7 +79,7 @@ RUL_plc_session §7 の4パートを出力して停止する。Next Action: A=/0
 | Guardrails | 各Phaseの品質保証条件 + type別の独立レビュー契約 |
 | Agent Instructions | Stage 4実行時のAI指示 |
 
-全ティア共通でfrontmatter（name / description / tools / delegable）を付与する（Phase 3の4項参照）。
+全ての定義の型に共通でfrontmatter（name / description / tools / delegable）を付与する（Phase 3の4項参照）。
 
 ## 出力
 

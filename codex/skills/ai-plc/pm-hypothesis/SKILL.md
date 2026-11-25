@@ -1,6 +1,6 @@
 ---
 name: pm-hypothesis
-description: "pm-hypothesis: AIPM の仮説（registers/hypotheses.yaml）の1件を足す・判定の案を書く、崩れた仮説の影響を見る（AIPM を選んだ Layer だけ）"
+description: "pm-hypothesis: AIPM の仮説（箱の hypotheses.yaml）の1件を足す・判定の案を書く、崩れた仮説の影響を見る（AIPM を選んだ Layer だけ）"
 ---
 
 # Codex adapter: pm-hypothesis

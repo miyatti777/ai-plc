@@ -13,7 +13,7 @@ Goalを分析し、Sub-Agent Scope（SubLayer）とTask（実行単位）に再�
 
 **自動完走モード:** セッション中に RUL_plc_session §10 を指す /goal があるときは §10 に従い、Mob Checkpoint・Next Action・タスク選択で待たずに進める（無ければ本 SKILL のとおり止まる）。明示 force は §10.1。
 
-**選択した方式だけ読む（発動条件は3つ）:** 同梱の PM アドオン（目録 [addon-catalog.yaml](../references/addon-catalog.yaml) の aipm。旧い欄 `work_style: aipm` も同じ）が選ばれた Layer は [aipm-guided](../../aipm-guided/SKILL.md) の「Stageとの接続 2」（必須文書・工程順・`aipm.registers: true` のときの論点の表の条件と wbs_id・issue_id）を分解の制約にする。`dev_style: <your_style>`（本人が選んだ開発方式）の Layer は開発 Task の完成ゲートに「その開発方式の規約（チェックポイント・PR の作り方・レビュー）を通す」を AC に1行書く（binding・予算・版照合は書かない）。持ち込みのアドオン（`intent.addons` の case の件）がある Layer は [addon-seam.md](../references/addon-seam.md) の型を使う Task に `addon_refs` を付ける。アドオンの binding が指す案内（guide）に運用タスクの雛形の宣言（`recurring_templates`）があれば、`plc_addon.py --stage inception_recurring` の案を分解表に入れて承認を取り、承認の後に backlog に書く（雛形の name は変えずに書く。出どころは description に書く。同じ雛形を名前で見分けて重ねて出さないため）。どれが選ばれているかは、intent の `work_style` が null 以外か `addons` が空でないときだけ、判定関数 `python3 -B .claude/skills/ai-plc/scripts/plc_addon_select.py --layer <Layer>`（目録を読む・書き込まない。持ち込みの件があるときは `--read-root <実許可root>`、scope: common なら `--common-root <root>` も付ける。plc_addon.py と同じ）で確かめる（`route` が `held` なら `hold_reasons` を出して止める。同梱は `selected[].addon_id`、持ち込みは `has_case_addons`）。どれも無い Layer（既定）は判定関数も呼ばず、本 SKILL と rules だけで分解する。
+**選択した方式だけ読む（発動条件は3つ）:** 同梱の PM アドオン（目録 [addon-catalog.yaml](../references/addon-catalog.yaml) の aipm。旧い欄 `work_style: aipm` も同じ）が選ばれた Layer は [aipm-guided](../../aipm-guided/SKILL.md) の「Stageとの接続 2」（必須文書・工程順・`aipm.registers: true` のときの論点の表の条件と wbs_id・issue_id）を分解の制約にする。`dev_style: <your_style>`（本人が選んだ開発方式）の Layer は開発 Task の完成ゲートに「その開発方式の規約（チェックポイント・PR の作り方・レビュー）を通す」を AC に1行書く（binding・予算・版照合は書かない）。持ち込みのアドオン（`intent.addons` の case の件）がある Layer は [addon-seam.md](../references/addon-seam.md) の型を使う Task に `addon_refs` を付ける。アドオンの binding が指す案内（guide）に運用タスクの雛形の宣言（`recurring_templates`）があれば、`plc_addon.py --stage inception_recurring` の案を分解表に入れて承認を取り、承認の後に backlog に書く（雛形の name は変えずに書く。出どころは description に書く。同じ雛形を名前で見分けて重ねて出さないため）。どれが選ばれているかは、intent の `work_style` が null 以外か `addons` が空でないときだけ、判定関数 `python3 -B .claude/skills/ai-plc/scripts/plc_addon_select.py --layer <Layer>`（目録を読む・書き込まない。持ち込みの件があるときは `--read-root <実許可root>`、scope: common なら `--common-root <root>` も付ける。plc_addon.py と同じ）で確かめる（`route` が `held` なら `hold_reasons` を出して止める。同梱は `selected[].addon_id`、持ち込みは `has_case_addons`）。方式のほかに選んだものが無い Layer（既定）は、本 SKILL と rules だけで分解する（契約・binding・予算の文書を読まない）。方式（目録の work_method）が記録されていない Layer は止める: `python3 -B .claude/skills/ai-plc/scripts/plc_addon_select.py --layer <Layer> --require-method`（持ち込みの件があるときは上と同じ `--read-root`・`--common-root` を付ける）の `hold_reasons` に `method_required` があれば、01-collection の Phase 7 の手順5（方式の記録）へ案内して止まる。ほかの理由で `held` のときも `hold_reasons` を出して止まる。方式は自動では書かない（自動完走中だけ、手順5と同じく `python3 .claude/skills/ai-plc/01-collection/recommendation.py default --layer <Layer> --apply` で既定を記録してログに残す）。同梱の方式が選ばれた Layer では、目録のその行の `stage_reads.inception` が指す entry の節を分解の制約にする（方式によっては、人間の予定・TODO を箱の ToDo のシートに入れ、backlog の Task にしない。AI が成果物を作るものだけを Task にする）。
 
 ## 入力
 
@@ -26,7 +26,7 @@ Goalを分析し、Sub-Agent Scope（SubLayer）とTask（実行単位）に再�
 
 ### Phase 1: 既存成果と未達の確認
 
-intent.yaml / context.yaml / backlog.yaml / 必要な Context Store を読む。intent.status が cancelled なら RUL_plc_system §21 の再開手順へ案内して止まる。intent に `mode_init` があり state が done でなければ Hold し、/01-collection の Phase 7.5（初期化の段）へ案内する（`mode_init` の無い Layer は今までどおり）。既存の原要求・明示変更、成立済み成果、Goal/SC の未達を先に照合し、追加収集は今回の分解判断を変える不足だけに限る（新セッションを理由に調査をやり直さない。実装詳細の調査は原則その成果 Task の中に置く）。
+intent.yaml / context.yaml / backlog.yaml / 必要な Context Store を読む。intent.status が cancelled なら RUL_plc_system §21 の再開手順へ案内して止まる。intent に `mode_init` があり state が done でなければ Hold し、/01-collection の Phase 7.5（初期化の段）へ案内する（`mode_init` の無い Layer は今までどおり）。方式が記録されていない Layer も Phase 1 で Hold する（冒頭の「選択した方式だけ読む」の判定）。既存の原要求・明示変更、成立済み成果、Goal/SC の未達を先に照合し、追加収集は今回の分解判断を変える不足だけに限る（新セッションを理由に調査をやり直さない。実装詳細の調査は原則その成果 Task の中に置く）。
 
 ### Phase 1.5: 分解前インタビュー（必要なときだけ）
 
@@ -91,11 +91,11 @@ BT-A（ブロッカー）/ BT-B（節目再評価）/ 本人の明示指示か�
 2. トリガー原因を分析し、差分のみ実施: タスク追加（新ID採番）/ 修正（description・priority・dependencies更新）/ 削除（statusを`cancelled`に。物理削除しない）
 3. refactoring_log に date / trigger / reason / changes を記録。タスクを足した・変えたときは `construction` を判定し直す（足したタスクが条件に当たれば `construction.tasks` に加え、Next Action は /03-construction）
 4. 差分テーブル（操作/タスクID/内容/理由）を提示して承認を待ち（§9.1）、承認後にbacklog.yamlを更新。本人が今回の Re-Inception を具体的に許可済み、または有効な自動完走/force の範囲内なら表示・記録後に続行する
-5. 目的の意味のある変更で表示名を変えるべきかは [plc-registry の命名判断](../../plc-registry/SKILL.md#命名の判断と表示名の限定更新) に従う（単なる Task 追加は改名の節目にしない）
+5. 目的の意味のある変更で表示名を変えるべきかは [ppm-registry の命名判断](../../ppm-registry/SKILL.md#命名の判断と表示名の限定更新) に従う（単なる Task 追加は改名の節目にしない）
 
 ## 出力
 
 backlog.yaml（常に） / sublayers/（SubLayer生成時） → Stage 3（要るときだけ）または Stage 4 へ。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-10-22 ｜ **バージョン:** 3.0（方式の判定を目録と判定関数へ（読み方は同じ）／軽量化: 10/1 版（v2.3）を土台に、DevStyle binding・AIPM-FIRST・アドオン A2・命名確認の本文を外し、発動条件3つと1行参照・成果スライスの要点・Phase 5 の既定上限・Phase 4 の「OK が開始ゲート」を残す。命名確認の正本は plc-registry。以前の版履歴は git）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-11-25 ｜ **バージョン:** 3.1（方式の記録が無い Layer を Phase 1 で止める）／3.0（方式の判定を目録と判定関数へ（読み方は同じ）／軽量化: 10/1 版（v2.3）を土台に、DevStyle binding・AIPM-FIRST・アドオン A2・命名確認の本文を外し、発動条件3つと1行参照・成果スライスの要点・Phase 5 の既定上限・Phase 4 の「OK が開始ゲート」を残す。命名確認の正本は ppm-registry。以前の版履歴は git）

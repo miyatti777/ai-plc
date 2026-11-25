@@ -1,6 +1,6 @@
 ---
 name: pm-todo
-description: "pm-todo: AIPM の ToDo（registers/todo.yaml）の1件を足す・動かす・WBS につなぐ、遅れを見る（AIPM を選んだ Layer だけ）"
+description: "pm-todo: AIPM の ToDo（箱の todo.yaml）の1件を足す・動かす・WBS につなぐ、遅れを見る（AIPM を選んだ Layer だけ）"
 ---
 
 # Codex adapter: pm-todo

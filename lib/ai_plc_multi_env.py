@@ -98,7 +98,8 @@ def inventory(distribution: Path, environments: set[str],
             add_tree(source, "core/skills", ".claude/skills", "shared_claude_runtime", shared_owners, entries, payloads)
             for name in ("ai-plc-system.md", "ai-plc-session.md", "ai-plc-adaptive.md", "ai-plc-model-routing.md"):
                 add_file(source, f"core/rules/{name}", f".claude/rules/{name}", "shared_claude_runtime", shared_owners, entries, payloads)
-            for name in ("init_db.py", "plc_query.py", "sync.py", "README.md", "project_lifecycle.py", "plc_explain.py"):
+            for name in ("init_db.py", "plc_query.py", "sync.py", "README.md", "project_lifecycle.py", "plc_explain.py",
+                         "aiplc_paths.py", "business_registry.py", "shared_stock.py"):
                 add_file(source, f"core/db/{name}", f".claude/db/{name}", "shared_claude_runtime", shared_owners, entries, payloads)
         if "cc" in environments:
             add_tree(source, "claude/commands", ".claude/commands", "cc_runtime", {"cc"}, entries, payloads)
@@ -106,7 +107,8 @@ def inventory(distribution: Path, environments: set[str],
         if "cursor" in environments:
             add_tree(source, "core/skills", ".cursor/skills", "cursor_runtime", {"cursor"}, entries, payloads)
             add_tree(source, "cursor/rules", ".cursor/rules", "cursor_runtime", {"cursor"}, entries, payloads)
-            for name in ("init_db.py", "plc_query.py", "sync.py", "README.md", "project_lifecycle.py", "plc_explain.py"):
+            for name in ("init_db.py", "plc_query.py", "sync.py", "README.md", "project_lifecycle.py", "plc_explain.py",
+                         "aiplc_paths.py", "business_registry.py", "shared_stock.py"):
                 add_file(source, f"core/db/{name}", f".cursor/db/{name}", "cursor_runtime", {"cursor"}, entries, payloads)
         if "codex" in environments:
             add_tree(source, "codex/skills/ai-plc", ".agents/skills/ai-plc", "codex_adapter", {"codex"}, entries, payloads)

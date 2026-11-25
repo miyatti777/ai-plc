@@ -28,7 +28,9 @@ AI-PLCの目的は「実際に動く成果物」を作ること。
 
 Layerトップページは「成果物セクション（上部）+ AI-PLC管理セクション（下部・折りたたみ）」の2層構造。管理セクションの見出しは `### 🔧 AI-PLC管理（[Scope ID]）`。
 
-- **個別Projectの表示名:** 現在目的は intent.goal、人向け表示名は intent.display_name（未設定なら scope_name）、Registry の現在名は projects.name への承認済み投影。scope_name・ID・path は固定。改名の判断と反映の手順は `plc-registry/SKILL.md`（命名の判断と表示名の限定更新）が正本
+- **3層（仕事の情報の置き場）:** ポートフォリオ層（`ppm-`。案件をまたいで全体を見る・振る）＞プロジェクト層（AI-PLC。Layer・Stock）＞ワークパッケージ層（`pm-`。AIPM の箱）。上の層は下から要約を受け、中身の正本は下の層に置く。役割・正本・受け渡し・語の書き分けは `.claude/skills/ai-plc/references/three-tiers.md` が正本
+- **業務Project（任意）:** 公開版では業務Project の表（`.claude/db/business_registry.py`）は任意で、既定では読まない。使うときも業務Project を親 Layer や Program に読み替えず、子の完了を業務成果へ自動伝播しない
+- **個別Projectの表示名:** 現在目的は intent.goal、人向け表示名は intent.display_name（未設定なら scope_name）、Registry の現在名は projects.name への承認済み投影。scope_name・ID・path は固定。改名の判断と反映の手順は `ppm-registry/SKILL.md`（命名の判断と表示名の限定更新）が正本
 
 ## 4. Mob Checkpoint 共通ルール
 
@@ -49,14 +51,19 @@ RUL_plc_system（本ファイル）→ 全SKL_plc_* が参照。補助ルール:
 | ロール | `ROL_plc_` | ROL_plc_product_manager |
 | サブエージェント | `AGT_plc_` | AGT_plc_research |
 
-**呼び出し名（実行環境での名前）:** 論理名とは別に、Claude Code で打つ名前を次で決める。
+**呼び出し名（実行環境での名前）:** 論理名とは別に、Claude Code で打つ名前を次で決める。接頭辞は3層（`.claude/skills/ai-plc/references/three-tiers.md`）に合わせる。
 
-| 種別 | 形 | 置き場所（CC） | 例 |
-| --- | --- | --- | --- |
-| パイプライン Stage | `0N-<stage>`（Jev 実験版の末尾 `-jev` は凍結中 — RUL_plc_adaptive §5 ルール6） | `.claude/skills/ai-plc/`（本体）＋ `.claude/commands/`（呼び出し用ラッパー） | `/01-collection` ・ `/04-operation` |
-| ユーティリティ | `plc-<機能>`（kebab-case） | `.claude/skills/plc-<機能>/SKILL.md`（直下。CC は `.claude/skills/` の1階層だけを認識する。中身は SKILL.md 1ファイルで、処理は既存スクリプトを呼ぶ） | `/plc-someday` ・ `/plc-registry` |
+| 層 | 種別 | 形 | 置き場所（CC） | 例 |
+| --- | --- | --- | --- | --- |
+| ポートフォリオ層 | 案件をまたいで全体を見る・振る（PPM＝プロジェクトポートフォリオマネジメント） | `ppm-<機能>` | `.claude/skills/ppm-<機能>/SKILL.md`（audit・registry・someday・viewer。スキルだけ） | `/ppm-registry` ・ `/ppm-audit` |
+| プロジェクト層 | パイプライン Stage | `0N-<stage>`（Jev 実験版の末尾 `-jev` は凍結中 — RUL_plc_adaptive §5 ルール6） | `.claude/skills/ai-plc/`（本体）＋ `.claude/commands/`（呼び出し用ラッパー） | `/01-collection` ・ `/04-operation` |
+| プロジェクト層 | ユーティリティ（案件の中を見る・直す補助） | `plc-<機能>`（kebab-case） | `.claude/skills/plc-<機能>/SKILL.md`（直下。CC は `.claude/skills/` の1階層だけを認識する。中身は SKILL.md 1ファイルで、処理は既存スクリプトを呼ぶ） | `/plc-brief` ・ `/plc-lifecycle` |
+| ワークパッケージ層 | AIPM の箱の操作（同梱の PM アドオンを選んだ Layer だけ） | `pm-<機能>` | `.claude/commands/`＋`.claude/skills/aipm-guided/` | `/pm-issue` ・ `/pm-suggest` |
 
-ユーティリティの論理名は `SKL_plc_<機能>`（例: SKL_plc_someday）。現行のユーティリティ: plc-someday / plc-registry / plc-project-status（Project中止/再開・§21） / plc-status-audit（実験版のスクリプト）/ plc-viewer / plc-consult / plc-brief / plc-decision / plc-next / plc-backfill / plc-auto / plc-model-routing / plc-db-sync（旧 `ai-plc-db-sync`。Cowork プラグイン版は作り直しまで旧名で残る）。
+- **`ppm-` と `pm-` は1文字違い。** `ppm-`＝ポートフォリオ層（案件をまたいで全体を見る・振る）、`pm-`＝ワークパッケージ層（1つの案件の AIPM の箱の中を操作する）。外に出すときは「AI-PLC の PPM スキル」と書く（単独の「AI-PPM」と書かない）。日本語の説明では初出で「プロジェクトポートフォリオマネジメント（PPM）」と書き、プロダクト・ポートフォリオ・マネジメントと区別する
+- 現行のポートフォリオ層（公開版に入っているもの）: ppm-audit（点検。スクリプトは実験版）/ ppm-registry / ppm-someday / ppm-viewer。日次の計画・振り返りなどの入口は公開版に無い（あなたの TODO 管理で行う。AI-PLC の範囲外）。現行のユーティリティ（論理名は `SKL_plc_<機能>`。例: SKL_plc_brief）: plc-lifecycle（Project中止/再開・§21） / plc-consult / plc-brief / plc-decision / plc-next / plc-backfill / plc-auto / plc-model-routing / plc-db-sync（旧 `ai-plc-db-sync`。Cowork プラグイン版は作り直しまで旧名で残る）。現行のワークパッケージ層: pm-init / pm-persona / pm-story / pm-issue / pm-hypothesis / pm-todo / pm-today / pm-suggest
+- **旧名は残さない:** v2.0.0 で改名したスキル（ポートフォリオ層の4つ・plc-lifecycle・pm-suggest）の旧名は使わない。新旧の読み替えは CHANGELOG の v2.0.0 の表にある
+- **語の書き分け**（層／Layer／tier、プロジェクト層／案件／業務プロジェクト、プログラム、WBS の行、Stock、PPM）と**日本語の呼び名の対応表**は `.claude/skills/ai-plc/references/three-tiers.md` §4・§5 が正本。新しく書くものから従い、過去の記録は一括で書き換えない
 
 旧AIPO名称は使用禁止（本表がプロジェクト唯一の定義。各スキルはここを参照する）:
 
@@ -73,7 +80,7 @@ RUL_plc_system（本ファイル）→ 全SKL_plc_* が参照。補助ルール:
 セッション横断の記憶は**2系統**で管理する（旧memory.md/user.mdは2026-07-07に廃止・移行済み）:
 
 - **wiki（.claude/wiki/）** = プロジェクト横断・共有可能な知見。バグパターン・設計判断・環境固有制約はここ（運用は§11、Lintは§10）
-- **CC native memory（~/.claude/projects/&lt;repo&gt;/memory/）** = ユーザーモデル・好み・参照（user/feedback/reference 型のみ。**project 型は作らない**）。PJ の状態は Registry・backlog、Layer の中の約束は intent・backlog、オーナーの残作業はあなたの TODO 管理が正（AI-PLC の範囲外）。Layer が閉じても続く禁止は feedback 型、閉じても使う参照は reference 型に書く。**概念ページ原則（LLM Wiki準拠）:** 1ファイル=独立して参照される1概念。frontmatterのtypeがSchema、MEMORY.mdがindex、`[[名前]]`で相互リンク。時点情報（現在のフォーカス等）は概念ページに置かず、backlog/logに置く
+- **CC native memory（~/.claude/projects/&lt;repo&gt;/memory/）** = ユーザーモデル・好み・参照（user/feedback/reference 型のみ。**project 型は作らない**）。PJ の状態と Layer の中の約束は Layer の intent・backlog が正（Registry の projects はその写し）、オーナーの残作業はあなたの TODO 管理が正（AI-PLC の範囲外。AIPM を選んだ案件の論点 I・ToDo D は箱の一覧〔sheets_v1 は `Sheets/` の直下、それより前の形は `Documents/aipm_project/registers/`〕が正で、TODO 管理へは書き写さない）。Layer が閉じても続く禁止は feedback 型、閉じても使う参照は reference 型に書く。**概念ページ原則（LLM Wiki準拠）:** 1ファイル=独立して参照される1概念。frontmatterのtypeがSchema、MEMORY.mdがindex、`[[名前]]`で相互リンク。時点情報（現在のフォーカス等）は概念ページに置かず、backlog/logに置く
 
 振り分け: バグ・技術知見・PJ横断パターン→wiki / ユーザーの判断パターン・好み→native memory（feedback）。両方に重複させない。native memoryのユーザーモデルに基づいて対応を調整する。本人専用のプロフィール・価値観・期間限定の状況は §22 のとおり共有の置き場へ写さない。
 
@@ -218,7 +225,7 @@ intent.yamlの`extensions`フィールドで宣言し、該当時のみ追加チ
 
 Project Registry の状態は `planned / active / paused / completed / cancelled`。Layer の `deferred` は `paused` の互換表現、`blocked` は外部依存による未解決で `active` のまま。`completed` は元Goalの全AC達成と検証済みの場合だけで、Task全終端や中止を成功とみなさない。`cancelled` は元Goal未達の意図的終了で、完了率の分子に数えず別表示する。
 
-- 中止・再開の正式入口は `plc-project-status/SKILL.md`（`project_lifecycle.py`）。AI の自己判断や完了点検だけで中止しない。Goal/AC・Task実績・成果物・元Projectは削除しない
+- 中止・再開の正式入口は `plc-lifecycle/SKILL.md`（`project_lifecycle.py`）。AI の自己判断や完了点検だけで中止しない。Goal/AC・Task実績・成果物・元Projectは削除しない
 - cancelled の Layer では Operation は再開手順へ案内して停止し、Propagation・Backfill・点検は cancelled を保持する
 - 再開は明示の再開承認と replan_ref を伴う active への遷移だけ。異なる Goal なら新 Project を作り置換先として結ぶ
 - 外部 Notion への中止 metadata 同期は未対応・別承認（他 status へ黙って変換しない）
@@ -228,5 +235,5 @@ Project Registry の状態は `planned / active / paused / completed / cancelled
 公開版には本人専用情報の store は無い。本人のプロフィール・好み・価値観・期間限定の状況を、共有の Context・wiki・native memory・リポジトリへ写さない。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-10-14 ｜ **ステータス:** Active
-**バージョン:** 3.0（軽量化: 10/1 版（v2.9）を土台に §21 を要点へ、§22・§3 の細則を references / 各スキルへ移した。以前の版履歴は git）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-11-25 ｜ **ステータス:** Active
+**バージョン:** 3.1（§3 に3層の項目と three-tiers.md への参照、§6 の呼び出し名を層ごとに〔ppm- / 0N-・plc- / pm-〕・旧名の読み替え、§7 の正本を Layer に、§21 の入口を plc-lifecycle に）／3.0（軽量化: 10/1 版（v2.9）を土台に §21 を要点へ、§22・§3 の細則を references / 各スキルへ移した。以前の版履歴は git）

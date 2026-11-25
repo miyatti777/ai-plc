@@ -1,12 +1,14 @@
 # pm-issue｜論点の操作（AIPM）
 
-AIPM の箱の中の「論点の表」（registers/issues.yaml）の1件を扱う操作の型です。AI-PLC の Stage（Collection〜Operation）は箱づくりを含めた外側の命令で、pm-issue はその箱の中の論点に効きます。仮説は pm-hypothesis、やることは pm-todo。
+AIPM の箱の中の「論点の表」（issues.yaml。sheets_v1 は `Sheets/` の直下、それより前の形は `registers/` の中）の1件を扱う操作の型です。AI-PLC の Stage（Collection〜Operation）は箱づくりを含めた外側の命令で、pm-issue はその箱の中の論点に効きます。仮説は pm-hypothesis、やることは pm-todo。
 
 **依頼文の例**：「この問いを論点に足して」「I3 を2つに分けて」「I2 の答えの案を出して」「論点の全体像を見せて」
 
 ## 使える Layer（最初に確かめる）
 
 `python3 .claude/skills/aipm-guided/package.py op --layer <Layer> --name check` を呼ぶ。`unselected`（AIPM を選んでいない・論点の表を選んでいない）か `pass: false`（選択が Hold）なら、何も書かずに理由を伝えて止まる。途中から AIPM にするなら pm-init。
+
+**保存済みの箱:** 版を持てる保存済みの箱（archive 済みの sheets_v1・box_root_v1。版の無い箱も含む。共有 Stock〔registry_stock_v1〕の箱は除き、今までどおり書ける）では add・split・propose は `held` で止まる。論点を足すとき・分けるときは、SKILL.md の「保存した箱の一覧の追記（redit）」の流れ（`package.py redit` の add_row → `redit-list` → 本人の返事を `redit-judge` → `redit-apply`）で入れる。分けるときは row_data に `parent` を書く（owner・due が無ければ `[unknown]`・`undecided` になる。priority は確かめた値を書き、`[unknown]` のままだと保留になる）。期限・owner・priority が未定の論点は、本人が決めた後に redit の fill（`{op: fill, register: issues, row: I3, field: due, value: '2026-11-15'}`）で入れる。答えの案・検証の仮説の案（propose）は一覧に書かない：案は変更案の reason か、`redit-extract` の判定の下書き（judge_draft）の備考に残し、決めるのは本人の resolve・close。版が無い箱は先に `package.py register`。resolve・close は保存済みの箱でも今までどおり（本人の記録が要る）。保存済みの nested_v1 の箱は止まらず、書いた結果に「先に migrate-sheets で sheets_v1 へ」の案内が付く。
 
 ## 動き
 
@@ -30,5 +32,5 @@ AIPM の箱の中の「論点の表」（registers/issues.yaml）の1件を扱�
 ## 守ること
 
 - AI-PLC の backlog・Task の状態は変えない（論点に答える Task の issue_id は Stage が書く）
-- 人の名前・評価・連絡先などは書かない（owner は役割・所属）
+- 人の名前・評価・連絡先などは書かない（owner は役割・所属）。鍵・トークン・パスワード・口座番号も書かない
 - 書くときはファイルを書き直すので、人が手で書いたコメントは残らない（package.py の judge・wbs-candidate と同じ）

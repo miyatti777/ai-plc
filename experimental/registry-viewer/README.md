@@ -259,7 +259,7 @@ python3 .claude/db/registry_viewer/classify.py show
 
 ## テスト
 
-checkout のルートで実行します（インストールはされません）。一時ディレクトリの SQLite と Layer だけを使い、公開版 `core/db/init_db.py` のスキーマ（英語語彙）と、日本語語彙のスキーマの両方で書き込みを確かめます。status_audit は `experimental/jev/scripts/` のものを自動で使います。分類（`classify.py`）のテストも同じコマンドで流れます。
+checkout のルートで実行します（インストールはされません）。一時ディレクトリの SQLite と Layer だけを使い、v1.14.0 までの公開版 init_db.py のスキーマ（英語語彙。`tests/db/fixtures/init_db_v1_14_0.py`）と、日本語語彙のスキーマ（v2.0.0 からの `core/db/init_db.py` と同じ）の両方で書き込みを確かめます。status_audit は `experimental/jev/scripts/` のものを自動で使います。分類（`classify.py`）のテストも同じコマンドで流れます。
 
 ```bash
 python3 -m unittest discover -s experimental/registry-viewer/tests

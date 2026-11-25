@@ -332,14 +332,98 @@ class SelectTests(unittest.TestCase):
         catalog = yaml.safe_load((REFS / "addon-catalog.yaml").read_text())
         self.assertEqual(list(catalog["exclusive_groups"]), ["work_method"])
         self.assertEqual(catalog["exclusive_groups"]["work_method"]["max_selected"], 1)
-        self.assertEqual([r["addon_id"] for r in catalog["addons"]], ["aipm"])
+        self.assertEqual([r["addon_id"] for r in catalog["addons"]], ["aipm", "aipm-light"])
         row = catalog["addons"][0]
         self.assertEqual(row["legacy_alias"], {"intent_field": "work_style", "value": "aipm", "selection_source_field": "work_style_source"})
         self.assertEqual(row["init"]["record"], "mode_init")
         self.assertTrue((ROOT / row["entry"].replace(".claude/skills/", "", 1)).is_file())
         schema = yaml.safe_load((ROOT / "aipm-guided/format_schema.yaml").read_text())
         self.assertEqual(row["addon_version"], str(schema["version"]))
-        self.assertEqual(sorted(select.load_catalog()["rows"]), ["aipm"])
+        self.assertEqual(sorted(select.load_catalog()["rows"]), ["aipm", "aipm-light"])
+        light = catalog["addons"][1]   # AIPM ライトモード shares the aipm-guided entry
+        self.assertEqual((light["exclusive_group"], light["entry"], light["init"]["record"]),
+                         ("work_method", row["entry"], "mode_init"))
+        self.assertNotIn("legacy_alias", light)
+        group = catalog["exclusive_groups"]["work_method"]
+        self.assertEqual((group["none_allowed"], group["default_addon"]), (False, "aipm-light"))
+
+    def test_contract_v06_adds_method_fields_only(self):
+        """v0.6 changes only AddonCatalog (default_addon, none_allowed) and AddonSelectionResult."""
+        v5 = yaml.safe_load((REFS / "addon-seam-contract_v0.5.yaml").read_text())
+        v6 = yaml.safe_load((REFS / "addon-seam-contract_v0.6.yaml").read_text())
+        self.assertEqual((v6["schema_version"], v6["derived_from"]), ("0.6", "0.5"))
+        for name, body in v5["types"].items():
+            if name not in ("AddonCatalog", "AddonSelectionResult"):
+                self.assertEqual(v6["types"][name], body, name)
+        self.assertEqual(v6["types"]["AddonCatalog"]["group_optional"], ["default_addon"])
+        self.assertIn("0.3", v6["types"]["AddonCatalog"]["accepted_catalog_schema_versions"])
+        codes = v6["types"]["AddonSelectionResult"]["hold_reason_values"]
+        self.assertEqual(codes, v5["types"]["AddonSelectionResult"]["hold_reason_values"] + ["method_required"])
+        used = set(re.findall(r'Hold\("([a-z_]+)"', (SCRIPTS / "plc_addon_select.py").read_text()))
+        self.assertEqual(used, set(codes))
+        self.assertEqual(v6["implemented_routes"], v5["implemented_routes"])
+        catalog = yaml.safe_load((REFS / "addon-catalog.yaml").read_text())
+        self.assertEqual((catalog["contract"], catalog["schema_version"]), ("addon-seam-contract_v0.6.yaml", "0.3"))
+
+    def test_method_missing_is_reported_and_held_only_on_request(self):
+        """Old Layers without a method keep their route; Collection asks with require_method after recording."""
+        self.write_intent()
+        result = self.run_select()
+        self.assertEqual(result["route"], "unselected")
+        self.assertEqual((result["method_required"], result["method_missing"], result["default_method"]),
+                         (True, True, "aipm-light"))
+        self.held(self.run_select(require_method=True), "method_required")
+        default = "Context/aipm_recommendation/default_method.json"
+        (self.case / default).write_text(json.dumps({"kind": "default_on_no_answer", "choice": "aipm-light"}))
+        self.write_intent(addons=[{"addon_id": "aipm-light", "source": "bundled", "addon_version": "0.1",
+                                   "selection_ref": default}])
+        result = self.run_select(require_method=True)
+        self.assertEqual((result["route"], result["method"], result["method_missing"]), ("selected", "aipm-light", False))
+        self.assertFalse(result["selected"][0]["selection_verified"])   # a default is not the person's choice
+        self.write_intent(addons=[{"addon_id": "aipm", "source": "bundled", "addon_version": "2.0", "selection_ref": RECEIPT},
+                                  {"addon_id": "aipm-light", "source": "bundled", "addon_version": "0.1"}])
+        self.held(self.run_select(), "exclusive_group_multiple")
+        self.write_intent(work_style="aipm", addons=[{"addon_id": "aipm-light", "source": "bundled", "addon_version": "0.1"}])
+        self.held(self.run_select(), "exclusive_group_multiple")
+        self.write_intent(addons=[self.case_addon("synthetic-method", profile="work_method")])
+        result = self.run_select(require_method=True)   # a case addon declaring work_method is a method too
+        self.assertEqual((result["method"], result["method_missing"]), ("synthetic-method", False))
+
+    def test_old_standard_answer_verifies_aipm_light(self):
+        rec = "Context/aipm_recommendation/receipts/std.json"
+        (self.case / rec).write_text(json.dumps({"kind": "user_reported", "choice": "standard", "answer": "通常方式で進める"}))
+        self.write_intent(addons=[{"addon_id": "aipm-light", "source": "bundled", "addon_version": "0.1", "selection_ref": rec}])
+        self.assertTrue(self.run_select()["selected"][0]["selection_verified"])
+        self.write_intent(addons=[{"addon_id": "aipm", "source": "bundled", "addon_version": "2.0", "selection_ref": rec}])
+        self.assertFalse(self.run_select()["selected"][0]["selection_verified"])   # standard never verifies aipm
+
+    def test_require_method_cli(self):
+        self.write_intent()
+        script = SCRIPTS / "plc_addon_select.py"
+        plain = subprocess.run([sys.executable, str(script), "--layer", str(self.case)], capture_output=True, text=True)
+        self.assertEqual(plain.returncode, 0)
+        self.assertTrue(json.loads(plain.stdout)["method_missing"])
+        held = subprocess.run([sys.executable, str(script), "--layer", str(self.case), "--require-method"],
+                              capture_output=True, text=True)
+        self.assertEqual(held.returncode, 1)
+        self.assertEqual(json.loads(held.stdout)["hold_reasons"], ["method_required"])
+
+    def test_default_addon_shape(self):
+        base = yaml.safe_load(select.CATALOG.read_text())
+        cases = {
+            "unknown": lambda c: c["exclusive_groups"]["work_method"].__setitem__("default_addon", "nope"),
+            "missing": lambda c: c["exclusive_groups"]["work_method"].pop("default_addon"),
+            "with_none_allowed": lambda c: c["exclusive_groups"]["work_method"].__setitem__("none_allowed", True),
+            "old_schema": lambda c: c.__setitem__("schema_version", "0.2"),
+            "not_bool": lambda c: c["exclusive_groups"]["work_method"].__setitem__("none_allowed", "no"),
+        }
+        for name, change in cases.items():
+            catalog = copy.deepcopy(base)
+            change(catalog)
+            path = Path(self.tmp.name) / ("default_%s.yaml" % name)
+            path.write_text(yaml.safe_dump(catalog, allow_unicode=True, sort_keys=False))
+            with self.assertRaises(select.Hold, msg=name):
+                select.load_catalog(path)
 
     def test_broken_catalog_holds(self):
         catalog = yaml.safe_load((REFS / "addon-catalog.yaml").read_text())
@@ -361,7 +445,7 @@ class SelectTests(unittest.TestCase):
         codes = set(v4["types"]["AddonSelectionResult"]["hold_reason_values"])
         source = (SCRIPTS / "plc_addon_select.py").read_text()
         used = set(re.findall(r'Hold\("([a-z_]+)"', source))
-        self.assertEqual(used, codes)
+        self.assertEqual(used, codes | {"method_required"})   # v0.6 adds method_required (contract test below)
 
     def test_contract_v05_adds_catalog_operations_only(self):
         v4 = yaml.safe_load((REFS / "addon-seam-contract_v0.4.yaml").read_text())
@@ -395,6 +479,8 @@ class SelectTests(unittest.TestCase):
         path.write_text(yaml.safe_dump(old, allow_unicode=True, sort_keys=False))
         with self.assertRaises(select.Hold):
             select.load_catalog(path)   # operations need catalog schema 0.2
+        old["exclusive_groups"]["work_method"].pop("default_addon", None)
+        old["exclusive_groups"]["work_method"]["none_allowed"] = True
         for row in old["addons"]:
             row.pop("operations", None)
         path.write_text(yaml.safe_dump(old, allow_unicode=True, sort_keys=False))

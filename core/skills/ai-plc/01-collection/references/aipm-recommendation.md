@@ -2,7 +2,7 @@
 
 Goal/Context収集後に適合を判断し、既存のPhase7確認点へ推薦を統合する。モード名の事前指定を必須にしない。推薦の提示と本人による採用は別の状態として保存する。
 
-AIPM方式は同梱の PM アドオン（目録 [addon-catalog.yaml](../../references/addon-catalog.yaml) の aipm）。本人が選んだときは intent の `addons` に同梱の1件（`addon_id: aipm`・`source: bundled`・目録の `addon_version`・`selection_ref` に受領の receipt）だけを書き、旧い欄 `work_style`・`work_style_source` は書かない（残っていれば外す）。旧い Layer の `work_style: aipm` は、判定関数 `.claude/skills/ai-plc/scripts/plc_addon_select.py` が同梱の aipm を選んだものとして読む（目録の `legacy_alias`）。
+AIPM方式は同梱の PM アドオン（目録 [addon-catalog.yaml](../../references/addon-catalog.yaml) の aipm）。方式（組 work_method）は必須で、AIPM を選ばない・答えが無いときは AIPM ライトモード（目録の aipm-light。組の `default_addon`。WBS と TODO のシートだけを持つ aipm-guided の一形態）を記録する。本人が選んだときは intent の `addons` に同梱の1件（`addon_id: aipm`・`source: bundled`・目録の `addon_version`・`selection_ref` に受領の receipt）だけを書き、旧い欄 `work_style`・`work_style_source` は書かない（残っていれば外す）。旧い Layer の `work_style: aipm` は、判定関数 `.claude/skills/ai-plc/scripts/plc_addon_select.py` が同梱の aipm を選んだものとして読む（目録の `legacy_alias`）。
 
 ## 判断と保存
 
@@ -53,7 +53,9 @@ runtimeの保存先は `Context/aipm_recommendation/` のimmutable snapshot・st
 > {reason}のため、AIPM方式をおすすめします。現在対応する1人の利用者の課題からストーリーまで、19の指定形式文書を段階的に残して進めますか？
 
 - AIPM方式で進める
-- 通常方式で進める
+- AIPM ライトモードで進める
+
+2つ目は既定の方式（WBS と TODO のシートだけ）。旧い質問の答え「通常方式で進める」も AIPM ライトモードとして扱う。
 
 範囲を聞かれたら、このモードが扱うのは立ち上げ（1人の利用者の課題からストーリーまで）で、運用の場面は扱わないと添える（[扱う範囲](../../../aipm-guided/SKILL.md#この-aipm-モードが扱う範囲)）。保存してある質問の原文は変えない。
 
@@ -74,10 +76,10 @@ question_id: <state.question.id>
 target_path: <state.snapshot>
 target_sha256: <state.snapshot_sha256>
 answer: <本人の原文>
-choice: aipm  # aipm / standard / pending
+choice: aipm  # aipm / aipm-light / standard（旧い答え。aipm-light と同じく記録） / pending
 ```
 
-`AIPM方式で進める`など明確な原文のみaipm、`通常方式で進める`などのみstandard。単独のA/B、空回答、引用、曖昧な回答はpending。選択肢との対応が実発話から確実に分かっても、原文を書き換えて自動採用せず、必要なら既存質問の選択文で最小確認をする。scope/質問ID/immutable対象hash/現在Goal・入力版/受領時刻を照合し、旧版・他Layerの回答は拒否する。
+`AIPM方式で進める`など明確な原文のみaipm、`AIPM ライトモードで進める`などのみaipm-light、`通常方式で進める`などのみstandard（aipm-light・standard はどちらも intent に AIPM ライトモードを書く。持ち込みのアドオンが work_method を宣言せずにあるときは書かずに note を返す）。単独のA/B、空回答、引用、曖昧な回答はpending。選択肢との対応が実発話から確実に分かっても、原文を書き換えて自動採用せず、必要なら既存質問の選択文で最小確認をする。scope/質問ID/immutable対象hash/現在Goal・入力版/受領時刻を照合し、旧版・他Layerの回答は拒否する。
 
 ## 既存選択・直接指示・auto/force
 
@@ -103,3 +105,7 @@ auto/forceは現セッションの実行権限から指定し、保存ログだ�
 明示済みのcourse/work_styleは聞き直さない。未選択なら、利用者の課題から探索する／solutionを仮説として逆算する／実読取した資料を対応付け不足だけ補完する、の入力に合う候補を説明する。未知・コース不適合・多人数は通常の本人判断へ戻す。方式の選択は実装や外部資料アクセスの許可ではない。
 
 新コースの19文書は同じ形式を使い、batch/reuseの実時刻と根拠・未知・必要判断をmanifestへ残す。共通Skillのplan/draft/archive APIを参照し、単に選択状態を保存したことを成果や実Skill試行の成功にしない。
+
+## 答えが無いときの既定の方式
+
+Phase 7 を方式の答えなしで終えるとき（未回答・自動完走中・質問を出さなかった）は、`python3 .claude/skills/ai-plc/01-collection/recommendation.py default --layer <Layer> --apply` で AIPM ライトモードを記録する。`Context/aipm_recommendation/default_method.json`（kind `default_on_no_answer`）を selection_ref にし、本人の選択ではないので判定関数の selection_verified は false のまま。既に方式があれば何も書かない（`method_exists`）。work_method を宣言していない持ち込みのアドオンがあるときは書かずに止まる。記録の後に `python3 -B .claude/skills/ai-plc/scripts/plc_addon_select.py --layer <Layer> --require-method` で確かめる。後から本人が答えたら respond が方式を置き換える（AIPM を選べば aipm に替わる）。
