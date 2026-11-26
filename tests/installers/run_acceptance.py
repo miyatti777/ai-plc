@@ -140,7 +140,7 @@ def case_inv(n: int) -> None:
         data = (REPO / "core/rules" / name).read_text()
         assert data.startswith("> 🏷️") and "**バージョン:**" in data
     elif n == 11:
-        assert len(list((REPO / "codex/skills/ai-plc").rglob("SKILL.md"))) == 28  # 01-04 + plc- 9 (db-sync / consult / backfill / auto / brief / decision / next / lifecycle / model-routing) + ppm- 7 (registry / audit / viewer / someday / pmo / scan / collection) + pm- 8
+        assert len(list((REPO / "codex/skills/ai-plc").rglob("SKILL.md"))) == 36  # 01-04 + plc- 9 (db-sync / consult / backfill / auto / brief / decision / next / lifecycle / model-routing) + ppm- 7 (registry / audit / viewer / someday / pmo / scan / collection) + daily entry 8 (ppm / plan / status / todo / capture / update / close / inflight) + pm- 8
     elif n == 12:
         json.loads((REPO / "tests/installers/case_matrix.json").read_text())
     elif n == 13:

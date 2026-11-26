@@ -13,6 +13,32 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-11-26
+
+実験版パッケージ（`experimental/jev/`）は **1.12.0-exp.2 のまま**です。
+
+### 追加
+
+- **日次の入口（任意）。** 人の1日の予定を扱うポートフォリオ層のスキルを足しました。TODO の一覧・WillDo（その日にやる行の一覧）・日記を使う人のためのもので、呼ばなければ今までと何も変わりません
+  - `/ppm`（言葉から行き先を1つ選ぶ入口）、`/ppm-plan`（翌日の WillDo の案）、`/ppm-status`（進行中の案件と今日の状況。読み取り専用）、`/ppm-capture`（差し込みの振り分け）、`/ppm-update`（完了を付ける）、`/ppm-close`（終業の振り返りと未完了の扱い）、`/ppm-todo`（Layer と TODO の一覧のずれを提案し、承認した行だけ反映）、`ppm-inflight`（進行中の候補と差分。読み取り専用）
+  - 置き場と見出しの名前は `.ai-plc/config.yaml` の `ppm:` で替えられます。書かなければ既定（`todo/todo.md`、`Flow/{YYYYMM}/{YYYY-MM-DD}/` の WillDo と日記）で動きます。キーと書式は `.claude/skills/ppm/README.md` にあります
+  - 雛形5つ（TODO の一覧・First Task・Daily Task・WillDo・日記）を `.claude/skills/ppm/templates/` に入れました。TODO の一覧が無い環境では、スキルが「雛形から作るか」を聞いてから作ります
+  - 予定表は使える接続があれば読み、無ければ空き時間を聞きます。メールは既定で読みません（`ppm.sources`）
+  - 未完了の行は、終業で 繰り越し・TODO へ・やめた のどれかを決めて WillDo の行に残し、次の計画は「繰り越し」と扱いが未定の行だけを拾います。計画を飛ばした日があっても、直近の WillDo（既定で 14 日前まで）と間の日記から拾います。WillDo を組んだ後にその日の日記へ足した予定も、次の計画で拾います（`/ppm-status` はそれまで「日記に後から入った予定」として見せます）
+  - 計画の案から外した繰り越し・差し込みの行は、翌日へ送る・TODO へ・やめた のどれかを聞いて、元の行に残します（黙って消しません）
+  - TODO の一覧の「進行中の私生活」の節の行は、表示のときに Layer のパスと ID を既定で伏せます（件数の道具・実行時期の道具・AIPM の箱の期限の道具も同じ。出すときは `--show-private`）
+  - 書き込みに使う置き場（`ppm.todo.path` など）に `.git`・`.claude`・`.ai-plc` の中を指定すると、設定のエラーで止まります
+- Codex の入口を8つ足しました（合計 36）。Claude Code に新しく足したコマンドは7つ（`/ppm`・`/ppm-plan`・`/ppm-status`・`/ppm-capture`・`/ppm-update`・`/ppm-close`・`/ppm-todo`）です（`ppm-inflight` はスキルとして呼びます）
+
+### 変更
+
+- 3層の定義（`three-tiers.md`）と rules §6 の「人の1日の予定は AI-PLC の範囲外」を、「任意で使える日次の入口がある」に改めました。正本の決まり（Layer の intent・backlog が正、TODO の一覧は案件1行の写し）は変わりません
+- 日次の入口の道具は PyYAML を使います。共通の部品 `ppm_files.py` は `.ai-plc/config.yaml` があるときだけ使い、Layer の backlog・intent を読む道具（`owner_open_count.py`・`scheduled_today.py`・`aipm_due_items.py` など）は常に使います。無ければ案内を出して止まります
+
+### この版に含まないもの
+
+- 長い文脈や会議の文字起こしを案件に取り込む流れ、「今どれをやるか」の相談、業務プロジェクトごとの状況文書は入っていません
+
 ## [2.3.2] - 2026-11-26
 
 実験版パッケージ（`experimental/jev/`）は **1.12.0-exp.2 のまま**です。機能の追加はありません。

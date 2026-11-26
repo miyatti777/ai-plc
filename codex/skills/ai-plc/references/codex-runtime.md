@@ -4,7 +4,7 @@
 
 ## 正本と参照先
 
-- Stage: `.claude/skills/ai-plc/<skill>/SKILL.md`。Jev実験版（凍結中）: `.claude/skills/ai-plc-jev/<skill>/SKILL.md`。補助スキル: `.claude/skills/plc-*/SKILL.md`・`.claude/skills/ppm-*/SKILL.md`。
+- Stage: `.claude/skills/ai-plc/<skill>/SKILL.md`。Jev実験版（凍結中）: `.claude/skills/ai-plc-jev/<skill>/SKILL.md`。補助スキル: `.claude/skills/plc-*/SKILL.md`・`.claude/skills/ppm-*/SKILL.md`・`.claude/skills/ppm/SKILL.md`（ポートフォリオ層の入口 `/ppm`。日次の入口が共通で使う設定の部品・雛形も `.claude/skills/ppm/` にある）。
 - 全Stageの共通ルールは `.claude/rules/ai-plc-system.md`、`ai-plc-session.md`、`ai-plc-adaptive.md`。正本に参照が追加されたら、その追加先も読む。
 - 案件ごとの説明設定は `.claude/rules/ai-plc-session.md` §7.0を正とする。intentの読み込み・継続/一時変更・判断材料の保持を共通正本から適用し、Codex固有の説明仕様や別modeは作らない。
 - `.claude/`・`scripts/`・`Flow/` で始まるパスはリポジトリルート基準。Markdownの相対リンクはリンクを書いた正本のディレクトリ基準で解決する。
@@ -16,7 +16,7 @@
 ## コマンド・ツール・権限
 
 - 分類の実行環境の値は `codex`。01-collection の intent.yaml の `classification.executor` と、04-operation の Phase 6 でタスクに書く `executed_by` に使う（正本の雛形の `claude-code` を置き換える）。
-- `/01-collection`〜`/04-operation`、`/plc-*`、`/ppm-*`（`/ppm-audit`・`/ppm-registry`・`/ppm-someday`・`/ppm-viewer`・`/ppm-pmo`・`/ppm-scan`・`/ppm-collection`）は同名の `$skill-name` 指定に読み替える（各 `-jev` 版は凍結中。`$0N-*-jev` が指定されたら実行せず、凍結中であることと本体版の `$0N-*` を案内する。`pipeline_variant: jev` の Layer も本体版として扱う）。引数・Layer・Task・variantは保持し、正本に追加された入力もそのまま扱う。
+- `/01-collection`〜`/04-operation`、`/plc-*`、`/ppm-*`（`/ppm-audit`・`/ppm-registry`・`/ppm-someday`・`/ppm-viewer`・`/ppm-pmo`・`/ppm-scan`・`/ppm-collection`、任意で使える日次の入口の `/ppm-plan`・`/ppm-status`・`/ppm-todo`・`/ppm-capture`・`/ppm-update`・`/ppm-close`・`/ppm-inflight`）と入口の `/ppm` は同名の `$skill-name` 指定に読み替える（各 `-jev` 版は凍結中。`$0N-*-jev` が指定されたら実行せず、凍結中であることと本体版の `$0N-*` を案内する。`pipeline_variant: jev` の Layer も本体版として扱う）。引数・Layer・Task・variantは保持し、正本に追加された入力もそのまま扱う。
 - スキル一覧に未掲載なら、該当アダプターの絶対パスを添えて「このSKILL.mdを読んで実行」と案内できる。スキル追加の自動検出が反映されない場合はCodexを再起動する。
 - Codexアダプターがないコマンドを存在する `$skill` として案内しない。`.claude/commands/<command>.md` を読み、そこで指す正本SKILL.mdの絶対パスで案内する（この参照だけでは実行・書き込みの承認にならない）。
 - ClaudeのRead/Grep/Glob/Bash/Editは、利用可能なファイル読み取り・`rg`・シェル・編集ツールに置き換える。AGTの `tools` は役割の権限宣言として扱い、利用不能なClaude tool名を呼ばない。

@@ -55,13 +55,13 @@ RUL_plc_system（本ファイル）→ 全SKL_plc_* が参照。補助ルール:
 
 | 層 | 種別 | 形 | 置き場所（CC） | 例 |
 | --- | --- | --- | --- | --- |
-| ポートフォリオ層 | 案件をまたいで全体を見る・振る（PPM＝プロジェクトポートフォリオマネジメント） | `ppm-<機能>` | `.claude/skills/ppm-<機能>/SKILL.md`（audit・registry・someday・viewer・pmo・scan・collection。scan・collection は `.claude/commands/` にも呼び出し用ラッパーがある） | `/ppm-registry` ・ `/ppm-audit` |
+| ポートフォリオ層 | 案件をまたいで全体を見る・振る（PPM＝プロジェクトポートフォリオマネジメント）、任意で使える日次の入口 | `ppm` ・ `ppm-<機能>` | `.claude/skills/ppm-<機能>/SKILL.md`（audit・registry・someday・viewer・pmo・scan・collection と、日次の入口の plan・status・todo・capture・update・close・inflight）。日次の入口の共通の部品（設定を読む `ppm_files.py`・雛形・振り分けの `ppm_route.py`）と入口の `/ppm` は `.claude/skills/ppm/`。scan・collection と、日次の入口のうち inflight 以外（`/ppm` を含む）は `.claude/commands/` にも呼び出し用ラッパーがある | `/ppm-registry` ・ `/ppm-audit` ・ `/ppm-plan` |
 | プロジェクト層 | パイプライン Stage | `0N-<stage>`（Jev 実験版の末尾 `-jev` は凍結中 — RUL_plc_adaptive §5 ルール6） | `.claude/skills/ai-plc/`（本体）＋ `.claude/commands/`（呼び出し用ラッパー） | `/01-collection` ・ `/04-operation` |
 | プロジェクト層 | ユーティリティ（案件の中を見る・直す補助） | `plc-<機能>`（kebab-case） | `.claude/skills/plc-<機能>/SKILL.md`（直下。CC は `.claude/skills/` の1階層だけを認識する。中身は SKILL.md 1ファイルで、処理は既存スクリプトを呼ぶ） | `/plc-brief` ・ `/plc-lifecycle` |
 | ワークパッケージ層 | AIPM の箱の操作（同梱の PM アドオンを選んだ Layer だけ） | `pm-<機能>` | `.claude/commands/`＋`.claude/skills/aipm-guided/` | `/pm-issue` ・ `/pm-suggest` |
 
 - **`ppm-` と `pm-` は1文字違い。** `ppm-`＝ポートフォリオ層（案件をまたいで全体を見る・振る）、`pm-`＝ワークパッケージ層（1つの案件の AIPM の箱の中を操作する）。外に出すときは「AI-PLC の PPM スキル」と書く（単独の「AI-PPM」と書かない）。日本語の説明では初出で「プロジェクトポートフォリオマネジメント（PPM）」と書き、プロダクト・ポートフォリオ・マネジメントと区別する
-- 現行のポートフォリオ層（公開版に入っているもの、7つ）: ppm-audit（点検。スクリプトは実験版）/ ppm-registry / ppm-someday / ppm-viewer / ppm-pmo（複数案件の PMO）/ ppm-scan（外から案件の候補を集める）/ ppm-collection（依頼に似た既存の案件を照らす）。日次の計画・振り返りなどの入口は公開版に無い（あなたの TODO 管理で行う。AI-PLC の範囲外）。現行のユーティリティ（論理名は `SKL_plc_<機能>`。例: SKL_plc_brief）: plc-lifecycle（Project中止/再開・§21） / plc-consult / plc-brief / plc-decision / plc-next / plc-backfill / plc-auto / plc-model-routing / plc-db-sync（旧 `ai-plc-db-sync`。Cowork プラグイン版は作り直しまで旧名で残る）。現行のワークパッケージ層: pm-init / pm-persona / pm-story / pm-issue / pm-hypothesis / pm-todo / pm-today / pm-suggest
+- 現行のポートフォリオ層（公開版に入っているもの）: 案件をまたいで見る7つ — ppm-audit（点検。スクリプトは実験版）/ ppm-registry / ppm-someday / ppm-viewer / ppm-pmo（複数案件の PMO）/ ppm-scan（外から案件の候補を集める）/ ppm-collection（依頼に似た既存の案件を照らす）。任意で使える日次の入口 — ppm（入口・振り分け）/ ppm-plan（翌日の WillDo）/ ppm-status（状況確認）/ ppm-todo（TODO の一覧の見直し）/ ppm-capture（差し込み）/ ppm-update（完了の反映）/ ppm-close（終業）/ ppm-inflight（進行中の候補の洗い出し）。日次の入口は TODO の一覧（既定は `todo/todo.md`）と日付フォルダの WillDo・日記を使い、置き場と見出しは `.ai-plc/config.yaml` の `ppm:` で替えられる。使わなくても Stage の動きは変わらず、別の TODO 管理を使う人は今までどおりそちらで扱う。現行のユーティリティ（論理名は `SKL_plc_<機能>`。例: SKL_plc_brief）: plc-lifecycle（Project中止/再開・§21） / plc-consult / plc-brief / plc-decision / plc-next / plc-backfill / plc-auto / plc-model-routing / plc-db-sync（旧 `ai-plc-db-sync`。Cowork プラグイン版は作り直しまで旧名で残る）。現行のワークパッケージ層: pm-init / pm-persona / pm-story / pm-issue / pm-hypothesis / pm-todo / pm-today / pm-suggest
 - **旧名は残さない:** v2.0.0 で改名したスキル（ポートフォリオ層の4つ・plc-lifecycle・pm-suggest）の旧名は使わない。新旧の読み替えは CHANGELOG の v2.0.0 の表にある
 - **語の書き分け**（層／Layer／tier、プロジェクト層／案件／業務プロジェクト、プログラム、WBS の行、Stock、PPM）と**日本語の呼び名の対応表**は `.claude/skills/ai-plc/references/three-tiers.md` §4・§5 が正本。新しく書くものから従い、過去の記録は一括で書き換えない
 
@@ -80,7 +80,7 @@ RUL_plc_system（本ファイル）→ 全SKL_plc_* が参照。補助ルール:
 セッション横断の記憶は**2系統**で管理する（旧memory.md/user.mdは2026-07-07に廃止・移行済み）:
 
 - **wiki（.claude/wiki/）** = プロジェクト横断・共有可能な知見。バグパターン・設計判断・環境固有制約はここ（運用は§11、Lintは§10）
-- **CC native memory（~/.claude/projects/&lt;repo&gt;/memory/）** = ユーザーモデル・好み・参照（user/feedback/reference 型のみ。**project 型は作らない**）。PJ の状態と Layer の中の約束は Layer の intent・backlog が正（Registry の projects はその写し）、オーナーの残作業はあなたの TODO 管理が正（AI-PLC の範囲外。AIPM を選んだ案件の論点 I・ToDo D は箱の一覧〔sheets_v1 は `Sheets/` の直下、それより前の形は `Documents/aipm_project/registers/`〕が正で、TODO 管理へは書き写さない）。Layer が閉じても続く禁止は feedback 型、閉じても使う参照は reference 型に書く。**概念ページ原則（LLM Wiki準拠）:** 1ファイル=独立して参照される1概念。frontmatterのtypeがSchema、MEMORY.mdがindex、`[[名前]]`で相互リンク。時点情報（現在のフォーカス等）は概念ページに置かず、backlog/logに置く
+- **CC native memory（~/.claude/projects/&lt;repo&gt;/memory/）** = ユーザーモデル・好み・参照（user/feedback/reference 型のみ。**project 型は作らない**）。PJ の状態と Layer の中の約束は Layer の intent・backlog が正（Registry の projects はその写し）、オーナーの残作業はあなたの TODO 管理が正（同梱の日次の入口 `/ppm-todo` を使うなら TODO の一覧。案件は1行だけ置く。AIPM を選んだ案件の論点 I・ToDo D は箱の一覧〔sheets_v1 は `Sheets/` の直下、それより前の形は `Documents/aipm_project/registers/`〕が正で、TODO 管理へは書き写さない）。Layer が閉じても続く禁止は feedback 型、閉じても使う参照は reference 型に書く。**概念ページ原則（LLM Wiki準拠）:** 1ファイル=独立して参照される1概念。frontmatterのtypeがSchema、MEMORY.mdがindex、`[[名前]]`で相互リンク。時点情報（現在のフォーカス等）は概念ページに置かず、backlog/logに置く
 
 振り分け: バグ・技術知見・PJ横断パターン→wiki / ユーザーの判断パターン・好み→native memory（feedback）。両方に重複させない。native memoryのユーザーモデルに基づいて対応を調整する。本人専用のプロフィール・価値観・期間限定の状況は §22 のとおり共有の置き場へ写さない。
 
@@ -94,7 +94,7 @@ Phase 7では以下のチェックリストを必ず出力する:
 📋 Phase 7: Propagation チェックリスト
 - [x] backlog.yaml更新 — [タスクID] status → completed + Output: [成果物パス]
 - [x] context.yaml更新 — 成果物エントリ [ファイル名] を追加（運用タスクの1回は runs に追記。context.yaml は初回に置き場を1行だけ）
-- [x] native memory — [feedback/reference の追記・新規 or 「変更なし — スキップ」]（§7。PJ の状態は書かない。オーナーの残作業はあなたの TODO 管理へ（AI-PLC の範囲外））
+- [x] native memory — [feedback/reference の追記・新規 or 「変更なし — スキップ」]（§7。PJ の状態は書かない。オーナーの残作業はあなたの TODO 管理へ（同梱の日次の入口を使うなら `/ppm-todo` で TODO の一覧へ））
 - [x] External Sync — [sync_targets確認: 「未定義→スキップ」 or 「push実行: N件」]（sqlite の tasks は凍結のため対象外 — §9）
 - [x] Wiki波及更新 — [ingest / query-return の更新内容 or 「新規性なし — スキップ」]（Query結果が §11発火点①に該当すればqueryページ化＋概念還元）＋軽量Lint（§10）
 - [x] log.md — [表の行を追加 or 「Wiki更新なしのためスキップ」]
@@ -235,5 +235,5 @@ Project Registry の状態は `planned / active / paused / completed / cancelled
 公開版には本人専用情報の store は無い。本人のプロフィール・好み・価値観・期間限定の状況を、共有の Context・wiki・native memory・リポジトリへ写さない。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-11-25 ｜ **ステータス:** Active
-**バージョン:** 3.1（§3 に3層の項目と three-tiers.md への参照、§6 の呼び出し名を層ごとに〔ppm- / 0N-・plc- / pm-〕・旧名の読み替え、§7 の正本を Layer に、§21 の入口を plc-lifecycle に）／3.0（軽量化: 10/1 版（v2.9）を土台に §21 を要点へ、§22・§3 の細則を references / 各スキルへ移した。以前の版履歴は git）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-11-26 ｜ **ステータス:** Active
+**バージョン:** 3.2（§6 のポートフォリオ層に任意で使える日次の入口〔ppm・ppm-plan・ppm-status・ppm-todo・ppm-capture・ppm-update・ppm-close・ppm-inflight〕を足し、§7・§8 の TODO 管理の書き方を合わせた）／3.1（§3 に3層の項目と three-tiers.md への参照、§6 の呼び出し名を層ごとに〔ppm- / 0N-・plc- / pm-〕・旧名の読み替え、§7 の正本を Layer に、§21 の入口を plc-lifecycle に）／3.0（軽量化: 10/1 版（v2.9）を土台に §21 を要点へ、§22・§3 の細則を references / 各スキルへ移した。以前の版履歴は git）

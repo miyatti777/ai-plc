@@ -75,7 +75,7 @@
 
 全 Stage と全補助スキルの最終応答には「次のアクション」と、その場でコピーして送れる「次のプロンプト」を必ず含める（説明だけの応答は短い2行でよい）。選択肢が要る場面では3パートを**最初の案内で同時に**出す: ①選択肢テーブル（A/B/C + 説明、推奨に⭐） ②推奨理由（箇条書き） ③コピペ用プロンプト。
 
-- **入口と成果:** 実行案には現在地に合う実在の `/01-collection`〜`/04-operation` ・`/plc-<機能>`・`/ppm-<機能>`（公開版は ppm-audit・ppm-registry・ppm-someday・ppm-viewer・ppm-pmo・ppm-scan・ppm-collection）・`/pm-<機能>`（AIPM を選んだ Layer だけ）、必要な Layer/Task、選んだ後に得る成果を付ける。読取だけの案にも入口を付ける（説明は plc-brief、点検は ppm-audit、案内の復元は plc-next）。仮のパス・Task・承認を埋めない
+- **入口と成果:** 実行案には現在地に合う実在の `/01-collection`〜`/04-operation` ・`/plc-<機能>`・`/ppm-<機能>`（公開版は ppm-audit・ppm-registry・ppm-someday・ppm-viewer・ppm-pmo・ppm-scan・ppm-collection と、任意で使える日次の入口の `/ppm`・ppm-plan・ppm-status・ppm-todo・ppm-capture・ppm-update・ppm-close・ppm-inflight）・`/pm-<機能>`（AIPM を選んだ Layer だけ）、必要な Layer/Task、選んだ後に得る成果を付ける。読取だけの案にも入口を付ける（説明は plc-brief、点検は ppm-audit、案内の復元は plc-next）。仮のパス・Task・承認を埋めない
 - **工程停止と依頼終了は別:** スキルの「この工程で止まる」は AI の操作境界。Goal/SC に未達があれば次の正式入口を示し、真の達成を証拠で確認したときだけ依頼完了にする。本人の保留・取消は成功完了ではない
 - **明確な最終選択回答で開始する:** 初回案内で開始内容・許可範囲・「回答でその処理を開始する」を示し、本人の明確な最終選択（A など）を受けたら同じ担当がその範囲を実行して結果を返す。開始文の再送や同じ承認は求めない。未回答・既定選択・UI 受付・曖昧な回答は開始指示ではなく、対象違い・旧版・範囲外では止める。相談だけ・計画採用だけの許可を実行一式へ広げない
 - **実行形式は環境の正:** CC = `/01-collection`〜`/04-operation`（.claude/commands/が正）、Cursor = `@SKL_plc_*`、Notion = SKL_plc_* ページメンション。`SKL_plc_*` は論理名で CC のプロンプトには使わない。実際のパスを使い、コードブロックで囲まない
@@ -205,5 +205,5 @@
 `/plc-auto force`・`$plc-auto force`、または /goal に識別句 `AI-PLC workflow-force v1` があるときは [force-contract.md](../skills/plc-auto/references/force-contract.md) を本節より先に読み、人への承認要求を出さずに許可内で最後まで進める（矛盾はその契約が優先。起動例と /goal 全文は [goal-force-preset.md](../skills/plc-auto/references/goal-force-preset.md)）。force はプラットフォーム承認の例外ではない。
 
 ---
-**作成日:** 2026-04-07 ｜ **更新日:** 2026-11-25 ｜ **ステータス:** Active
-**バージョン:** 3.1（§7.4 の入口に ppm-・pm- を足し、点検の入口を ppm-audit に）／3.0（軽量化: 10/1 版（v2.6）を土台に §7.0・§7.4 回答後続行・§9.1 を要点だけ残し、§7.6 予算・§10.1 force・自己完結版 /goal・アドオン前置を references へ移した。以前の版履歴は git）
+**作成日:** 2026-04-07 ｜ **更新日:** 2026-11-26 ｜ **ステータス:** Active
+**バージョン:** 3.2（§7.4 の入口の一覧に、任意で使える日次の入口を足した）／3.1（§7.4 の入口に ppm-・pm- を足し、点検の入口を ppm-audit に）／3.0（軽量化: 10/1 版（v2.6）を土台に §7.0・§7.4 回答後続行・§9.1 を要点だけ残し、§7.6 予算・§10.1 force・自己完結版 /goal・アドオン前置を references へ移した。以前の版履歴は git）

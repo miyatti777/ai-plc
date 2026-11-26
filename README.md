@@ -239,7 +239,7 @@ git pull             # 最新の版を取ってくる（失敗したら git stat
 - **`init_db.py` を手で実行するとき**は `--allow-production` を付けます
 - **Notion と同期している人**は、同期の前に移行が要ります（[CHANGELOG.md](CHANGELOG.md) の「DB の道具」）
 - **Registry ビューアを手でコピーしている人**は、古い `<プロジェクト>/.claude/db/registry_viewer` を消してから `experimental/registry-viewer` をコピーし直します（0.3.0-alpha から閲覧専用。v2.2.0〜）
-- **増えるもの:** PPM スキル `ppm-collection`・`ppm-scan`・`ppm-pmo`（v2.3.0〜）、ビューア `experimental/backlog-live`・`experimental/yaml-viewer`（v2.1.0〜。手でコピーして使います）。`tools/BacklogLive/server.py` を置いたプロジェクトでは、Stage の実行中に対象 Layer の画面を開きます（置いていなければ何も起きません）
+- **増えるもの:** 日次の入口 `/ppm`・`/ppm-plan`・`/ppm-status`・`/ppm-capture`・`/ppm-update`・`/ppm-close`・`/ppm-todo` と `ppm-inflight`（v2.4.0〜。TODO の一覧を使う人だけが呼びます。呼ばなければ何も変わりません）、PPM スキル `ppm-collection`・`ppm-scan`・`ppm-pmo`（v2.3.0〜）、ビューア `experimental/backlog-live`・`experimental/yaml-viewer`（v2.1.0〜。手でコピーして使います）。`tools/BacklogLive/server.py` を置いたプロジェクトでは、Stage の実行中に対象 Layer の画面を開きます（置いていなければ何も起きません）
 - 実験版（Jev 監視）は 1.12.0-exp.2 のまま変わりません
 - 変更の全体は [CHANGELOG.md](CHANGELOG.md) にあります
 
@@ -854,6 +854,16 @@ cd <プロジェクト> && python3 tools/YamlViewer/server.py    # http://127.0.
 | `ppm-collection` | 依頼の言葉に似た既存の案件を最大3件出し、行き先（続き・新しい Layer・再開・いつかやる）を1つ勧める（読み取り専用。v2.3.0〜） | いつでも（`/01-collection` の前に呼ぶと、同じ目的の Layer を重ねて作るのを防げます） |
 | `ppm-scan` | 指定した範囲の Notion と、自分の公開 Slack 発言から、まだ一覧に無い案件の候補を根拠つきで1回集めてメモにする（外のサービスと案件は読むだけ。書くのは収集メモ1つ。v2.3.0〜） | Notion・Slack の接続があるとき（無ければ「未取得」と返して止まります） |
 | `ppm-pmo` | 複数案件の PMO。案件間の依存の遅れ・共有する人や資源の上限超過・共通の課題を洗い出し、責任者向けの判断メモと、決定の案件別の要求・反映の照合を作る（v2.3.0〜） | 頼んだとき（Python 3 の標準ライブラリだけで動きます） |
+| `ppm`（`/ppm`） | 日次の入口の振り分け。「今日の状況」「明日の計画」「この案件を再開」などの言葉から、下の日次のスキルか Stage の入口を1つ選ぶ（v2.4.0〜） | いつでも |
+| `ppm-plan` | 翌日の WillDo（その日にやる行の一覧）の案を作る。First Task・差し込み・繰り越し・TODO から・Daily Task の5つの欄に、空き時間と件数の上限に収まる範囲で入れ、承認の後に保存する（v2.4.0〜） | TODO の一覧があるとき（無ければ、同梱の雛形から作るかを聞きます） |
+| `ppm-status` | 進行中の案件（TODO の一覧）と今日の WillDo・緊急の行を表示する（読み取り専用。v2.4.0〜） | いつでも（TODO の一覧や WillDo が無ければ「まだ無い」と書いて、作る入口を案内します） |
+| `ppm-capture` | 差し込みを、今日（緊急）・明日以降（日記）・TODO の一覧・いつかやる のどれかに振り分けて記録する（v2.4.0〜） | いつでも（日記は無ければ雛形から作ります。TODO の一覧へ書くときだけ、無ければ作るかを聞きます） |
+| `ppm-update` | 今日の WillDo と緊急の行に完了を付ける（v2.4.0〜） | その日の WillDo があるとき（無ければ `/ppm-plan` を案内して止まります） |
+| `ppm-close` | 終業の振り返り。実行率を出し、未完了の行ごとに 繰り越し・TODO へ・やめた を決めて WillDo の行に残す（v2.4.0〜） | その日の WillDo があるとき（無ければ `/ppm-plan` を案内して止まります） |
+| `ppm-todo` | Layer と TODO の一覧のずれ（足す・外す・待ちの解消）を提案し、承認した行だけ TODO の一覧に反映する（v2.4.0〜） | TODO の一覧があるとき（無ければ、同梱の雛形から作るかを聞きます） |
+| `ppm-inflight` | Layer の intent から進行中の候補を洗い出し、TODO の一覧との差分を出す（読み取り専用。v2.4.0〜） | いつでも（TODO の一覧が無ければ、候補を全部「一覧に無い」として出します） |
+
+**日次の入口（v2.4.0〜）:** 人の1日の予定を扱う任意のスキルです。TODO の一覧（既定は `todo/todo.md`）・WillDo・日記を使い、置き場と見出しの名前は `.ai-plc/config.yaml` の `ppm:` で替えられます（書かなければ既定で動きます。キーと書式は `.claude/skills/ppm/README.md`、雛形は `.claude/skills/ppm/templates/`）。使わなくても Stage の動きは変わりません。Layer の intent・backlog が正で、TODO の一覧は案件1行の写しです。予定表は使える接続があれば読み、無ければ空き時間を聞きます。メールは既定で読みません。
 
 名前の決まりは `.claude/rules/ai-plc-system.md` の §6 にあります（Stage は `0N-<stage>`、案件の中のユーティリティは `plc-<機能>`、案件をまたぐものは `ppm-<機能>`、AIPM の箱の操作は `pm-<機能>`）。3つの層の定義は `.claude/skills/ai-plc/references/three-tiers.md` です。
 
@@ -933,7 +943,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 ./install.sh --target /path/to/your/project cc --with-jev
 ```
 
-- 現在のcheckoutでは core も同時に 2.3.2 に上がります。上がったかどうかは、`.ai-plc-version` が `2.3.2`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
+- 現在のcheckoutでは core も同時に 2.4.0 に上がります。上がったかどうかは、`.ai-plc-version` が `2.4.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
 - `--with-jev` を付けずに更新すると、core だけが上がり、実験版は前の版のまま残ります。前の版の実験版スキルは core 1.8.1 の時点のもので、Construction を既定で省く変更と自動完走（/goal）に対応していないので、実験版も一緒に上げてください
 - 1.12.0-exp.2 を入れた後に、前の実験版を配る checkout の installer で `--with-jev` を付けると、`[CONFLICT] component downgrade refused: experimental_jev` などの行を出して止まり、何も書き換えません。前の版に戻したいときは、今の checkout で `uninstall.sh cc` してから、前の版の checkout で入れ直します
 
@@ -941,7 +951,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 
 - **会話監視 hook と成功条件カバー判定を凍結しました。** `/02-inception-jev` はカバー判定を呼ばず（`jev_monitor: true` でも）、`/02-inception-jev`・`/03-construction-jev`・`/04-operation-jev` の会話監視の案内は「登録しない（登録済みなら外してよい）」に変えました。スクリプトは残しますが更新しません。Backtrack の異常ヒント（`/04-operation-jev` の 5.5b・6b）とステータス点検は変わりません
 - **`KNOWN_RELEASES.sha256`:** 1.12.0-exp.1 の配布物のハッシュを足しました
-- この実験版リリースでは Python のコードと installer の処理は変えていません。現在のcoreは2.3.2ですが、この実験版はcore 1.12.0時点のままです
+- この実験版リリースでは Python のコードと installer の処理は変えていません。現在のcoreは2.4.0ですが、この実験版はcore 1.12.0時点のままです
 
 それより前の変更（1.12.0-exp.1 など）は CHANGELOG にあります。
 
@@ -1168,6 +1178,7 @@ ai-plc/
 │   ├── skills/plc-*/      # plc-db-sync / plc-consult / plc-backfill / plc-auto / plc-next / plc-decision / plc-brief
 │   │                      # plc-lifecycle / plc-model-routing
 │   ├── skills/ppm-*/      # ppm-registry / ppm-audit / ppm-viewer / ppm-someday / ppm-collection / ppm-scan / ppm-pmo
+│   │                      # 日次の入口: ppm（部品 ppm_files.py・雛形）/ ppm-plan / ppm-status / ppm-capture / ppm-update / ppm-close / ppm-todo / ppm-inflight
 │   │                      # （AI-PLC の PPM スキル）
 │   ├── rules/             # system / session / adaptive / model-routing
 │   └── db/                # init_db.py / plc_query.py / sync.py / project_lifecycle.py / plc_explain.py

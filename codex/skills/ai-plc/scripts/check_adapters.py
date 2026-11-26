@@ -50,6 +50,9 @@ def audit(root):
     sources = sorted((skills_root / "ai-plc").glob("*/SKILL.md"))
     sources += sorted(skills_root.glob("plc-*/SKILL.md"))
     sources += sorted(skills_root.glob("ppm-*/SKILL.md"))
+    # The portfolio-tier entry point is named plain `ppm` (no `ppm-` prefix).
+    if (skills_root / "ppm/SKILL.md").is_file():
+        sources.append(skills_root / "ppm/SKILL.md")
     errors, rows = [], []
     if not sources:
         errors.append("No canonical AI-PLC skills found")
