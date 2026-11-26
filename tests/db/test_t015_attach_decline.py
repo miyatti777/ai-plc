@@ -37,7 +37,7 @@ class T015AttachDeclineTest(identity_tests.IdentityV2AdoptExistingTest):
 
     def _other_project_page(self, page_id, name="Another team's project"):
         # Same display Scope ID as the local unlinked L-B, but Identity-less and
-        # a different Project (the production L-OLD-14 / L-OLD-28 situation).
+        # a different Project (the L-OLD-E2 / L-OLD-E3 case).
         page = self._project_page(page_id, "L-B", name=name)
         page["parent"]["database_id"] = self.sync.PROJECTS_DB_ID
         return page

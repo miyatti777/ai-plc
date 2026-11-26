@@ -74,8 +74,8 @@ class T014RemoteIdentityBackfillTest(identity_tests.IdentityV2AdoptExistingTest)
         projects = [self._project_page("page-pa", "L-A")]
         tasks = [self._task_page("page-ta1", "L-A", "T001"),
                  self._task_page("page-x1", "L-OLD-A-SG0", "T004"),
-                 self._task_page("page-o2", "L-OLD-B-NAH", "T020")]
-        tasks += [self._task_page("page-o%d" % (n + 2), "L-OLD-C-FD-SG1", "T%03d" % n)
+                 self._task_page("page-o2", "L-OLD-B-X1", "T020")]
+        tasks += [self._task_page("page-o%d" % (n + 2), "L-OLD-C-X2-SG1", "T%03d" % n)
                   for n in range(1, 7)]
         for page in projects:
             page["parent"]["database_id"] = self.sync.PROJECTS_DB_ID

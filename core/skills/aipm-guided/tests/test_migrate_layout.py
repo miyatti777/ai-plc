@@ -15,14 +15,14 @@ package=ti.package;validate_package=ti.validate_package;write_yaml,sha=ti.write_
 
 def in_repository(case):
     case.temp=tempfile.TemporaryDirectory();case.repo=Path(case.temp.name)
-    case.base=case.repo/'Flow/202608/2026-08-19';case.base.mkdir(parents=True);(case.repo/'Stock/programs/Sample').mkdir(parents=True)
+    case.base=case.repo/'Flow/202601/2026-01-01';case.base.mkdir(parents=True);(case.repo/'Stock/programs/Sample').mkdir(parents=True)
     rf.auto_register(case,package)
 
 class MigrateLayout(unittest.TestCase):
     setUp=in_repository
     def tearDown(self):self.temp.cleanup()
     prepare=ti.CourseIntegration.prepare;mode_init_layer=ti.CourseIntegration.mode_init_layer;draft=ti.CourseIntegration.draft
-    def nested(self,name='l0819like',pending=True):
+    def nested(self,name='legacylike',pending=True):
         """A nested_v1 package like a real box: mode_init, draft, a WBS reference into the inner Flow, a comment in intent."""
         layer,root,out=self.mode_init_layer(name,True,'document_based/single_persona')
         if pending:   # the decisions wait for the person (prearchive has only E_CHECKPOINT)

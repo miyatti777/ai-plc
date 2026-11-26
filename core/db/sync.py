@@ -8152,8 +8152,8 @@ def cmd_adopt_existing(options):
             conn.close()
         print(json.dumps(dict(result, workspace_id=_short_identity(
             result["workspace_id"])), ensure_ascii=False, sort_keys=True))
-        print("NEXT: status/pull/push now run on the Identity v2 path. Notion and "
-              "intent.yaml Identity projection is migrate-identity (T009).")
+        print("NEXT: status/pull/push now run on the Identity v2 path. If Notion pages are "
+              "already linked, run backfill-remote-identity --dry-run --plan-out FILE first.")
         return 0
     except (IdentityLifecycleError, KeyError, TypeError, ValueError, OSError,
             json.JSONDecodeError, sqlite3.Error) as exc:

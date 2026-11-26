@@ -175,9 +175,9 @@ class BusinessRegistryTest(unittest.TestCase):
     def test_folder_names_follow_the_box_rules(self):
         self._setup_business()
         # ':' と '/' は全角に置き換えたフォルダになる（箱の business_folder と同じ）
-        self.assertEqual(0, self._run("add-business", "Sample", "FAQ/RAG", "--purpose", "p", "--yes")[0])
-        self.assertEqual(0, self._run("link", "L-TEST-2", "FAQ/RAG", "--yes")[0])
-        self.assertEqual("Stock/programs/Sample/projects/FAQ\uff0fRAG/<project>/\n",
+        self.assertEqual(0, self._run("add-business", "Sample", "Docs/QA", "--purpose", "p", "--yes")[0])
+        self.assertEqual(0, self._run("link", "L-TEST-2", "Docs/QA", "--yes")[0])
+        self.assertEqual("Stock/programs/Sample/projects/Docs\uff0fQA/<project>/\n",
                          self._run("where", "L-TEST-2")[1])
         # 同じフォルダになる名前（':' と '：'、大文字小文字）は足せない
         self.assertEqual(0, self._run("add-business", "Sample", "A:B", "--purpose", "p", "--yes")[0])
@@ -285,8 +285,8 @@ class BusinessRegistryTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "does not belong to the Program stock:Other"):
                 package.archive_business(layer, self.root, "Other", registry_db=self.db)
         # where と箱の archive が同じフォルダを示す（':' と '/' を含む名前）
-        self.assertEqual(0, self._run("add-business", "Sample", "FAQ/RAG: v2", "--purpose", "p", "--yes")[0])
-        self.assertEqual(0, self._run("link", "L-TEST-2", "FAQ/RAG: v2", "--yes")[0])
+        self.assertEqual(0, self._run("add-business", "Sample", "Docs/QA: v2", "--purpose", "p", "--yes")[0])
+        self.assertEqual(0, self._run("link", "L-TEST-2", "Docs/QA: v2", "--yes")[0])
         (layer / "intent.yaml").write_text('scope_id: "L-TEST-2"\n', encoding="utf-8")
         with mock.patch.object(package, "build_contract", return_value=contract):
             target = package.archive_business(layer, self.root, "Sample", registry_db=self.db)

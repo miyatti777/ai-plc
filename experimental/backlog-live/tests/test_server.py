@@ -250,7 +250,7 @@ class SummarizeTest(unittest.TestCase):
         self.assertEqual(s["current"], "T002")  # both dated: the earlier date first
         b["tasks"][1]["status"] = "completed"
         self.assertEqual(server.summarize(b, None, today=date(2026, 10, 26))["current"], "T003")
-        # a datetime value and an in-progress task with a later date (review follow-up)
+        # a datetime value and an in-progress task with a later date 
         from datetime import datetime
         b2 = {"tasks": [{"id": "A", "status": "in_progress", "priority": "P0", "scheduled_for": "2026-11-30"},
                         {"id": "B", "status": "in_progress", "priority": "P1"},

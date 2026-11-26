@@ -55,7 +55,7 @@ class MtimeIsNotEvidence(unittest.TestCase):
                 gen['generated_mtime_ns']=10**18*5;write_yaml(root/'manifest.yaml',m)                  # a recorded generation time outside the batch
                 self.assertIn(('E_COURSE',gen['path']),result(layer,root)[1])
     def test_accepted_forgeries_pass(self):
-        """Owner choice 2 (2026-10-24): rewriting the manifest too is not stopped any more."""
+        """Rewriting the manifest too is not stopped (validate cannot tell it from an accepted rewrite)."""
         for layout in self.layouts():
             with self.subTest(layout=layout):
                 layer,root,c=self.course('a'+layout,layout);touch_all(layer)

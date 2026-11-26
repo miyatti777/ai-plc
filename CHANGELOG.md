@@ -13,6 +13,18 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-11-26
+
+実験版パッケージ（`experimental/jev/`）は **1.12.0-exp.2 のまま**です。機能の追加はありません。
+
+### 修正
+
+- `sync.py adopt-existing` の完了後の案内を直しました。Notion のページと既につながっている Project があるときの次の手順は `sync.py backfill-remote-identity --dry-run --plan-out <ファイル>` です（これを通す前に push すると `REMOTE_IDENTITY_BACKFILL_REQUIRED` で止まります）。v2.0.0 の節の Notion 利用者向けの手順にも、この手順が要ります
+- `sync.py` の同期前の検査は、v2.0.0 で足した識別子の列だけでなく、Notion の DB の既存の列の有無と型も見ます。結果は `sync.py preflight` で確かめられます
+- `core/db/business_registry.py` の冒頭の説明を実際の動きに合わせました（リポジトリに `Stock/programs/` があれば、設定が無くても箱の保存先を業務プロジェクトの表から決めます。読ませないときは `.ai-plc/config.yaml` に `aipm_archive: {business: none}` を書きます）
+- README の更新手順を v2.3 までの内容にし、同梱の方式（AIPM・AIPM ライトモード）の説明を今の仕様に合わせました
+- テストとコメントに残っていた、開発時の内部向けの名前や出典の記述を、合成の名前と一般の説明に替えました（動きは変わりません）
+
 ## [2.3.0] - 2026-11-26
 
 実験版パッケージ（`experimental/jev/`）は **1.12.0-exp.2 のまま**です。既存のスキルの動きは変わりません。

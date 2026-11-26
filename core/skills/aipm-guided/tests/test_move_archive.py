@@ -17,7 +17,7 @@ import registry_fixture as rf
 write_yaml,sha=ab.write_yaml,ab.sha
 
 class MoveArchive(ab.ArchiveUnderBusiness):
-    def l0819_like(self,name='l0819'):
+    def legacy_like(self,name='legacy'):
         """A box archived before the move: copies under projects/<project>/documents/, manifest without archive_target."""
         layer,root,scope=self.layer(name);self.assertTrue(package.archive_course(layer)['pass'])
         m=package.load(root/'manifest.yaml');t=m.pop('archive_target');legacy='Stock/programs/Sample/projects/course_'+name
@@ -34,19 +34,19 @@ class MoveArchive(ab.ArchiveUnderBusiness):
         base=self.repo/folder;return {str(q.relative_to(base)):(sha(q),q.stat().st_mtime_ns) for q in base.rglob('*') if q.is_file()}
 
     def test_dry_run_lists_the_17_moves_and_writes_nothing(self):
-        layer,root,legacy=self.l0819_like();stock=tr.state(self.repo/'Stock');manifest=sha(root/'manifest.yaml');db=sha(rf.db_path(self.repo))
+        layer,root,legacy=self.legacy_like();stock=tr.state(self.repo/'Stock');manifest=sha(root/'manifest.yaml');db=sha(rf.db_path(self.repo))
         out=package.move_archive(layer)
         self.assertFalse(out['apply']);self.assertEqual(len(out['moves']),17)
-        self.assertEqual((out['from'],out['to']),(legacy,'Stock/programs/Sample/projects/'+rf.BUSINESS+'/course_l0819'))
+        self.assertEqual((out['from'],out['to']),(legacy,'Stock/programs/Sample/projects/'+rf.BUSINESS+'/course_legacy'))
         self.assertEqual(tr.state(self.repo/'Stock'),stock);self.assertEqual(sha(root/'manifest.yaml'),manifest);self.assertEqual(sha(rf.db_path(self.repo)),db)
 
     def test_apply_keeps_every_file_and_rewrites_only_the_archive_records(self):
-        layer,root,legacy=self.l0819_like();before=self.files(legacy);m0=package.load(root/'manifest.yaml');db=sha(rf.db_path(self.repo))
+        layer,root,legacy=self.legacy_like();before=self.files(legacy);m0=package.load(root/'manifest.yaml');db=sha(rf.db_path(self.repo))
         with self.assertRaisesRegex(ValueError,'approval-ref'):package.move_archive(layer,apply=True)
         self.assertEqual(self.files(legacy),before)
         out=package.move_archive(layer,apply=True,approval_ref='synthetic approval')
         self.assertTrue(out['final']['pass'],out['final']['errors'])
-        new='Stock/programs/Sample/projects/'+rf.BUSINESS+'/course_l0819'
+        new='Stock/programs/Sample/projects/'+rf.BUSINESS+'/course_legacy'
         self.assertEqual(self.files(new),before)   # same files, bytes, sha256 and mtime
         self.assertFalse((self.repo/legacy).exists())   # the old folder, left empty, is gone
         self.assertEqual(sha(rf.db_path(self.repo)),db)
@@ -64,11 +64,11 @@ class MoveArchive(ab.ArchiveUnderBusiness):
 
     def test_move_refusals_write_nothing(self):
         def destination_exists(case):
-            layer,root,legacy=case.l0819_like('de');q=case.repo/'Stock/programs/Sample/projects'/rf.BUSINESS/'course_de/documents/02_課題定義/problem_map.yaml';q.parent.mkdir(parents=True);q.write_text('x');return layer
+            layer,root,legacy=case.legacy_like('de');q=case.repo/'Stock/programs/Sample/projects'/rf.BUSINESS/'course_de/documents/02_課題定義/problem_map.yaml';q.parent.mkdir(parents=True);q.write_text('x');return layer
         def copy_changed(case):
-            layer,root,legacy=case.l0819_like('cc');q=next((case.repo/legacy).rglob('*.yaml'));q.write_text(q.read_text()+'# edited\n');return layer
+            layer,root,legacy=case.legacy_like('cc');q=next((case.repo/legacy).rglob('*.yaml'));q.write_text(q.read_text()+'# edited\n');return layer
         def no_primary(case):
-            layer,root,legacy=case.l0819_like('np')
+            layer,root,legacy=case.legacy_like('np')
             con=sqlite3.connect(rf.db_path(case.repo));con.execute("UPDATE business_project_links SET state='retired'");con.commit();con.close();return layer
         for build,pattern in ((destination_exists,'already exists'),(copy_changed,'final does not pass'),(no_primary,'no primary')):
             with self.subTest(case=build.__name__):
@@ -79,7 +79,7 @@ class MoveArchive(ab.ArchiveUnderBusiness):
                 self.assertEqual(tr.state(self.repo/'Stock'),stock);self.assertEqual(sha(root/'manifest.yaml'),manifest)
 
     def test_a_failure_while_moving_puts_every_file_back(self):
-        layer,root,legacy=self.l0819_like('pf');stock=tr.state(self.repo/'Stock');manifest=sha(root/'manifest.yaml')
+        layer,root,legacy=self.legacy_like('pf');stock=tr.state(self.repo/'Stock');manifest=sha(root/'manifest.yaml')
         real=os.rename;calls=[]
         def failing(a,b):
             calls.append(1)
@@ -90,19 +90,19 @@ class MoveArchive(ab.ArchiveUnderBusiness):
         self.assertTrue(package.move_archive(layer,apply=True,approval_ref='synthetic')['final']['pass'])   # and it can run again
 
     def test_other_files_in_the_old_folder_are_kept(self):
-        layer,root,legacy=self.l0819_like('of');extra=self.repo/legacy/'documents/.DS_Store';extra.write_bytes(b'finder');note=self.repo/legacy/'memo.md';note.write_text('kept')
+        layer,root,legacy=self.legacy_like('of');extra=self.repo/legacy/'documents/.DS_Store';extra.write_bytes(b'finder');note=self.repo/legacy/'memo.md';note.write_text('kept')
         out=package.move_archive(layer,apply=True,approval_ref='synthetic');self.assertTrue(out['final']['pass'],out['final']['errors'])
         self.assertEqual(extra.read_bytes(),b'finder');self.assertEqual(note.read_text(),'kept')   # only empty folders are removed
         self.assertEqual(sorted(str(q.relative_to(self.repo/legacy)) for q in (self.repo/legacy).rglob('*') if q.is_file()),['documents/.DS_Store','memo.md'])
     def test_a_symlink_on_the_way_is_refused(self):
-        layer,root,legacy=self.l0819_like('sy');elsewhere=self.repo/'elsewhere';elsewhere.mkdir()
-        biz=self.repo/'Stock/programs/Sample/projects'/rf.BUSINESS;biz.rmdir()   # left empty by l0819_like
+        layer,root,legacy=self.legacy_like('sy');elsewhere=self.repo/'elsewhere';elsewhere.mkdir()
+        biz=self.repo/'Stock/programs/Sample/projects'/rf.BUSINESS;biz.rmdir()   # left empty by legacy_like
         biz.symlink_to(elsewhere,target_is_directory=True)
         stock=tr.state(self.repo/'Stock');manifest=sha(root/'manifest.yaml')
         with self.assertRaises(ValueError):package.move_archive(layer,apply=True,approval_ref='synthetic')
         self.assertEqual(tr.state(self.repo/'Stock'),stock);self.assertEqual(sha(root/'manifest.yaml'),manifest);self.assertEqual(list(elsewhere.iterdir()),[])
     def test_interrupt_puts_every_file_back(self):
-        layer,root,legacy=self.l0819_like('ki');stock=tr.state(self.repo/'Stock');manifest=sha(root/'manifest.yaml')
+        layer,root,legacy=self.legacy_like('ki');stock=tr.state(self.repo/'Stock');manifest=sha(root/'manifest.yaml')
         real=os.rename;calls=[]
         def interrupted(a,b):
             calls.append(1)
@@ -111,7 +111,7 @@ class MoveArchive(ab.ArchiveUnderBusiness):
         with mock.patch.object(package.os,'rename',interrupted),self.assertRaisesRegex(ValueError,'put back'):package.move_archive(layer,apply=True,approval_ref='synthetic')
         self.assertEqual(tr.state(self.repo/'Stock'),stock);self.assertEqual(sha(root/'manifest.yaml'),manifest)
     def test_a_failed_put_back_is_reported(self):
-        layer,root,legacy=self.l0819_like('pb');real=os.rename;calls=[]
+        layer,root,legacy=self.legacy_like('pb');real=os.rename;calls=[]
         def failing(a,b):
             calls.append(1)
             if len(calls) in (3,4):raise OSError('synthetic')   # the 3rd move fails, then putting back the 2nd fails
@@ -130,7 +130,7 @@ class MoveArchive(ab.ArchiveUnderBusiness):
         t=package.load(root/'manifest.yaml')['archive_target'];self.assertEqual(t['business_display_name'],'改名した業務')
 
     def test_cli_dry_run(self):
-        layer,root,legacy=self.l0819_like('cli');stock=tr.state(self.repo/'Stock')
+        layer,root,legacy=self.legacy_like('cli');stock=tr.state(self.repo/'Stock')
         code,out=tr.run_cli('move-archive','--layer',str(layer));self.assertEqual(code,0,out);self.assertFalse(out['apply']);self.assertEqual(len(out['moves']),17)
         self.assertEqual(tr.state(self.repo/'Stock'),stock)
 

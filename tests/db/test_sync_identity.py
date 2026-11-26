@@ -1909,9 +1909,9 @@ class IdentityV2ReconciliationAuditTest(unittest.TestCase):
         local_item = next(item for item in report["items"] if item["local_row_id"] == 10)
         self.assertEqual("create_remote", local_item["action"])
 
-    def test_measured_same_scope_collisions_become_separate_identities(self):
+    def test_same_scope_collisions_become_separate_identities(self):
         other_uid = "prj_00000000-0000-4000-8000-000000000003"
-        for scope_id in ("L-OLD-11", "L-OLD-14", "L-OLD-14-2"):
+        for scope_id in ("L-OLD-E1", "L-OLD-E2", "L-OLD-E2-2"):
             with self.subTest(scope_id=scope_id):
                 report = self._report(
                     projects=[self._local_project(scope_id=scope_id)],
@@ -3393,20 +3393,20 @@ class IdentityV2MigrationPlanBackfillTest(unittest.TestCase):
                 INSERT INTO tasks(notion_page_id,task_id,scope_id,name,status)
                     VALUES('page-orphan-1','T004','L-OLD-A-SG0','Excluded','未着手');
                 INSERT INTO tasks(notion_page_id,task_id,scope_id,name,status)
-                    VALUES('page-orphan-2','T020','L-OLD-B-NAH','Mapped A','未着手');
+                    VALUES('page-orphan-2','T020','L-OLD-B-X1','Mapped A','未着手');
                 INSERT INTO tasks(notion_page_id,task_id,scope_id,name,status)
                     VALUES
-                    ('page-orphan-3','T001','L-OLD-C-FD-SG1','Mapped B1','未着手'),
-                    ('page-orphan-4','T002','L-OLD-C-FD-SG1','Mapped B2','未着手'),
-                    ('page-orphan-5','T003','L-OLD-C-FD-SG1','Mapped B3','未着手'),
-                    ('page-orphan-6','T004','L-OLD-C-FD-SG1','Mapped B4','未着手'),
-                    ('page-orphan-7','T005','L-OLD-C-FD-SG1','Mapped B5','未着手'),
-                    ('page-orphan-8','T006','L-OLD-C-FD-SG1','Mapped B6','未着手');
+                    ('page-orphan-3','T001','L-OLD-C-X2-SG1','Mapped B1','未着手'),
+                    ('page-orphan-4','T002','L-OLD-C-X2-SG1','Mapped B2','未着手'),
+                    ('page-orphan-5','T003','L-OLD-C-X2-SG1','Mapped B3','未着手'),
+                    ('page-orphan-6','T004','L-OLD-C-X2-SG1','Mapped B4','未着手'),
+                    ('page-orphan-7','T005','L-OLD-C-X2-SG1','Mapped B5','未着手'),
+                    ('page-orphan-8','T006','L-OLD-C-X2-SG1','Mapped B6','未着手');
             """)
         self.intents = {
             "L-EXISTING": {"scope_id": "L-EXISTING", "name": "Existing intent", "status": "active"},
-            "L-OLD-B-NAH": {"scope_id": "L-OLD-B-NAH", "name": "Intent A", "status": "active"},
-            "L-OLD-C-FD-SG1": {"scope_id": "L-OLD-C-FD-SG1", "name": "Intent B", "status": "completed"},
+            "L-OLD-B-X1": {"scope_id": "L-OLD-B-X1", "name": "Intent A", "status": "active"},
+            "L-OLD-C-X2-SG1": {"scope_id": "L-OLD-C-X2-SG1", "name": "Intent B", "status": "completed"},
         }
         self.intent_paths = {}
         for scope_id, intent in self.intents.items():
@@ -3421,11 +3421,11 @@ class IdentityV2MigrationPlanBackfillTest(unittest.TestCase):
             "routing_key": "L-OLD-A-SG0/T004",
             "decision": "legacy_excluded", "evidence_digest": "sha256:no-intent",
         }, {
-            "routing_key": "L-OLD-B-NAH/T020", "decision": "fixed_mapping",
+            "routing_key": "L-OLD-B-X1/T020", "decision": "fixed_mapping",
             "project_sync_uid": self.uid_a, "evidence_digest": "sha256:intent-a",
         }]
         self.decisions.extend({
-            "routing_key": f"L-OLD-C-FD-SG1/T{index:03d}",
+            "routing_key": f"L-OLD-C-X2-SG1/T{index:03d}",
             "decision": "fixed_mapping", "project_sync_uid": self.uid_b,
             "evidence_digest": "sha256:intent-b",
         } for index in range(1, 7))
@@ -3610,7 +3610,7 @@ class IdentityV2MigrationPlanBackfillTest(unittest.TestCase):
             ).fetchone()[0]
             self.assertIsNone(excluded)
             self.assertEqual(2, conn.execute(
-                "SELECT COUNT(*) FROM projects WHERE scope_id IN ('L-OLD-B-NAH','L-OLD-C-FD-SG1')"
+                "SELECT COUNT(*) FROM projects WHERE scope_id IN ('L-OLD-B-X1','L-OLD-C-X2-SG1')"
             ).fetchone()[0])
             before_rerun = remote.mutations
             rerun = self.sync.execute_identity_migration_plan(
@@ -3619,12 +3619,12 @@ class IdentityV2MigrationPlanBackfillTest(unittest.TestCase):
             )
             self.assertEqual(before_rerun, remote.mutations)
             self.assertEqual(0, rerun["residual_operations"])
-        self.assertEqual(self.uid_a, self.intents["L-OLD-B-NAH"]["identity"]["sync_uid"])
-        self.assertEqual(self.uid_b, self.intents["L-OLD-C-FD-SG1"]["identity"]["sync_uid"])
+        self.assertEqual(self.uid_a, self.intents["L-OLD-B-X1"]["identity"]["sync_uid"])
+        self.assertEqual(self.uid_b, self.intents["L-OLD-C-X2-SG1"]["identity"]["sync_uid"])
         self.assertEqual(self.uid_existing,
                          self.intents["L-EXISTING"]["identity"]["sync_uid"])
         self.assertEqual(self.uid_a, json.loads(
-            self.intent_paths["L-OLD-B-NAH"].read_text(encoding="utf-8")
+            self.intent_paths["L-OLD-B-X1"].read_text(encoding="utf-8")
         )["identity"]["sync_uid"])
 
     def test_source_snapshot_change_and_intent_failure_are_recoverable(self):
@@ -4796,11 +4796,11 @@ class IdentityV2SyncCompatibilityTest(unittest.TestCase):
 
 T011_UID_A = "prj_00000000-0000-4000-8000-000000000101"
 T011_UID_B = "prj_00000000-0000-4000-8000-000000000102"
-T011_UID_NAH = "prj_00000000-0000-4000-8000-000000000103"
-T011_UID_FD = "prj_00000000-0000-4000-8000-000000000104"
+T011_UID_X1 = "prj_00000000-0000-4000-8000-000000000103"
+T011_UID_X2 = "prj_00000000-0000-4000-8000-000000000104"
 T011_LINKED_AT = "2026-07-15T11:30:00Z"
-T011_ORPHAN_KEYS = ("L-OLD-A-SG0/T004", "L-OLD-B-NAH/T020") + tuple(
-    "L-OLD-C-FD-SG1/T%03d" % index for index in range(1, 7))
+T011_ORPHAN_KEYS = ("L-OLD-A-SG0/T004", "L-OLD-B-X1/T020") + tuple(
+    "L-OLD-C-X2-SG1/T%03d" % index for index in range(1, 7))
 T011_FAILPOINTS = ("after_planned", "after_checkpoint", "after_rows_commit",
                    "after_manifest_write", "after_cache_commit")
 
@@ -4823,10 +4823,10 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
         self.init_db = load_module(DB_DIR / "init_db.py", f"identity_init_t011_{id(self)}")
         self.sync = load_module(DB_DIR / "sync.py", f"identity_sync_t011_{id(self)}")
         self._create_legacy_db(self.db_path)
-        self.intent_nah = self.root / "intents" / "nah" / "intent.yaml"
-        self.intent_fd = self.root / "intents" / "fd" / "intent.yaml"
-        for path, scope_id in ((self.intent_nah, "L-OLD-B-NAH"),
-                               (self.intent_fd, "L-OLD-C-FD-SG1")):
+        self.intent_x1 = self.root / "intents" / "x1" / "intent.yaml"
+        self.intent_x2 = self.root / "intents" / "x2" / "intent.yaml"
+        for path, scope_id in ((self.intent_x1, "L-OLD-B-X1"),
+                               (self.intent_x2, "L-OLD-C-X2-SG1")):
             path.parent.mkdir(parents=True)
             path.write_text("# Execution Context\nscope_id: \"%s\"\nscope_name: x\n"
                             "status: active\ngoal:\n  scope_id: nested-ignored\n"
@@ -4864,9 +4864,9 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
             """, (FIXED_NOW, FIXED_NOW))
             linked_tasks = [("page-ta1", "T001", "L-A"),
                             ("page-x1", "T004", "L-OLD-A-SG0"),
-                            ("page-o2", "T020", "L-OLD-B-NAH")]
+                            ("page-o2", "T020", "L-OLD-B-X1")]
             linked_tasks += [("page-o%d" % (index + 2), "T%03d" % index,
-                              "L-OLD-C-FD-SG1") for index in range(1, 7)]
+                              "L-OLD-C-X2-SG1") for index in range(1, 7)]
             for page_id, task_id, scope_id in linked_tasks:
                 conn.execute("""
                     INSERT INTO tasks (notion_page_id, task_id, scope_id, name, status,
@@ -4888,15 +4888,15 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
         decisions = [{"routing_key": "L-OLD-A-SG0/T004", "decision": "legacy_excluded",
                       "evidence_digest": "sha256:" + "a" * 64}]
         decisions.append({
-            "routing_key": "L-OLD-B-NAH/T020", "decision": "fixed_mapping",
-            "evidence_digest": self._digest(self.intent_nah),
-            "intent_path": "intents/nah/intent.yaml",
-            "project_name": "Practice A", "project_status": "active"})
+            "routing_key": "L-OLD-B-X1/T020", "decision": "fixed_mapping",
+            "evidence_digest": self._digest(self.intent_x1),
+            "intent_path": "intents/x1/intent.yaml",
+            "project_name": "Synthetic A", "project_status": "active"})
         decisions.extend({
-            "routing_key": "L-OLD-C-FD-SG1/T%03d" % index, "decision": "fixed_mapping",
-            "evidence_digest": self._digest(self.intent_fd),
-            "intent_path": "intents/fd/intent.yaml",
-            "project_name": "Practice SG1", "project_status": "completed"}
+            "routing_key": "L-OLD-C-X2-SG1/T%03d" % index, "decision": "fixed_mapping",
+            "evidence_digest": self._digest(self.intent_x2),
+            "intent_path": "intents/x2/intent.yaml",
+            "project_name": "Synthetic SG1", "project_status": "completed"}
             for index in range(1, 7))
         return decisions
 
@@ -4931,8 +4931,8 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
         return result, calls, output.getvalue()
 
     def _ids(self):
-        return iter((FIXED_WORKSPACE_A, T011_UID_A, T011_UID_B, T011_UID_NAH,
-                     T011_UID_FD))
+        return iter((FIXED_WORKSPACE_A, T011_UID_A, T011_UID_B, T011_UID_X1,
+                     T011_UID_X2))
 
     def _dry_run(self, ids=None, decisions_path=None, writer=None):
         ids = ids if ids is not None else self._ids()
@@ -5014,9 +5014,9 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
         """Remote as it looks after T009 migrate-identity backfilled Notion."""
         tasks = [self._task_page("page-ta1", "L-A", "T001", T011_UID_A),
                  self._task_page("page-x1", "L-OLD-A-SG0", "T004"),
-                 self._task_page("page-o2", "L-OLD-B-NAH", "T020", T011_UID_NAH)]
-        tasks += [self._task_page("page-o%d" % (index + 2), "L-OLD-C-FD-SG1",
-                                  "T%03d" % index, T011_UID_FD)
+                 self._task_page("page-o2", "L-OLD-B-X1", "T020", T011_UID_X1)]
+        tasks += [self._task_page("page-o%d" % (index + 2), "L-OLD-C-X2-SG1",
+                                  "T%03d" % index, T011_UID_X2)
                   for index in range(1, 7)]
         return T007FakeNotion(self.sync, projects=[
             self._project_page("page-pa", "L-A", T011_UID_A)], tasks=tasks)
@@ -5048,7 +5048,7 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
 
     def test_t011_ac1_fixed_plan_builds_manifest_and_projection_without_authority_or_notion(self):
         before = self._snapshot()
-        intents_before = (self.intent_nah.read_bytes(), self.intent_fd.read_bytes())
+        intents_before = (self.intent_x1.read_bytes(), self.intent_x2.read_bytes())
         guarded = ("_api_call", "_query_db", "run_preflight",
                    "bootstrap_workspace_identity", "classify_writer_activation",
                    "execute_identity_migration_plan", "cmd_deferred_v21")
@@ -5091,13 +5091,13 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
         self.assertEqual([
             ("L-A", FIXED_WORKSPACE_A, T011_UID_A, 1, 2),
             ("L-B", FIXED_WORKSPACE_A, T011_UID_B, 1, 2),
-            ("L-OLD-B-NAH", FIXED_WORKSPACE_A, T011_UID_NAH, 1, 2),
-            ("L-OLD-C-FD-SG1", FIXED_WORKSPACE_A, T011_UID_FD, 1, 2)], rows["projects"])
+            ("L-OLD-B-X1", FIXED_WORKSPACE_A, T011_UID_X1, 1, 2),
+            ("L-OLD-C-X2-SG1", FIXED_WORKSPACE_A, T011_UID_X2, 1, 2)], rows["projects"])
         by_key = {"%s/%s" % row[:2]: row[2:] for row in rows["tasks"]}
         self.assertEqual((None, None, None, None), by_key["L-OLD-A-SG0/T004"])
-        self.assertEqual((FIXED_WORKSPACE_A, T011_UID_NAH, 1, 2),
-                         by_key["L-OLD-B-NAH/T020"])
-        self.assertEqual({(FIXED_WORKSPACE_A, T011_UID_FD, 1, 2)}, {
+        self.assertEqual((FIXED_WORKSPACE_A, T011_UID_X1, 1, 2),
+                         by_key["L-OLD-B-X1/T020"])
+        self.assertEqual({(FIXED_WORKSPACE_A, T011_UID_X2, 1, 2)}, {
             value for key, value in by_key.items() if key.startswith("L-OLD-C")})
         self.assertEqual((FIXED_WORKSPACE_A, T011_UID_A, 1, 2), by_key["L-A/T001"])
         # Legacy columns (links, timestamps) are preserved byte-for-byte.
@@ -5109,7 +5109,7 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
         self.assertEqual([legacy("tasks", row) for row in before["tasks"]],
                          [legacy("tasks", row) for row in after["tasks"]])
         self.assertEqual(intents_before,
-                         (self.intent_nah.read_bytes(), self.intent_fd.read_bytes()))
+                         (self.intent_x1.read_bytes(), self.intent_x2.read_bytes()))
         # Maintenance checkpoint: the pre-mutation v1 backup, verified.
         state = json.loads(self.state_path.read_text("utf-8"))
         self.assertEqual("verified", state["state"])
@@ -5185,7 +5185,7 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
                         state_path=str(state), manifest_path=str(manifest))
                     self.assertEqual("verified", result["state"])
                     self.assertEqual([], self.sync._adopt_rows_readback(conn, plan))
-                    self.assertEqual({T011_UID_A, T011_UID_B, T011_UID_NAH, T011_UID_FD},
+                    self.assertEqual({T011_UID_A, T011_UID_B, T011_UID_X1, T011_UID_X2},
                                      {row[0] for row in conn.execute(
                                          "SELECT sync_uid FROM projects")})
                 self.assertEqual(
@@ -5198,7 +5198,7 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
         decisions = self._decisions()
         wrong_scope = self.root / "intents" / "wrong" / "intent.yaml"
         wrong_scope.parent.mkdir(parents=True)
-        wrong_scope.write_text('scope_id: "L-OLD-B-NAH-OTHER"\n', encoding="utf-8")
+        wrong_scope.write_text('scope_id: "L-OLD-B-X1-OTHER"\n', encoding="utf-8")
         prefix_only = copy.deepcopy(decisions)
         prefix_only[1].update(intent_path="intents/wrong/intent.yaml",
                               evidence_digest=self._digest(wrong_scope))
@@ -5275,8 +5275,8 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
 
         def exclude_mapped_scope_sibling(plan):
             # Excluded orphan re-pointed into a Scope that gets a Project.
-            plan["excluded_tasks"][0]["routing_key"] = "L-OLD-B-NAH/T004"
-            plan["decisions"][0]["routing_key"] = "L-OLD-B-NAH/T004"
+            plan["excluded_tasks"][0]["routing_key"] = "L-OLD-B-X1/T004"
+            plan["decisions"][0]["routing_key"] = "L-OLD-B-X1/T004"
 
         cases = (
             ("excluded_scope_has_project", exclude_mapped_scope_sibling, True, None),
@@ -5370,7 +5370,7 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
     def test_t011_ac2_t006_migration_plan_reuses_adopted_uids(self):
         self._adopt()
         intents = {scope: {"scope_id": scope, "name": scope, "status": "active"}
-                   for scope in ("L-A", "L-B", "L-OLD-B-NAH", "L-OLD-C-FD-SG1")}
+                   for scope in ("L-A", "L-B", "L-OLD-B-X1", "L-OLD-C-X2-SG1")}
         with closing(sqlite3.connect(self.db_path)) as conn:
             inventory = self.sync.identity_migration_inventory(conn)
             self.assertEqual(["L-OLD-A-SG0/T004"],
@@ -5382,7 +5382,7 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
                         "decision": "legacy_excluded",
                         "evidence_digest": "sha256:" + "a" * 64}],
                     intents, remote=FakeMigrationRemote())
-        self.assertEqual({T011_UID_A, T011_UID_B, T011_UID_NAH, T011_UID_FD},
+        self.assertEqual({T011_UID_A, T011_UID_B, T011_UID_X1, T011_UID_X2},
                          {op["project_sync_uid"] for op in migration["operations"]})
         self.assertFalse(any(op.get("scope_id") == "L-OLD-A-SG0"
                              for op in migration["operations"]))
@@ -5413,7 +5413,7 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
         plan = self._build_push_plan(fake)
         self.assertEqual(0, plan["exit_code"], plan.get("preflight"))
         self.assertEqual("workspace", plan["selector"]["kind"])
-        self.assertEqual({T011_UID_B, T011_UID_NAH, T011_UID_FD}, {
+        self.assertEqual({T011_UID_B, T011_UID_X1, T011_UID_X2}, {
             op["identity"]["project_sync_uid"] for op in plan["operations"]})
         output = io.StringIO()
         with (
@@ -5513,10 +5513,10 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
     def test_t011_review_mixed_adjudication_in_one_scope_is_refused(self):
         with closing(self._connect()) as conn:
             conn.execute("INSERT INTO tasks (notion_page_id, task_id, scope_id, name, "
-                         "status) VALUES ('page-o99', 'T099', 'L-OLD-B-NAH', 'x', '未着手')")
+                         "status) VALUES ('page-o99', 'T099', 'L-OLD-B-X1', 'x', '未着手')")
             conn.commit()
         decisions = self._decisions() + [{
-            "routing_key": "L-OLD-B-NAH/T099", "decision": "legacy_excluded",
+            "routing_key": "L-OLD-B-X1/T099", "decision": "legacy_excluded",
             "evidence_digest": "sha256:" + "d" * 64}]
         path = self._write_decisions(decisions, self.root / "mixed.json")
         before = self._snapshot()
@@ -5607,7 +5607,7 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
 
     def test_t011_review_verified_rerun_reports_manifest_drift_and_reuse_rechecks_evidence(self):
         self.assertEqual(0, self._dry_run()[0])
-        self.intent_nah.write_text(self.intent_nah.read_text("utf-8") + "# edited\n",
+        self.intent_x1.write_text(self.intent_x1.read_text("utf-8") + "# edited\n",
                                    encoding="utf-8")
         result, _c, output = self._dry_run(ids=iter(()))
         self.assertEqual(2, result, output)

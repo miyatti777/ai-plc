@@ -159,7 +159,7 @@ def read_layer(root: Path, layer: str | None) -> dict:
 
 def collect(root: Path, text: str, db_path: Path | None, top: int = TOP_DEFAULT, source_vis: str = "company",
             title: str | None = None, exclude: set[str] | None = None) -> dict:
-    """exclude: 候補から外す scope_id（/ppm-someday start から来た S-ID など）。"""
+    """exclude: 候補から外す scope_id（いま始めようとしている案件そのものなど）。"""
     top = max(1, min(int(top), TOP_MAX))
     exclude = set(exclude or ())
     body_toks = set(pm.tokens(text, bigrams=True))
