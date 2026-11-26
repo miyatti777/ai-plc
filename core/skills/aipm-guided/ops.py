@@ -39,10 +39,10 @@ LIGHT_OPS={'check','todo.add','todo.move','todo.link','todo.overdue'}   # the li
 def _light_kind(layer):
     """kind of the light sheets in the Layer (light.LIGHT_KIND / light.SHEETS_KIND) or None. A held selection raises."""
     try:kind=light.record(layer)[0]
-    except (OSError,yaml.YAMLError) as ex:raise ValueError('light box record unreadable: '+str(ex)) from ex   # review P3: held, not a traceback
+    except (OSError,yaml.YAMLError) as ex:raise ValueError('light box record unreadable: '+str(ex)) from ex   # held, not a traceback
     m=light.method(layer)[0]
     if kind is None:return light.LIGHT_KIND+'_missing' if m==light.LIGHT else None
-    if kind==light.LIGHT_KIND and m!=light.LIGHT:return None   # review P2-1: a leftover record does not make a Layer light
+    if kind==light.LIGHT_KIND and m!=light.LIGHT:return None   # a leftover record does not make a Layer light
     if kind==light.SHEETS_KIND and m!='aipm':return None
     return kind
 

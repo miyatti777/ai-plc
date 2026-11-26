@@ -127,7 +127,7 @@ class Light(unittest.TestCase):
         self.assertTrue((layer/'Context/aipm_light_retired/format_contract.yaml').is_file())
 
     def test_switch_failure_moves_nothing(self):
-        """review P1-1: every check runs before the light record moves; a refused switch leaves the Layer as it was."""
+        """Every check runs before the light record moves; a refused switch leaves the Layer as it was."""
         layer=self.layer(project_id='light');package.init(layer)
         it=package.load(layer/'intent.yaml');it['addons']=[];it['work_style']='aipm'
         it['aipm']={'registers':True,'layout':'sheets_v1','project_id':'light','program_id':'Sample','date':'2026-10-07'}
@@ -136,10 +136,10 @@ class Light(unittest.TestCase):
         with self.assertRaises(ValueError):package.init(layer,drafts='Context/d.yaml')
         self.assertEqual(before,inventory(layer))
         r=package.init(layer);self.assertTrue(r['created'])
-        self.assertTrue({'Sheets/todo.yaml','Sheets/wbs.yaml'}<={o['path'] for o in r['outputs']})   # review P2-2
+        self.assertTrue({'Sheets/todo.yaml','Sheets/wbs.yaml'}<={o['path'] for o in r['outputs']})
 
     def test_leftover_light_record_is_not_light(self):
-        """review P2-1: without aipm-light in intent, a leftover record does not let pm-todo or wbs-candidate write."""
+        """Without aipm-light in intent, a leftover record does not let pm-todo or wbs-candidate write."""
         layer=self.layer();package.init(layer)
         it=package.load(layer/'intent.yaml');it.pop('addons');base.write_yaml(layer/'intent.yaml',it)
         self.assertEqual(ops.run(layer,'check')['route'],'unselected')
@@ -148,7 +148,7 @@ class Light(unittest.TestCase):
         self.assertEqual({k:v for k,v in inventory(layer).items() if k!='Context/t.yaml'},before)
 
     def test_add_sheets_on_sheets_v1_and_registers_turned_on(self):
-        """review P2-3 / P2-4: a sheets_v1 aipm Layer gets the sheets beside its package; turning on registers over them stops."""
+        """A sheets_v1 aipm Layer gets the sheets beside its package; turning on registers over them stops."""
         repo=self.base/'repo';(repo/'Stock/programs/Sample').mkdir(parents=True)
         layer=repo/'Flow/202610/2026-10-07/S';layer.parent.mkdir(parents=True)
         root,c=base.fixture(layer,layout='sheets_v1');self.assertEqual(c['package_root'],'Sheets')

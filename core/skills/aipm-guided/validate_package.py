@@ -37,7 +37,7 @@ def validate(package, phase="final", layer=None, stock_runtime=None, stock_root=
     LAYER = Path(layer).absolute()
     # validate learns AIPM ライトモード
     try: light_kind = light.record(LAYER)[0]
-    except (OSError, ValueError, yaml.YAMLError): light_kind = None   # review P3: an unreadable Sheets/ does not stop a Layer without a method
+    except (OSError, ValueError, yaml.YAMLError): light_kind = None   # an unreadable Sheets/ does not stop a Layer without a method
     if not select(LAYER):
         if light.is_light(LAYER):
             if Path(package).absolute() != safe_path(LAYER, SHEETS_ROOT): raise ValueError("package must be the selected Layer " + SHEETS_ROOT)
@@ -624,7 +624,7 @@ def validate(package, phase="final", layer=None, stock_runtime=None, stock_root=
     issues_summary=None;reg_out={}
     if 'registers_contract_version' in contract:issues_summary=check_registers(contract,safe,validation,err,LAYER,warn,reg_out)
     if 'register_edits' in manifest:check_register_edits(manifest,contract,safe,err,warn)
-    if light_kind == light.SHEETS_KIND and 'registers_contract_version' not in contract:reg_out['light_sheets_summary']=light.check(LAYER,err,warn)   # the two sheets added to an aipm Layer (decision 6)
+    if light_kind == light.SHEETS_KIND and 'registers_contract_version' not in contract:reg_out['light_sheets_summary']=light.check(LAYER,err,warn)   # the two sheets added to an aipm Layer
     return {'pass':not errors,'scope_id':contract['scope_id'],'source_commit':contract['reviewed_commit'],'validation_phase':phase,'checked_documents':len(actual),'errors':errors,'warnings':warnings,**({'issues_summary':issues_summary} if issues_summary is not None else {}),**reg_out,'limits':['Static Markdown/Mermaid structure and references; no Viewer rendering E2E','Human understanding/new usability/general productivity not measured']}
 
 def check_register_edits(manifest,contract,safe,err,warn):

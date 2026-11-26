@@ -34,7 +34,7 @@ class ArchiveSettings(arc.Base):   # the helpers of arp.Apply, not its tests
     def test_auto_without_a_stock_is_layer_and_bad_values_stop(self):
         layer,root,scope=self.layer('a',link=False)
         shutil.rmtree(self.repo/'Stock');self.assertEqual(package.archive_settings(layer)['where'],'layer')
-        config(self.repo);self.assertEqual(package.archive_settings(layer)['where'],'stock')   # a configured repository keeps stopping (review P2-1)
+        config(self.repo);self.assertEqual(package.archive_settings(layer)['where'],'stock')   # a configured repository keeps stopping
         with self.assertRaisesRegex(ValueError,'not found'):package.archive_course(layer)
         for bad in ({'where':'cloud'},{'business':'maybe'}):
             with self.subTest(bad=bad):
@@ -51,7 +51,7 @@ class ArchiveSettings(arc.Base):   # the helpers of arp.Apply, not its tests
         for r in m['records']:
             if r['archive_path']:self.assertEqual((self.repo/r['archive_path']).read_bytes(),(root/r['path']).read_bytes())
         self.assertTrue(validate_package.validate(root,phase='final',layer=layer)['pass'])
-        config(self.repo,business='registry')   # a config-sourced Stock copy no longer passes once business is registry (review P2-2)
+        config(self.repo,business='registry')   # a config-sourced Stock copy no longer passes once business is registry
         self.assertIn('skips the business project',' '.join(e['message'] for e in validate_package.validate(root,phase='final',layer=layer)['errors']))
         # registry: the same Layer needs the Registry, and writes nothing without it
         layer2,root2,scope2=self.layer('r',link=False);stock=tr.state(self.repo/'Stock')
@@ -75,7 +75,7 @@ class ArchiveSettings(arc.Base):   # the helpers of arp.Apply, not its tests
         self.assertEqual(self.stock(),stock)
         with self.assertRaisesRegex(ValueError,'where is layer'):package.move_archive(layer)
         config(self.repo,where='stock')
-        with self.assertRaisesRegex(ValueError,'copies are in the Layer'):package.move_archive(layer)   # review P3-3
+        with self.assertRaisesRegex(ValueError,'copies are in the Layer'):package.move_archive(layer)
 
     def test_where_layer_register_writes_the_log_in_the_layer(self):
         config(self.repo,where='layer')

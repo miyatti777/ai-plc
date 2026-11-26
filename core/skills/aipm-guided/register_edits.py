@@ -18,7 +18,7 @@ from ops import _next_id, _registers_problems, _files
 CHANGES='Context/aipm_changes'
 REGISTERS=('issues','hypotheses','todo','wbs','roadmap')
 PREFIX={'issues':'I','hypotheses':'H','todo':'D','wbs':'W','roadmap':'MS'}
-# what op: append may touch (design §2); anything else stops. issues.evidence_refs is resolution evidence, never material
+# what op: append may touch; anything else stops. issues.evidence_refs is resolution evidence, never material
 APPEND={'issues':('sources',),'hypotheses':('sources','evidence'),'wbs':('evidence_refs','milestone_id'),'todo':('note',),'roadmap':('note','wbs_ids')}
 PATH_FIELDS=('sources',)
 NOTE_FIELDS=('note',)
@@ -53,7 +53,7 @@ def state(layer):
     versionable=c.get('layout') in FLAT_LAYOUTS and c.get('storage')!='registry_stock_v1'
     return layer,c,root,m,saved,versionable,files
 def writable(layer):
-    """Design §5 condition 1: the box form, and for a saved box its versions."""
+    """The box form, and for a saved box its versions."""
     layer,c,root,m,saved,versionable,files=state(layer)
     if not versionable:raise ValueError('this box cannot carry versions (nested_v1 or shared Stock); redit is for sheets_v1 / box_root_v1 boxes (migrate-sheets first; nothing written)')
     applies=m.get('applies')
@@ -62,7 +62,7 @@ def writable(layer):
         if applies[-1].get('pushed') is not True:raise ValueError('the box has a version not pushed yet; push or revert it first (nothing written)')
     return layer,c,root,m,saved,files
 def saved_versionable(layer):
-    """For ops: a saved box that can carry versions (its pm- writes go through redit — design §8)."""
+    """For ops: a saved box that can carry versions (its pm- writes go through redit)."""
     try:layer,c,root,m,saved,versionable,files=state(layer)
     except Exception:return False
     return saved and versionable
@@ -281,7 +281,7 @@ def redit_list(layer):
     return {'route':'aipm','list':str(q.relative_to(layer)),'digest':dg,'digest_short':dg[:12],'written':written,'rows':rows,'replies':'OK（全件反映）／採用: 1,3／修正: 2 は「…」に直す（note だけ）／今回はレポートのみ／差し戻し'}
 
 def redit_judge(layer,digest,quote,at,thread):
-    """The person's reply to the saved list (thread required — design §5 condition 3). 修正 changes the value of a note only."""
+    """The person's reply to the saved list (thread required). 修正 changes the value of a note only."""
     layer,c,root,m,saved,files=writable(layer)
     changes._text(quote,'--quote');t=changes._aware(at);changes._text(digest,'--list');changes._text(thread,'--thread')
     if not re.fullmatch(r'[0-9a-f]{12,64}',digest):raise ValueError('--list is the list digest (at least its first 12 characters; nothing written)')
@@ -344,7 +344,7 @@ def plan(layer):
         if not any((r.get('quote'),r.get('at'),r.get('thread'))==(j['quote'],j['at'],j['thread']) for r in judged[0].get('replies') or []):raise ValueError(p['id']+': the reply is not in the list the person answered (nothing written)')
         if j.get('content_sha256')!=changes.content_sha(p):raise ValueError(p['id']+': the proposal changed after the person adopted it; send it back or judge it again (nothing written)')
     data={k:load(files[k]) for k in REGISTERS};now_sha={k:sha(files[k]) for k in REGISTERS}
-    for p in adopted:   # design §5 condition 4: every proposal against the state before writing
+    for p in adopted:   # every proposal against the state before writing
         reg=p['target']['register']
         if p['base']['register_sha256']!=now_sha[reg]:raise ValueError(p['id']+': '+reg+' changed after the proposal (an old proposal; nothing written)')
         if p['op'] in ('append','fill') and _rowsha(_row(_rows(data[reg],reg),p['target']['row'],reg))!=p['base']['row_sha256']:raise ValueError(p['id']+': the row changed after the proposal (nothing written)')
@@ -371,7 +371,7 @@ def plan(layer):
         else:
             rid=_next_id(rows,PREFIX[reg]);row={'id':rid,**p['row']};rows.append(row)
             changed.append({'id':p['id'],'register':reg,'row':rid,'op':'add_row','before_sha256':None,'after_sha256':_rowsha(row)})
-    # design §5 condition 7: the wbs.milestone_id <-> roadmap.wbs_ids pair is adopted together
+    # the wbs.milestone_id <-> roadmap.wbs_ids pair is adopted together
     wbs={r['id']:r for r in _rows(data['wbs'],'wbs') if isinstance(r,dict)};rm={r['id']:r for r in _rows(data['roadmap'],'roadmap') if isinstance(r,dict)}
     for p in adopted:
         if p['op']!='append':continue
@@ -425,7 +425,7 @@ def redit_apply(layer,*,apply=False,approval_ref=None):
     return out
 
 def redit_revert(layer,*,apply=False,approval_ref=None):
-    """Put back the last edit from its backup (design §5): only when the registers are still what that edit wrote and the
+    """Put back the last edit from its backup: only when the registers are still what that edit wrote and the
     manifest is what it wrote right after. The proposals of that edit become not_merged."""
     layer,c,root,m,saved,versionable,files=state(layer)
     edits=m.get('register_edits') or []
@@ -537,7 +537,7 @@ def extract(layer,input_path,*,apply=False):
     unreadable. With apply: save the sorting as Context/aipm_changes/rextract_<name>.yaml and one judge_draft_<case>.yaml per
     adopted judgement (never over an existing file). adopted_with_note: an adopted row with words added to the mark (the AI reads
     them); conflict: a duplicate row the person still adopted (ask). The decision record of the draft is the origin, not the
-    approval (design §6)."""
+    approval."""
     layer=Path(layer).absolute();q=safe_path(layer,changes._text(input_path,'--input'))
     if not q.is_file():raise ValueError('extraction draft not found: '+input_path+' (nothing written)')
     rows=read_extraction(q.read_text())

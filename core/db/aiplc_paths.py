@@ -158,7 +158,8 @@ def check_write(path, env=None):
     raise DbNotMain(
         f"DB_NOT_MAIN: {path} は worktree の中の写しです。書き込みを止めました。"
         f" 本体: {main / REL_DB if main else '(不明)'}。"
-        f" .ai-plc/config.yaml の id_allocation.mode を local-db にするか、明示するなら {ENV}=<path>")
+        f" 本体に DB があれば、.ai-plc/config.yaml の id_allocation.mode: local-db で本体の DB を使います。"
+        f" この DB に書くなら {ENV}=<path> で明示してください")
 
 
 def same_db(a, b):
@@ -179,7 +180,7 @@ def same_db(a, b):
 
 def check_main_write(path):
     """本番の書き込み口が既定の本体の DB に書く前に呼ぶ。check_write と同じく、
-    worktree の中の写しなら DbNotMain。書き込み口は AIPLC_DB を見ない（2-A）ので、AIPLC_DB で同じパスを
+    worktree の中の写しなら DbNotMain。書き込み口は AIPLC_DB を見ない（試験の一時 DB を本番と取り違えないため）ので、AIPLC_DB で同じパスを
     明示していても通さない。symlink や相対パスで渡されても、realpath でそろえた実体の場所で確かめる"""
     check_write(os.path.realpath(os.path.abspath(os.fspath(path))), env={})
 

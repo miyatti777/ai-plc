@@ -946,9 +946,9 @@ def init(layer, *, stock_runtime=None, drafts=None):
         if drafts is not None:raise ValueError('--drafts needs the bundled PM addon (aipm)')
         return {'route':'legacy','created':False}
     c=build_contract(layer);root=safe_path(layer,c['package_root'])
-    if 'registers_contract_version' in c and _light().record(layer)[0]==_light().SHEETS_KIND:   # review P2-3: not designed yet
+    if 'registers_contract_version' in c and _light().record(layer)[0]==_light().SHEETS_KIND:   # not designed yet
         raise ValueError('Sheets/ holds the two sheets added to this aipm Layer (light_sheets.yaml); turning on aipm.registers over them is not supported yet. Ask before moving their rows (nothing written)')
-    adopted=_adopt_light_sheets(layer,c,root,check_only=True)   # aipm-light -> aipm: the two sheets stay as part of the registers (decision 6); moved only after every check below (review P1-1)
+    adopted=_adopt_light_sheets(layer,c,root,check_only=True)   # aipm-light -> aipm: the two sheets stay as part of the registers; moved only after every check below
     if adopted and drafts is not None:raise ValueError('--drafts is not used when switching from AIPM ライトモード (the two sheets are kept as they are; nothing written)')
     if c.get('layout')==SHEETS_LAYOUT and not root.exists() and safe_path(layer,LEGACY_ROOT).exists():   # never start a Sheets/ box beside an earlier package folder
         raise ValueError(LEGACY_ROOT+'/ is already in the Layer (an earlier package without its contract); move or finish it before a '+SHEETS_ROOT+'/ package (nothing written)')
@@ -981,7 +981,7 @@ def init(layer, *, stock_runtime=None, drafts=None):
     outputs=[{'path':c['package_root']+'/'+rel,'sha256':sha(root/rel)} for rel in made]  # for intent.mode_init.outputs (01-collection Phase 7.5)
     result={'route':'aipm','created':True,'package':str(root),'state':'initialized_draft','required_documents':19,'contract':c,'registers':written,'outputs':outputs,'note':INIT_NOTE}
     if adopted:
-        result['adopted_light_sheets']=adopted   # review P2-2: the kept sheets belong to the registers in mode_init.outputs too
+        result['adopted_light_sheets']=adopted   # the kept sheets belong to the registers in mode_init.outputs too
         have={o['path'] for o in outputs}
         result['outputs']=outputs+[{'path':p,'sha256':sha(safe_path(layer,p))} for p in adopted if p not in have]
     if drafts is not None:   # wbs.yaml has no field for where a row came from (registers contract unchanged); keep these in the Collection record
@@ -1871,7 +1871,7 @@ def wbs_candidate(layer,task_id):
     layer=Path(layer).absolute()
     light=_light()   # AIPM ライトモード and the sheets added to an aipm Layer keep wbs.yaml in Sheets/
     kind=light.record(layer)[0]
-    if kind==light.LIGHT_KIND and not light.is_light(layer):kind=None   # review P2-1: a leftover record does not make a Layer light
+    if kind==light.LIGHT_KIND and not light.is_light(layer):kind=None   # a leftover record does not make a Layer light
     c=build_contract(layer) if kind!=light.LIGHT_KIND else None
     if c is not None and 'registers_contract_version' not in c and kind!=light.SHEETS_KIND:return {'route':'unselected','changed':False,'reason':'aipm.registers is not selected'}
     route=light.LIGHT if kind==light.LIGHT_KIND else 'aipm'
