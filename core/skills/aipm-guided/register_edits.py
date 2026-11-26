@@ -1,5 +1,4 @@
-"""Edits of the registers (issues, hypotheses, todo, wbs, roadmap) of an AIPM box in the apply way
-Flow/202610/2026-10-28/aipm-registers-apply/Documents/T001_registers_apply_design.md).
+"""Edits of the registers (issues, hypotheses, todo, wbs, roadmap) of an AIPM box in the apply way.
 
 An edit proposal (R-*.yaml) appends material or a note to an existing row, or adds a new row; the person judges a numbered
 list (rlist_<digest>.yaml) with the five replies; only adopted proposals are written, and each write leaves one entry in the

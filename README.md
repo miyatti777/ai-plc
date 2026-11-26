@@ -229,7 +229,7 @@ git pull             # 最新の版を取ってくる（失敗したら git stat
 
 **実験版（Jev 監視）を入れている人:** 実験版も一緒に上げるときは `--with-jev` を付けます（`./install.sh --target /path/to/your/project cc --with-jev`）。付けずに更新すると、実験版のファイルは今のまま残ります。前の実験版 1.8.0-exp.1 を入れた環境の `.ai-plc-version` は、その時点の core の版の `1.7.1` と出ます。前の実験版から今の実験版 1.12.0-exp.2 への上げ方は[実験版の節](#-実験版-jev-監視)にあります。
 
-### v1.14.0 から v2.0.0 へ
+### v1.14.0 から v2.x（今の版）へ
 
 流すコマンドは 2. と同じです（`--dry-run` で確かめてから、最初に入れたときと同じ指定で実行）。
 
@@ -238,6 +238,8 @@ git pull             # 最新の版を取ってくる（失敗したら git stat
 - **AIPM の箱:** 新しく作る箱は一覧を `Sheets/` の直下に置きます。v1.14.0 で作った箱（`Documents/aipm_project`）はそのまま読めます
 - **`init_db.py` を手で実行するとき**は `--allow-production` を付けます
 - **Notion と同期している人**は、同期の前に移行が要ります（[CHANGELOG.md](CHANGELOG.md) の「DB の道具」）
+- **Registry ビューアを手でコピーしている人**は、古い `<プロジェクト>/.claude/db/registry_viewer` を消してから `experimental/registry-viewer` をコピーし直します（0.3.0-alpha から閲覧専用。v2.2.0〜）
+- **増えるもの:** PPM スキル `ppm-collection`・`ppm-scan`・`ppm-pmo`（v2.3.0〜）、ビューア `experimental/backlog-live`・`experimental/yaml-viewer`（v2.1.0〜。手でコピーして使います）。`tools/BacklogLive/server.py` を置いたプロジェクトでは、Stage の実行中に対象 Layer の画面を開きます（置いていなければ何も起きません）
 - 実験版（Jev 監視）は 1.12.0-exp.2 のまま変わりません
 - 変更の全体は [CHANGELOG.md](CHANGELOG.md) にあります
 
@@ -857,7 +859,7 @@ cd <プロジェクト> && python3 tools/YamlViewer/server.py    # http://127.0.
 
 ### 同梱アドオン AIPM と `pm-` コマンド（v1.14.0〜）
 
-PM の進め方を Layer ごとに選べる「アドオン」を1つ同梱しています。**AIPM** は、1人の利用者について ペルソナ → 課題 → 仮説検証 → 解決策 → ストーリー までの19文書を決まった形式で作り、形式と中身を検証しながら進めるモードです。選んだ Layer だけで動き、選ばなければ今までと同じです。
+PM の進め方（方式）を Layer ごとに選ぶ「アドオン」を同梱しています。**AIPM** は、1人の利用者について ペルソナ → 課題 → 仮説検証 → 解決策 → ストーリー までの19文書を決まった形式で作り、形式と中身を検証しながら進めるモードです。選んだ Layer だけで動き、v2.0.0 から方式の記録は必須で、Collection で答えが無ければ、WBS と ToDo の表だけで進める **AIPM ライトモード**（`aipm-light`）が既定として記録されます（v1.14.0 までに作った Layer は、上の「v1.14.0 から v2.x へ」の手順で1回記録します）。
 
 始め方（Collection で選ぶ）:
 
@@ -889,7 +891,7 @@ Codex では `$pm-issue` のように `$` で呼びます。日次・週次の�
 >
 > ⚠️ **外部送信あり（opt-in）。** APIキーを登録し、Layer の `intent.yaml` に `jev_monitor: true` を書いたときだけ、Layer の文や発話を字数で切ったもの（下の表。要約ではなく原文の抜粋です）を外部の判断専用モデル **Jev**（TypeSafe）に送ります。キーが無ければ何も送らず、すべてスキップされます。
 >
-> **版:** 実験版パッケージ（`experimental/jev/`）の版は **`1.12.0-exp.2`** で、前の実験版 `1.12.0-exp.1` の次の版です。実験版の番号は core の版（**1.14.0**）とは別に数えます。`1.12.0-exp.2` は core 1.12.0 の上の2つ目の版で、末尾の `exp.2` はその版での通し番号です（頭の数字が core の版と一致するとは限りません。たとえば `1.8.0-exp.1` は core 1.7.1 の上に作ったものです）。スキルは core 1.12.0 のスキルを元にしており、違いは Jev 部分だけです（[CHANGELOG.md](CHANGELOG.md)）。
+> **版:** 実験版パッケージ（`experimental/jev/`）の版は **`1.12.0-exp.2`** で、前の実験版 `1.12.0-exp.1` の次の版です。実験版の番号は core の版とは別に数えます。`1.12.0-exp.2` は core 1.12.0 の上の2つ目の版で、末尾の `exp.2` はその版での通し番号です（頭の数字が core の版と一致するとは限りません。たとえば `1.8.0-exp.1` は core 1.7.1 の上に作ったものです）。スキルは core 1.12.0 のスキルを元にしており、違いは Jev 部分だけです（[CHANGELOG.md](CHANGELOG.md)）。
 >
 > 🧊 **1.12.0-exp.2 から、会話監視 hook と成功条件カバー判定は凍結中です。** 作者の試行で、会話監視は人が判定したヒントの約3分の2が外れ、成功条件カバー判定は役に立ったヒントがありませんでした。どちらも新しく有効にしないでください（カバー判定は `/02-inception-jev` から呼ばなくなりました。会話監視 hook を settings に登録している場合は外してかまいません）。Backtrack の異常ヒントとステータス点検は、これまでどおり使えます。
 
@@ -931,7 +933,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 ./install.sh --target /path/to/your/project cc --with-jev
 ```
 
-- 現在のcheckoutでは core も同時に 2.3.0 に上がります。上がったかどうかは、`.ai-plc-version` が `2.3.0`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
+- 現在のcheckoutでは core も同時に 2.3.1 に上がります。上がったかどうかは、`.ai-plc-version` が `2.3.1`、台帳（`.ai-plc-install-manifest`）の `experimental_jev` の `package_version` が `1.12.0-exp.2` になっていることで確かめられます。1.8.1-exp.1・1.8.0-exp.1 からも同じ手順で上げられます
 - `--with-jev` を付けずに更新すると、core だけが上がり、実験版は前の版のまま残ります。前の版の実験版スキルは core 1.8.1 の時点のもので、Construction を既定で省く変更と自動完走（/goal）に対応していないので、実験版も一緒に上げてください
 - 1.12.0-exp.2 を入れた後に、前の実験版を配る checkout の installer で `--with-jev` を付けると、`[CONFLICT] component downgrade refused: experimental_jev` などの行を出して止まり、何も書き換えません。前の版に戻したいときは、今の checkout で `uninstall.sh cc` してから、前の版の checkout で入れ直します
 
@@ -939,7 +941,7 @@ AI-PLC の作業中に、Jev に「前の段階に戻るべき兆しはないか
 
 - **会話監視 hook と成功条件カバー判定を凍結しました。** `/02-inception-jev` はカバー判定を呼ばず（`jev_monitor: true` でも）、`/02-inception-jev`・`/03-construction-jev`・`/04-operation-jev` の会話監視の案内は「登録しない（登録済みなら外してよい）」に変えました。スクリプトは残しますが更新しません。Backtrack の異常ヒント（`/04-operation-jev` の 5.5b・6b）とステータス点検は変わりません
 - **`KNOWN_RELEASES.sha256`:** 1.12.0-exp.1 の配布物のハッシュを足しました
-- この実験版リリースでは Python のコードと installer の処理は変えていません。現在のcoreは2.3.0ですが、この実験版はcore 1.12.0時点のままです
+- この実験版リリースでは Python のコードと installer の処理は変えていません。現在のcoreは2.3.1ですが、この実験版はcore 1.12.0時点のままです
 
 それより前の変更（1.12.0-exp.1 など）は CHANGELOG にあります。
 

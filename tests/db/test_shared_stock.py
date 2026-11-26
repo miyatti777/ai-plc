@@ -120,9 +120,9 @@ class Protocol(unittest.TestCase):
         with self.assertRaises(core.Hold):self.s.compensate('r1',writer='fixture-writer',expires_at=expiry())
         with self.assertRaises(core.Hold):self.s.commit(p,approved_hash=core.digest(p),request_id='late',writer='fixture-writer',expires_at='2000-01-01T00:00:00+00:00')
     def test_business_visibility_must_match_read_domain(self):
-        # 業務Project の visibility が Program の read_domain と違う行（例 本人の運用の特例の形）は、Fixture でも Live でも止める
+        # 業務Project の visibility が Program の read_domain と違う行は、Fixture でも Live でも止める
         with self.s.db() as db:
-            db.execute("UPDATE business_projects SET visibility='local-owner-only'")
+            db.execute("UPDATE business_projects SET visibility='other'")
         with self.assertRaises(core.Hold):self.s.bind(self.selector)
         with self.assertRaises(core.Hold):issue(self.s.root,self.selector).bind(self.selector)
     def test_path_escape_and_symlink(self):

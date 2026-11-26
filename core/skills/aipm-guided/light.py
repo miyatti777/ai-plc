@@ -3,7 +3,7 @@
 
 Two shapes share these two sheets (Sheets/todo.yaml and Sheets/wbs.yaml, the same rows as the registers contract):
 - kind aipm_light: a Layer whose method is aipm-light. Its box record is Sheets/format_contract.yaml (the light contract).
-- kind aipm_sheets: an aipm Layer without aipm.registers that got the two sheets (bulk apply, decision 6). Its box record
+- kind aipm_sheets: an aipm Layer without aipm.registers that got the two sheets (package.py add-sheets). Its box record
   is Sheets/light_sheets.yaml, beside (never instead of) the aipm package and its own format_contract.yaml.
 
 The reference fields are not used in either shape (decision 7): wbs issue_ids / milestone_id, and I/H ids in todo source.

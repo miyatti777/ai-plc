@@ -25,7 +25,7 @@ def errs(layer,root):
 class Batch(arc.Base):
     persona_doc=acj.Changes.persona_doc;candidate=acj.Changes.candidate
     def memo_box(self,name):
-        """A document_based box that read a Layer memo (an S04 memo), archived (v1 kind first). Returns the archive-time
+        """A document_based box that read a Layer memo (a memo), archived (v1 kind first). Returns the archive-time
         bytes of the memo kept aside (a real box takes them from git)."""
         layer,c,packet=self.prepare(name);(layer/'Documents').mkdir(exist_ok=True);(layer/MEMO).write_text('# memo\n\n7 decision factors\n')
         packet['sources'].append({'id':'L1','domain':'layer','path':MEMO,'sha256':sha(layer/MEMO)});write_yaml(layer/'Context/course_input.yaml',packet)
@@ -106,7 +106,7 @@ class Legacy(unittest.TestCase):
         self.assertTrue(package.register(layer,apply=True,approval_ref='s')['final']['pass'])
 
 class LegacyShared(unittest.TestCase):
-    """Several evidence rows on one Layer file (like a Context/01_ticket_and_evidence.md read as several evidence rows) share one copy."""
+    """Several evidence rows on one Layer file (one Context file read as several evidence rows) share one copy."""
     setUp=tml.in_repository
     def tearDown(self):self.temp.cleanup()
     legacy_box=tmsn.MigrateSheetsNested.legacy_box

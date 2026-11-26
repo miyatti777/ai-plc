@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """業務Project の表（Program・業務Project・所属・AI-PLC 案件とのつながり）を作り、行を足す道具。
 
-AIPM の箱（aipm-guided）の archive は、`.ai-plc/config.yaml` で `aipm_archive: {where: stock, business: registry}`
-にしたときだけ、Layer の主な（primary）業務Project を Registry から読んで、写しの行き先
+AIPM の箱（aipm-guided）の archive は、保存先が Stock のとき（`.ai-plc/config.yaml` の `aipm_archive.where` が
+stock、または既定の auto でリポジトリに `Stock/programs/` があるとき）で、`business` が registry（既定）なら、
+Layer の主な（primary）業務Project を Registry から読んで、写しの行き先
 `Stock/programs/<Program>/projects/<業務Project>/<project>/` を決める。この道具はその表を作る。
-既定では使わない（設定が無ければ箱はこの表を読まない）。
+`Stock/programs/` が無いリポジトリでは箱は Layer の中に保存され、この表は読まれない。Stock があっても
+読ませないときは `aipm_archive: {business: none}` を書く。
 
 業務Project の visibility には、その Program の read_domain（work／private）と同じ値を書く。共有 Stock
 （shared_stock.py）はこの一致を求める。

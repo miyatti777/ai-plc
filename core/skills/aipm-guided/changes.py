@@ -1,5 +1,4 @@
-"""Change proposals, ripple drafts and the person's judgement for a box with versions (
-§6 stages 4-5).
+"""Change proposals, ripple drafts and the person's judgement for a box with versions.
 
 Nothing here writes the box: the 19 documents, the registers and the manifest keep their bytes. Proposals, the numbered lists
 shown to the person and the work base live in the owner Layer's Context/aipm_changes/. A proposal is made from a candidate YAML

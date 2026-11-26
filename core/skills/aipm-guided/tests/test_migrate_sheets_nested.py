@@ -15,7 +15,7 @@ import test_migrate_layout as tml
 import registry_fixture as rf
 
 def bind_init(layer,root):
-    """An init reply bound to project_init.yaml the way the real plc-brief-understanding box has it (the receipt command of
+    """An init reply bound to project_init.yaml the way a box made by the receipt command has it (the receipt command of
     today does not bind init): receipt, human_responses, checkpoint_targets, evidence and the init stage."""
     m=package.load(root/'manifest.yaml');st=m['stages'][0];assert st['name']=='init'
     pi=next(r for r in m['records'] if r['source_step']=='write_init_yaml');tp=NEST+'/'+pi['path']
@@ -291,7 +291,7 @@ class MigrateSheetsNested(unittest.TestCase):
 
     def legacy_box(self,name,internal=True,init_reply=True):
         """An archived legacy (question_based) nested_v1 box like the real ones: records' inputs and one evidence point at a
-        package document (case C1), and the init reply is bound to project_init.yaml (like plc-brief-understanding)."""
+        package document (case C1), and the init reply is bound to project_init.yaml."""
         layer=self.base/name;root,c=ti.fixture(layer,scope='L-LEG-'+name,project='leg_'+name)
         m=package.load(root/'manifest.yaml');first=next(r['path'] for r in m['records'] if r['stage']=='persona')
         if internal:
@@ -342,7 +342,7 @@ class MigrateSheetsNested(unittest.TestCase):
     def test_manifest_keys_naming_old_paths_are_rewritten_or_refused(self):
         layer,root,c=self.legacy_box('k',internal=False,init_reply=False);m=package.load(root/'manifest.yaml')
         docs=[r['path'] for r in m['records'] if r['stage']=='solution']
-        m['related_versions']={NEST+'/'+d:'v1' for d in docs};write_yaml(root/'manifest.yaml',m)   # like plc-brief-understanding
+        m['related_versions']={NEST+'/'+d:'v1' for d in docs};write_yaml(root/'manifest.yaml',m)
         r=package.migrate_sheets(layer,apply=True,approval_ref='s',program='Sample',registry_db=rf.db_path(self.registry));self.assertTrue(r['applied'],r)
         m2=package.load(layer/'Sheets/manifest.yaml');self.assertEqual(set(m2['related_versions']),{'Sheets/'+x['path'] for x in m2['records'] if x['stage']=='solution'})
         layer,root,c=self.legacy_box('k2',internal=False,init_reply=False);m=package.load(root/'manifest.yaml');d=next(r['path'] for r in m['records'] if r['stage']=='solution')

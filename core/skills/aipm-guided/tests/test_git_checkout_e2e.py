@@ -117,7 +117,7 @@ class GitCheckout(unittest.TestCase):
                 next(r for r in m['records'] if r['path']==target).update(generated_mtime_ns=late)
             self.edit(root,late_record);self.assertIn('E_CHECKPOINT',{c for c,_ in result(layer,phase)[1]})
     def test_accepted_forgery_stages_and_records_together(self):
-        """Owner choice 2: shifting stages and records together (a consistent manifest) is not stopped."""
+        """Shifting stages and records together (a consistent manifest) is not stopped."""
         layer,root,phase=self.copy('legacy '+package.NESTED_LAYOUT)
         def shift(m):
             d=timedelta(hours=1);n=int(d.total_seconds()*1e9)
