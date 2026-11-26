@@ -1,6 +1,6 @@
-"""T015: approved decline of legacy attach candidates + collision normalization.
+"""Approved decline of legacy attach candidates + collision normalization.
 
-API-free and production-free: the T011 adopt-existing fixture in a temporary
+API-free and production-free: the adopt-existing fixture in a temporary
 directory, an in-memory fake Notion (``urlopen`` replaced by AssertionError),
 and the production ``ai_plc.db`` fingerprint asserted unchanged on cleanup.
 """
@@ -16,19 +16,19 @@ from unittest import mock
 
 try:  # unittest discovery imports test modules as top-level modules.
     from . import test_sync_identity as identity_tests
-    from . import test_t014_remote_backfill as t014_tests
+    from . import test_remote_backfill as t014_tests
 except ImportError:  # pragma: no cover - exercised by discovery invocation.
     import test_sync_identity as identity_tests
-    import test_t014_remote_backfill as t014_tests
+    import test_remote_backfill as t014_tests
 
 T014FakeNotion = t014_tests.T014FakeNotion
 T011_UID_B = identity_tests.T011_UID_B
 
 
 class T015AttachDeclineTest(identity_tests.IdentityV2AdoptExistingTest):
-    """Reuses the T011 fixture; the inherited T011 tests are not re-run."""
+    """Reuses the adopt-existing fixture; its inherited tests are not re-run."""
 
-    def run(self, result=None):  # keep inherited T011 tests out of this class
+    def run(self, result=None):  # keep inherited adopt-existing tests out of this class
         if not self._testMethodName.startswith("test_t015_"):
             return result
         return super().run(result)
@@ -94,7 +94,7 @@ class T015AttachDeclineTest(identity_tests.IdentityV2AdoptExistingTest):
                          ops[0]["expected_reconciliation_reason"])
         return plan, ops[0]
 
-    # ── AC1 / AC3: decline -> ordinary CREATE, legacy page untouched ───
+    # ── Decline -> ordinary CREATE, legacy page untouched ───
 
     def test_t015_ac1_declined_candidate_is_created_as_new_identity(self):
         self._adopt()
@@ -113,7 +113,7 @@ class T015AttachDeclineTest(identity_tests.IdentityV2AdoptExistingTest):
         self.assertEqual([["legacy-lb"]], [entry["page_ids"] for entry in meta])
         self.assertEqual("t015-reviewer", meta[0]["approved_by"])
 
-        # AC3: the next Plan no longer offers the page; the row is a CREATE.
+        # The next Plan no longer offers the page; the row is a CREATE.
         plan = self._plan_for(fake)
         ops = self._project_ops(plan)
         self.assertEqual(["create_remote"], [op["action"] for op in ops])
@@ -159,7 +159,7 @@ class T015AttachDeclineTest(identity_tests.IdentityV2AdoptExistingTest):
         self.assertIn('"unchanged": 1', output)
         self.assertEqual(before, self._declined_meta())
 
-    # ── AC2: approval document is strict; nothing is written on refusal ──
+    # ── Approval document is strict; nothing is written on refusal ──
 
     def test_t015_ac2_invalid_decline_documents_stop_before_writing(self):
         self._adopt()
@@ -229,7 +229,7 @@ class T015AttachDeclineTest(identity_tests.IdentityV2AdoptExistingTest):
             result, _calls, _output = self._main(argv)
             self.assertEqual(64, result, argv)
 
-    # ── AC4: collision is a blocked conflict, never a malformed Plan ──────
+    # ── Collision is a blocked conflict, never a malformed Plan ──────
 
     def test_t015_ac4_ambiguous_legacy_is_a_valid_blocked_plan_and_declinable(self):
         self._adopt()
@@ -289,7 +289,7 @@ class T015AttachDeclineTest(identity_tests.IdentityV2AdoptExistingTest):
         self.assertTrue(declined[0].get("audit_only"))
         self.assertEqual(["legacy-1"], declined[0]["page_ids"])
 
-    # ── reviewer #1 follow-ups ───────────────────────────────
+    # ── follow-up cases ────────────────────────────────
 
     def _legacy_task_page(self, page_id):
         page = self._task_page(page_id, "L-B", "T001")

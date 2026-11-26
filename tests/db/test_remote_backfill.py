@@ -1,9 +1,9 @@
-"""T014: backfill-remote-identity (Identity onto already linked Notion pages).
+"""backfill-remote-identity (Identity onto already linked Notion pages).
 
-API-free and production-free: the DB is the T011 adopt-existing fixture in a
+API-free and production-free: the DB is the adopt-existing fixture in a
 temporary directory, Notion is an in-memory fake with ``urlopen`` replaced by
 AssertionError, and the production ``ai_plc.db`` fingerprint is asserted
-unchanged on cleanup (inherited from the T011 fixture setUp).
+unchanged on cleanup (inherited from the adopt-existing fixture setUp).
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ try:  # unittest discovery imports test modules as top-level modules.
 except ImportError:  # pragma: no cover - exercised by discovery invocation.
     import test_sync_identity as identity_tests
 
-# Module attributes only: importing the T011 TestCase class by name would make
-# the loader collect and re-run every T011 test from this module.
+# Module attributes only: importing the adopt-existing TestCase class by name would make
+# the loader collect and re-run every adopt-existing test from this module.
 T007FakeNotion = identity_tests.T007FakeNotion
 T011_UID_A = identity_tests.T011_UID_A
 _built_to_read_properties = identity_tests._built_to_read_properties
@@ -33,7 +33,7 @@ LINKED_TASK_PAGES = ["page-ta1", "page-o2"] + ["page-o%d" % n for n in range(3, 
 
 
 class T014FakeNotion(T007FakeNotion):
-    """T007 fake plus page GET / PATCH (PATCH merges properties)."""
+    """The shared fake Notion plus page GET / PATCH (PATCH merges properties)."""
 
     def __init__(self, sync, projects=None, tasks=None, fail_patch_for=None):
         super().__init__(sync, projects=projects, tasks=tasks)
@@ -61,9 +61,9 @@ class T014FakeNotion(T007FakeNotion):
 
 
 class T014RemoteIdentityBackfillTest(identity_tests.IdentityV2AdoptExistingTest):
-    """Reuses the T011 fixture; the inherited T011 tests are not re-run."""
+    """Reuses the adopt-existing fixture; its inherited tests are not re-run."""
 
-    def run(self, result=None):  # keep inherited T011 tests out of this class
+    def run(self, result=None):  # keep inherited adopt-existing tests out of this class
         if not self._testMethodName.startswith("test_t014_"):
             return result
         return super().run(result)
@@ -111,7 +111,7 @@ class T014RemoteIdentityBackfillTest(identity_tests.IdentityV2AdoptExistingTest)
         self.assertEqual(0, result, output)
         return self._bf_plan()
 
-    # ── AC1: only linked current-workspace pages, only 4 properties ─────
+    # ── Only linked current-workspace pages, only 4 properties ─────
 
     def test_t014_ac1_plan_targets_only_linked_current_workspace_rows(self):
         plan = self._adopted_and_planned()
@@ -178,7 +178,7 @@ class T014RemoteIdentityBackfillTest(identity_tests.IdentityV2AdoptExistingTest)
             self.assertIn(code, output)
             self.assertEqual([], fake.patch_bodies)
 
-    # ── AC2: journal, resume, rerun 0, fixed Plan ─────────────
+    # ── Journal, resume, rerun 0, fixed Plan ─────────────
 
     def test_t014_ac2_resume_after_patch_does_not_patch_twice(self):
         plan = self._adopted_and_planned()
@@ -205,7 +205,7 @@ class T014RemoteIdentityBackfillTest(identity_tests.IdentityV2AdoptExistingTest)
         self.assertIn('"state": "verified"', output)
 
     def test_t014_ac2_resume_before_patch_uses_current_remote_time(self):
-        """Reviewer P0: a Notion edit made after a failed PATCH stays visible."""
+        """A Notion edit made after a failed PATCH stays visible."""
         plan = self._adopted_and_planned()
         fake = self._legacy_remote()
         state_path = str(self._bf_plan_path()) + ".state.json"
@@ -229,7 +229,7 @@ class T014RemoteIdentityBackfillTest(identity_tests.IdentityV2AdoptExistingTest)
             fake._find(first)["last_edited_time"], after["notion_last_edited"]))
 
     def test_t014_ac2_concurrent_edit_is_left_for_pull_not_exit_5(self):
-        """Reviewer P2: other-property change during backfill keeps remote dirty."""
+        """Other-property change during backfill keeps remote dirty."""
         self._adopted_and_planned()
         fake = self._legacy_remote()
         original = fake.api
@@ -250,7 +250,7 @@ class T014RemoteIdentityBackfillTest(identity_tests.IdentityV2AdoptExistingTest)
         self.assertEqual(before["notion_last_edited"], after["notion_last_edited"])
 
     def test_t014_ac2_computed_properties_changed_by_patch_are_not_edits(self):
-        """Reviewer #2 P2: last-edited/formula style properties move on PATCH."""
+        """Last-edited/formula style properties move on PATCH."""
         self._adopted_and_planned()
         fake = self._legacy_remote()
         original = fake.api
@@ -273,7 +273,7 @@ class T014RemoteIdentityBackfillTest(identity_tests.IdentityV2AdoptExistingTest)
         self.assertEqual(T014_PATCH_EDIT, clean["notion_last_edited"])
 
     def test_t014_ac2_claimed_op_whose_row_changed_stops_with_exit_5(self):
-        """Reviewer #2 P2: a PATCH may have landed; never report it as skipped."""
+        """A PATCH may have landed; never report it as skipped."""
         plan = self._adopted_and_planned()
         fake = self._legacy_remote()
         state_path = str(self._bf_plan_path()) + ".state.json"
@@ -370,7 +370,7 @@ class T014RemoteIdentityBackfillTest(identity_tests.IdentityV2AdoptExistingTest)
         self.assertEqual(0, result, output)
         self.assertEqual(9, len(fake.patch_bodies))
 
-    # ── AC3: local baseline keeps local/remote edits visible ──────
+    # ── Local baseline keeps local/remote edits visible ──────
 
     def test_t014_ac3_baseline_clean_dirty_and_remote_dirty(self):
         self._adopted_and_planned()
@@ -401,7 +401,7 @@ class T014RemoteIdentityBackfillTest(identity_tests.IdentityV2AdoptExistingTest)
                        and op["identity"]["project_sync_uid"] == T011_UID_A]
         self.assertEqual(["patch_remote"], [op["action"] for op in project_ops])
 
-    # ── AC4: v2 push never reports a no-op attach as success ────────
+    # ── v2 push never reports a no-op attach as success ────────
 
     def test_t014_ac4_linked_legacy_page_blocks_push_with_backfill_hint(self):
         self._adopt()
@@ -422,7 +422,7 @@ class T014RemoteIdentityBackfillTest(identity_tests.IdentityV2AdoptExistingTest)
         self.assertIn("backfill-remote-identity", output.getvalue())
 
     def test_t014_ac4_execute_guard_refuses_old_authorized_linked_attach(self):
-        """An attach Plan approved before T014 must not report a no-op success."""
+        """An attach Plan approved before backfill-remote-identity existed must not report a no-op success."""
         self._adopt()
         with closing(self._connect()) as conn:
             conn.execute("UPDATE projects SET goal='edited' WHERE scope_id='L-A'")
@@ -432,7 +432,7 @@ class T014RemoteIdentityBackfillTest(identity_tests.IdentityV2AdoptExistingTest)
         attach_ids = [op["operation_id"] for op in plan["operations"]
                       if op["action"] == "attach_candidate"]
         self.assertEqual(1, len(attach_ids))
-        # Re-shape into what the pre-T014 classifier produced (authorization).
+        # Re-shape into what the older classifier produced (authorization).
         rec = plan["reconciliation"]
         rec["authorization_required"]["operation_ids"] = attach_ids
         rec["blocking"]["exit_code"] = 0

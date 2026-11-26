@@ -1,6 +1,6 @@
-"""T016: sync-excluded Scopes are never planned, pulled, backfilled or attached.
+"""Sync-excluded Scopes are never planned, pulled, backfilled or attached.
 
-API-free and production-free: the T011 adopt-existing fixture in a temporary
+API-free and production-free: the adopt-existing fixture in a temporary
 directory, an in-memory fake Notion (``urlopen`` replaced by AssertionError),
 and the production ``ai_plc.db`` fingerprint asserted unchanged on cleanup.
 """
@@ -16,19 +16,19 @@ from unittest import mock
 
 try:  # unittest discovery imports test modules as top-level modules.
     from . import test_sync_identity as identity_tests
-    from . import test_t014_remote_backfill as t014_tests
+    from . import test_remote_backfill as t014_tests
 except ImportError:  # pragma: no cover - exercised by discovery invocation.
     import test_sync_identity as identity_tests
-    import test_t014_remote_backfill as t014_tests
+    import test_remote_backfill as t014_tests
 
 T014FakeNotion = t014_tests.T014FakeNotion
 T011_UID_A = identity_tests.T011_UID_A
 
 
 class T016SyncExclusionTest(identity_tests.IdentityV2AdoptExistingTest):
-    """Reuses the T011 fixture; the inherited T011 tests are not re-run."""
+    """Reuses the adopt-existing fixture; its inherited tests are not re-run."""
 
-    def run(self, result=None):  # keep inherited T011 tests out of this class
+    def run(self, result=None):  # keep inherited adopt-existing tests out of this class
         if not self._testMethodName.startswith("test_t016_"):
             return result
         return super().run(result)
@@ -70,7 +70,7 @@ class T016SyncExclusionTest(identity_tests.IdentityV2AdoptExistingTest):
     def _la_scopes_in(self, plan):
         return {op["display_scope_id"] for op in plan["operations"]}
 
-    # ── AC2: registration clears local links, keeps Identity and content ──
+    # ── Registration clears local links, keeps Identity and content ──
 
     def test_t016_ac2_register_clears_links_and_keeps_rows(self):
         self._adopt()
@@ -117,7 +117,7 @@ class T016SyncExclusionTest(identity_tests.IdentityV2AdoptExistingTest):
         self.assertIn("EXCLUDE_PENDING_JOURNAL", output)
         self.assertTrue(all(row["notion_page_id"] for row in self._la_rows()))
 
-    # ── AC1 / AC4: never planned, never attached, never pulled ─────────
+    # ── Never planned, never attached, never pulled ─────────
 
     def test_t016_ac1_push_plans_skip_excluded_rows_even_with_remote_pages(self):
         self._adopt()
@@ -192,7 +192,7 @@ class T016SyncExclusionTest(identity_tests.IdentityV2AdoptExistingTest):
         self.assertNotIn("L-A", {(item.get("stable_key") or [None])[0]
                                  for item in report["items"]})
 
-    # ── reviewer #1 follow-ups ───────────────────────────────
+    # ── follow-up cases ────────────────────────────────
 
     def test_t016_plan_saved_before_exclude_is_refused_at_execution(self):
         self._adopt()

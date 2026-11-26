@@ -35,9 +35,17 @@ Requires: NOTION_API_TOKEN environment variable, and the Notion DB IDs
   export AI_PLC_PROJECTS_DB_ID=<Projects DB の ID>
   export AI_PLC_TASKS_DB_ID=<Tasks DB の ID>（タスク同期を凍結していれば不要）
 (Project Registry はローカルの ai_plc.db だけでも動く。Notion に触れるコマンドだけがこれらを使う)
+
+DB の場所は隣の aiplc_paths.py が決める（環境変数 AIPLC_DB → .ai-plc/config.yaml の
+id_allocation.db_path → git の共通ディレクトリから求めた本体の DB → 隣の ai_plc.db）。
+書き込むコマンドは、決まった DB が worktree の中の写しなら DB_NOT_MAIN で止まる。
+
+Identity v2.0 への移行（adopt-existing）の手順・--decisions のファイルの書式・
+Notion の DB に要る列は、同じフォルダの README.md の「Notion 同期」にある。
 """
 
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -52,11 +60,19 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-try:  # DB の場所（AIPLC_DB → config → git-common-dir → ここ）。単体でコピーしたときは今までどおり
-    import aiplc_paths  # noqa: E402
-except ImportError:  # pragma: no cover
-    aiplc_paths = None
+def _sibling_aiplc_paths():
+    """隣の aiplc_paths.py（DB の場所を決める共通の関数）を読み込む。無い単体コピーでは None（今までどおり隣の DB）。
+    名前で import しないのは、別の作業ツリーの aiplc_paths が先に読み込まれていても、必ず隣のものを使うため"""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "aiplc_paths.py")
+    if not os.path.isfile(path):
+        return None
+    spec = importlib.util.spec_from_file_location("_aiplc_paths_sibling", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+aiplc_paths = _sibling_aiplc_paths()  # DB の場所（AIPLC_DB → config → git-common-dir → ここ）
 
 BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # このスクリプトのあるフォルダ（Claude Code は .claude/db、Cursor は .cursor/db）
@@ -1055,7 +1071,7 @@ def build_identity_reconciliation_report(
     """Identity v2 reconciliation; Scope matches are audit evidence only.
 
     ``declined`` maps (entity, identity_key) to legacy page IDs a person has
-    declined for that row (T015): those pages are never offered as attach
+    declined for that row: those pages are never offered as attach
     candidates for it again, so the row is created as a distinct Identity.
     """
     declined = declined or {}
@@ -1683,7 +1699,7 @@ def project_reconciliation_for_push(
         elif code == "SAME_SCOPE_DIFFERENT_IDENTITY":
             add(audit, identity)
         elif code == "LEGACY_LINKED_CANDIDATE":
-            # T014: attach cannot write Identity onto an already linked page;
+            # attach cannot write Identity onto an already linked page;
             # backfill-remote-identity must run first, so this never becomes
             # an authorizable no-op.
             add(blocking if reachable else audit, identity)
@@ -1721,7 +1737,7 @@ def project_reconciliation_for_push(
         }
         if (reachable and classification == "attach"
                 and item.get("reason") == "LEGACY_LINKED_CANDIDATE"):
-            # T014: an already linked page needs backfill-remote-identity, not
+            # an already linked page needs backfill-remote-identity, not
             # an authorizable attach (attach writes nothing to Notion).
             add(blocking, identity)
         elif reachable and classification == "attach":
@@ -2433,7 +2449,7 @@ def prepare_workspace_fork(conn, state_path, *, identity_factory=None):
     return state
 
 
-# ── Identity v2.0 lifecycle runtime: fork / activate-writer (T007) ──
+# ── Identity v2.0 lifecycle runtime: fork / activate-writer ──
 
 WORKSPACE_FORK_PLAN_VERSION = 1
 WRITER_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
@@ -2447,7 +2463,7 @@ V2_1_DEFERRED_COMMANDS = {
 
 
 class IdentityLifecycleError(ValueError):
-    """Fail-closed lifecycle refusal carrying the T001 §12.1 exit code."""
+    """Fail-closed lifecycle refusal carrying the command exit code."""
 
     def __init__(self, code, exit_code):
         super().__init__(code)
@@ -2492,7 +2508,7 @@ def build_workspace_fork_plan(conn, *, writer_id, identity_factory=None,
 
     Every Project of the manifest-selected workspace receives exactly one new
     ``sync_uid`` and the fork receives one new ``workspace_id``.  Notion links
-    are not inherited; authority records are deferred to v2.1 (T010).
+    are not inherited; authority records are deferred to v2.1.
     """
     if not isinstance(writer_id, str) or not WRITER_ID_PATTERN.fullmatch(writer_id):
         raise IdentityLifecycleError("WORKSPACE_FORK_WRITER_ID_INVALID", 64)
@@ -3027,7 +3043,7 @@ def cmd_activate_writer(options):
                          sort_keys=True))
         if decision["decision"] == "deferred":
             print("V2_1_REQUIRED: changing the writer of an existing workspace "
-                  "requires IdentityAuthorityStore/ApprovalStore (T010).")
+                  "requires IdentityAuthorityStore/ApprovalStore (not available until v2.1).")
         if decision["decision"] != "activate" or options.get("--dry-run"):
             return decision["exit_code"]
         conn, error = _open_write_conn()
@@ -3053,7 +3069,7 @@ def cmd_deferred_v21(command, options):
     print("V2_1_REQUIRED: %s is not available in Identity v2.0 (%s)." % (
         command, V2_1_DEFERRED_COMMANDS[command]))
     print("  Requires IdentityAuthorityStore CAS, ApprovalStore, and WriterProof "
-          "(T010). No database, manifest, or Notion access was performed.")
+          "(not available until v2.1). No database, manifest, or Notion access was performed.")
     return 3
 
 
@@ -3228,7 +3244,7 @@ def build_identity_pull_guard(conn, remote_pages, context):
                 continue
             report["summary"]["duplicate"] += 1
             # Only a duplicate touching this workspace (or one of its links)
-            # blocks; another workspace's duplicate is audit-only (§8.3).
+            # blocks; another workspace's duplicate is audit-only.
             touches_current = any(
                 values["workspace_id"] == workspace_id
                 or page.get("id") in local[entity]["by_page"]
@@ -3281,7 +3297,7 @@ def build_identity_pull_guard(conn, remote_pages, context):
                           "Identity matches but workspace or epoch differs",
                           critical, entity, page_id=page["id"])
                     continue
-            # Same UID with another workspace/epoch is a mismatch (§3.2-4),
+            # Same UID with another workspace/epoch is a mismatch,
             # detected before any foreign-workspace audit skip.
             epoch_field = ("ownership_epoch" if entity == "project"
                            else "project_ownership_epoch")
@@ -3602,7 +3618,7 @@ def cmd_pull(dry_run=False, skip_preflight=False):
         guard_conn.close()
         print("ERROR: pull query failed: %s" % exc)
         return 4
-    # T016: pages of sync-excluded Scopes are never pulled into local rows.
+    # Pages of sync-excluded Scopes are never pulled into local rows.
     remote_pages = _drop_excluded_remote(remote_pages, excluded_scopes)
     if selection["mode"] == "v2":
         guard_conn.close()
@@ -4716,7 +4732,7 @@ def build_push_plan(skip_preflight=False, scope_id=None, sync_uid=None,
             selected_project_binding is not None
             and _normalize_identity_text(selected_project_binding.get("sync_uid"))
             in excluded_scopes.uids):
-        # T016: an explicit selector for a confidential Scope is refused
+        # An explicit selector for a confidential Scope is refused
         # loudly instead of silently producing an empty Plan.
         conn.close()
         return _blocked_push_plan({"status": "blocked", "findings": [_finding(
@@ -4772,7 +4788,7 @@ def build_push_plan(skip_preflight=False, scope_id=None, sync_uid=None,
     selected = {}
     for entity, table in (("project", "projects"), ("task", "tasks")):
         if entity == "task" and tasks_frozen:
-            # T019: frozen tasks are never selected nor checked.
+            # Frozen tasks are never selected nor checked.
             selected["task"] = []
             continue
         if is_v2 and normalized_scope is None:
@@ -4919,7 +4935,7 @@ def build_push_plan(skip_preflight=False, scope_id=None, sync_uid=None,
             if item:
                 action = item["action"]
                 if is_v2 and action not in PUSH_PLAN_ACTIONS:
-                    # T015: a reconciliation "collision" is not an executable
+                    # A reconciliation "collision" is not an executable
                     # action; keep it as a blocked conflict so the Plan stays
                     # well-formed and reports the collision (exit 2).
                     action = "conflict"
@@ -5417,7 +5433,7 @@ def execute_push_plan(plan, authorization=None, scope_id=None, sync_uid=None,
             elif action == "attach_candidate":
                 page_id = operation["remote_page_ids"][0]
                 if identity_v2_plan and row["notion_page_id"] == page_id:
-                    # T014: re-linking the same page writes nothing to Notion.
+                    # Re-linking the same page writes nothing to Notion.
                     conn.rollback()
                     print("ERROR: REMOTE_IDENTITY_BACKFILL_REQUIRED "
                           "(run backfill-remote-identity first)")
@@ -5578,7 +5594,7 @@ def load_push_plan(path):
     return plan
 
 
-# ── Sync-excluded Scopes (T016) ───────────────────────────
+# ── Sync-excluded Scopes ──────────────────────────────────
 # Confidential Scopes a person has registered as "never in Notion".  Every
 # path (push selection, reconciliation input, pull, remote backfill) drops
 # their rows and any remote page carrying the same Scope ID.  Registration
@@ -5590,7 +5606,7 @@ TASK_FREEZE_KEY = "task_sync_frozen"
 
 
 def _task_sync_frozen(conn):
-    """T019: local tasks are a frozen copy of backlog.yaml; never synced."""
+    """Local tasks are a frozen copy of backlog.yaml; never synced."""
     row = conn.execute("SELECT value FROM _metadata WHERE key=?",
                        (TASK_FREEZE_KEY,)).fetchone()
     if row is None:
@@ -5713,7 +5729,7 @@ class _Exclusions:
     def __init__(self, scopes=(), uids=(), pages=()):
         self.scopes = set(scopes)
         self.uids = set(uids)
-        # T017: legacy pages a person decided to skip (never imported).
+        # Legacy pages a person decided to skip (never imported).
         self.pages = set(pages)
 
     def __bool__(self):
@@ -5906,7 +5922,7 @@ def cmd_exclude(options):
         return _lifecycle_exit(exc)
 
 
-# ── Legacy import (T017) ──────────────────────────────────
+# ── Legacy import ─────────────────────────────────────────
 # Notion-only Projects (no Identity, not linked, not excluded, not skipped) are
 # listed with their collisions; a person fills a triage file (import / skip /
 # exclude).  Import creates local Identity rows linked to the pages (the
@@ -5924,7 +5940,7 @@ def _legacy_candidates(conn, remote_pages):
               for row in conn.execute("SELECT notion_page_id FROM %s WHERE "
                                       "notion_page_id IS NOT NULL" % table)}
     items = []
-    # 2026-10-01 Re-Collection: local tasks are frozen and Notion-only Task
+    # Local tasks are frozen and Notion-only Task
     # rows are never imported, so only Projects are candidates.
     for entity in ("project",):
         for page in remote_pages.get(entity, []):
@@ -6066,7 +6082,7 @@ def apply_legacy_import(conn, remote_pages, triage, *, manifest_path=None):
             raise IdentityLifecycleError("LEGACY_TRIAGE_CONFLICT", 2)
         if entry["decision"] == "skip" and item["scope_id"] in unlinked_local_scopes:
             # Skipping would silently decline the attach candidate of the
-            # unlinked local Project; that is the push --decline flow (T015).
+            # unlinked local Project; that is the push --decline flow.
             raise IdentityLifecycleError("LEGACY_SKIP_NEEDS_DECLINE", 2)
     if any(entry["decision"] == "exclude" for entry in decided.values()) and conn.execute(
             "SELECT 1 FROM _metadata WHERE substr(key, 1, 13) = 'pending_push:' LIMIT 1"
@@ -6127,7 +6143,7 @@ def apply_legacy_import(conn, remote_pages, triage, *, manifest_path=None):
                         cleared[table] = len(ids)
                     _meta_set(conn, key, json.dumps({
                         "approved_by": approved_by.strip(),
-                        "reason": "legacy triage (T017)", "excluded_at": now,
+                        "reason": "legacy triage", "excluded_at": now,
                         "cleared_links": cleared,
                         "project_sync_uids": uids}, ensure_ascii=False, sort_keys=True))
                 counts["excluded"] += 1
@@ -6190,7 +6206,7 @@ def cmd_import_legacy(options):
         return _lifecycle_exit(exc)
 
 
-# ── Declined legacy candidates (T015) ─────────────────────
+# ── Declined legacy candidates ────────────────────────────
 # A person may decide that an Identity-less Notion page sharing a row's Scope
 # ID is a different Project.  The decision is recorded locally (never in
 # Notion); reconciliation then stops offering that page as an attach
@@ -6388,7 +6404,7 @@ def cmd_push(dry_run=False, skip_preflight=False, plan=None, expected_plan_id=No
         print("ERROR: push plan selector does not match --scope/--sync-uid/--workspace-id")
         return 2
     if decline_path:
-        # T015: record the approved declines only; the next dry-run builds
+        # Record the approved declines only; the next dry-run builds
         # ordinary CREATE operations for those rows.
         try:
             with open(decline_path, encoding="utf-8") as handle:
@@ -6605,7 +6621,7 @@ def _render_status_with_connection(conn, audit=False):
     if identity_status is not None:
         _print_identity_status(identity_status)
         if identity_status["status"] != "pass":
-            # manifest/cache split-brain or unresolved workspace (§12.1: 3).
+            # manifest/cache split-brain or unresolved workspace (exit 3).
             identity_exit = 3
 
     # Locally dirty rows
@@ -6699,7 +6715,7 @@ def cmd_sync(dry_run=False):
     return 0
 
 
-# ── Identity migration Plan (T006) ─────────────────────────
+# ── Identity migration Plan ────────────────────────────────
 
 IDENTITY_MIGRATION_PLAN_VERSION = 1
 IDENTITY_MIGRATION_BATCH_SIZE = 10
@@ -7277,7 +7293,7 @@ def execute_identity_migration_plan(conn, plan, remote, intents, *, state_path,
 
 
 class _FixtureMigrationRemote:
-    """Durable file-backed remote used only by the T006 disposable CLI."""
+    """Durable file-backed remote used only by the disposable migration fixture CLI."""
 
     def __init__(self, path):
         self.path = os.fspath(path)
@@ -7384,7 +7400,7 @@ def cmd_migrate_identity(options):
         return 3
 
 
-# ── Identity v2.0 adopt-existing: local manifest without Authority (T011) ──
+# ── Identity v2.0 adopt-existing: local manifest without Authority ──
 #
 # Adopts the already-operating v1 SQLite registry as the current workspace:
 # one fixed Plan issues the workspace_id and every Project UID exactly once,
@@ -7392,7 +7408,7 @@ def cmd_migrate_identity(options):
 # Plan hash, and execution only touches Local surfaces (SQLite dual_read
 # projection -> manifest -> active cache).  No IdentityAuthorityStore,
 # ApprovalStore, WriterProof, Notion, or intent.yaml access happens here;
-# Notion/intent projection stays with migrate-identity (T009 adapter).
+# Notion/intent projection stays with migrate-identity.
 
 ADOPT_EXISTING_PLAN_VERSION = 1
 ADOPT_DECISIONS_VERSION = 1
@@ -7515,7 +7531,7 @@ def _adopt_normalize_decisions(inventory, decisions, decisions_base):
         duplicate = duplicate or item["routing_key"] in by_key
         by_key[item["routing_key"]] = item
     expected = {orphan["routing_key"] for orphan in inventory["orphans"]}
-    # §12.1: an unresolved orphan is an integrity failure (3) and wins over 2.
+    # An unresolved orphan is an integrity failure (3) and wins over 2.
     if expected - set(by_key):
         raise IdentityLifecycleError("ADOPT_ADJUDICATION_INCOMPLETE", 3)
     if duplicate:
@@ -7523,7 +7539,7 @@ def _adopt_normalize_decisions(inventory, decisions, decisions_base):
     if set(by_key) - expected:
         raise IdentityLifecycleError("ADOPT_DECISION_NOT_ORPHAN", 2)
     # One Scope gets one adjudication: a mapped Project would silently adopt
-    # an "excluded" sibling Task later (T006 would no longer see it as orphan).
+    # an "excluded" sibling Task later (migrate-identity would no longer see it as orphan).
     kinds_by_scope = {}
     for orphan in inventory["orphans"]:
         kinds_by_scope.setdefault(orphan["scope_id"], set()).add(
@@ -7574,7 +7590,7 @@ def build_adopt_existing_plan(conn, *, writer_id, decisions, decisions_base=".",
                               identity_factory=None, manifest_path=None):
     """Fix workspace_id, every Project UID and the orphan adjudication once.
 
-    The Plan file is the durable mapping (T001 §4.2/§10.1): it is written
+    The Plan file is the durable mapping: it is written
     before any mutation and reused on rerun, so no Identity is ever
     re-issued.  Read-only; the caller persists the Plan.
     """
@@ -8023,7 +8039,7 @@ def execute_adopt_existing_plan(conn, plan, *, expected_plan_id, state_path,
         _identity_failpoint(fail_at, "after_cache_commit")
         if state["state"] == "manifest_committed":
             state = _adopt_write_state(state_path, state, "cache_committed")
-        # Shared resolver (T007) is the only judge of manifest/cache agreement.
+        # The shared resolver is the only judge of manifest/cache agreement.
         try:
             resolved = resolve_workspace_identity(conn, manifest_path=manifest_path)
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
@@ -8160,9 +8176,9 @@ def cmd_adopt_existing(options):
         return _lifecycle_exit(exc)
 
 
-# ── Remote Identity backfill (T014) ────────────────────────
+# ── Remote Identity backfill ───────────────────────────────
 # Writes the four Identity properties onto Notion pages that are already
-# linked to current-workspace rows but still Identity-less (T001: legacy
+# linked to current-workspace rows but still Identity-less (legacy
 # linked pages are backfilled only through a fixed, approved Plan).  No other
 # property, no unlinked row, no legacy_excluded row and no other workspace is
 # ever touched.  The Plan is local-only; remote state is checked per page at

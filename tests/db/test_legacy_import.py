@@ -1,9 +1,9 @@
-"""T017: import Notion-only legacy Projects through a human triage file.
+"""Import Notion-only legacy Projects through a human triage file.
 
-2026-10-01 Re-Collection: local tasks are frozen, so Notion-only Task rows are
+Local tasks are frozen, so Notion-only Task rows are
 never listed or imported (only Projects).
 
-API-free and production-free: the T011 adopt-existing fixture in a temporary
+API-free and production-free: the adopt-existing fixture in a temporary
 directory, an in-memory fake Notion (``urlopen`` replaced by AssertionError),
 and the production ``ai_plc.db`` fingerprint asserted unchanged on cleanup.
 """
@@ -20,10 +20,10 @@ from unittest import mock
 
 try:  # unittest discovery imports test modules as top-level modules.
     from . import test_sync_identity as identity_tests
-    from . import test_t014_remote_backfill as t014_tests
+    from . import test_remote_backfill as t014_tests
 except ImportError:  # pragma: no cover - exercised by discovery invocation.
     import test_sync_identity as identity_tests
-    import test_t014_remote_backfill as t014_tests
+    import test_remote_backfill as t014_tests
 
 T014FakeNotion = t014_tests.T014FakeNotion
 T011_UID_A = identity_tests.T011_UID_A
@@ -31,9 +31,9 @@ LEGACY_EDIT = "2026-08-01T00:00:00.000Z"
 
 
 class T017LegacyImportTest(identity_tests.IdentityV2AdoptExistingTest):
-    """Reuses the T011 fixture; the inherited T011 tests are not re-run."""
+    """Reuses the adopt-existing fixture; its inherited tests are not re-run."""
 
-    def run(self, result=None):  # keep inherited T011 tests out of this class
+    def run(self, result=None):  # keep inherited adopt-existing tests out of this class
         if not self._testMethodName.startswith("test_t017_"):
             return result
         return super().run(result)
@@ -53,7 +53,7 @@ class T017LegacyImportTest(identity_tests.IdentityV2AdoptExistingTest):
         return page
 
     def _remote(self):
-        # Pages already linked to local rows (with Identity), as after T009.
+        # Pages already linked to local rows (with Identity), as after migrate-identity.
         base = self._backfilled_remote()
         for entity, pages in base.pages.items():
             for page in pages:
@@ -103,7 +103,7 @@ class T017LegacyImportTest(identity_tests.IdentityV2AdoptExistingTest):
     def _good_decisions(self):
         return {"lg-n1": "import", "lg-d1": "import", "lg-p": "exclude"}
 
-    # ── AC1: dry-run lists candidates with collisions, writes nothing ─────
+    # ── Dry-run lists candidates with collisions, writes nothing ─────
 
     def test_t017_ac1_dry_run_lists_candidates_and_collisions(self):
         self._adopt()
@@ -123,7 +123,7 @@ class T017LegacyImportTest(identity_tests.IdentityV2AdoptExistingTest):
         self.assertTrue(all(item["decision"] is None for item in template["items"]))
         self.assertIsNone(template["approved_by"])
 
-    # ── AC3: import links rows with Identity; backfill + rerun are clean ───
+    # ── Import links rows with Identity; backfill + rerun are clean ───
 
     def test_t017_ac3_import_then_backfill_is_clean(self):
         self._adopt()
@@ -173,7 +173,7 @@ class T017LegacyImportTest(identity_tests.IdentityV2AdoptExistingTest):
         self.assertIn("NOOP", output)
         self.assertEqual(before, self._snapshot())
 
-    # ── AC2 / AC3: strict file, collisions and missing parents stop ─────
+    # ── Strict file, collisions and missing parents stop ─────
 
     def test_t017_ac2_invalid_triage_files_stop_before_writing(self):
         self._adopt()
@@ -246,7 +246,7 @@ class T017LegacyImportTest(identity_tests.IdentityV2AdoptExistingTest):
             self.assertIn(code, output)
             self.assertEqual(before, self._snapshot())  # all-or-nothing
 
-    # ── AC4: skip / exclude disappear from later lists and reconciliation ──
+    # ── Skip / exclude disappear from later lists and reconciliation ──
 
     def test_t017_ac4_skipped_and_excluded_pages_do_not_come_back(self):
         self._adopt()
@@ -266,7 +266,7 @@ class T017LegacyImportTest(identity_tests.IdentityV2AdoptExistingTest):
         self.assertEqual(0, result, output)
         self.assertEqual([], fake.mutations())
 
-    # ── reviewer #1 follow-ups ───────────────────────────────
+    # ── follow-up cases ────────────────────────────────
 
     def test_t017_exclude_decision_clears_local_links_like_exclude(self):
         self._adopt()

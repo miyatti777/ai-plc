@@ -197,7 +197,7 @@ class Ops_and_validate(Base):
         out=ops.run(layer,'issue.add','Context/q.yaml');self.assertEqual(out['route'],'held');self.assertIn('redit',out['reason'])
         rex.redit(layer,self.inp(layer,[self.EDITS[5]]),apply=True);self.adopt(layer);rex.redit_apply(layer,apply=True,approval_ref='s')   # D1
         write_yaml(layer/'Context/mv.yaml',{'id':'D1','status':'doing'});out=ops.run(layer,'todo.move','Context/mv.yaml')
-        self.assertNotEqual(out.get('route'),'held')   # todo.move stays (design §8)
+        self.assertNotEqual(out.get('route'),'held')   # todo.move stays
         write_yaml(layer/'Context/mv2.yaml',{'id':'D1','status':'done','note_add':'synthetic: closed by the owner'});before=package.load(root/'todo.yaml')
         out=ops.run(layer,'todo.move','Context/mv2.yaml',apply=True);self.assertEqual(out['route'],'held');self.assertIn('status だけ',out['reason'])
         self.assertEqual(package.load(root/'todo.yaml'),before)
@@ -251,7 +251,7 @@ class ReviewFixesT004(Base):
         self.assertIn('今は redit で足せない',r['todo.link']);self.assertIn('parent',r['issue.split']);self.assertIn('redit-apply',r['todo.add'])
 
 class ReviewFixesT004b(Base):
-    """Second review: a later 差し戻し stops an adopted proposal not written yet; references of a new row are checked."""
+    """A later 差し戻し stops an adopted proposal not written yet; references of a new row are checked."""
     def test_send_back_after_revert_is_not_written(self):
         layer,root=self.box('sb');rex.redit(layer,self.inp(layer,[self.EDITS[3]]),apply=True);self.adopt(layer)
         rex.redit_apply(layer,apply=True,approval_ref='s');rex.redit_revert(layer,apply=True,approval_ref='s')
@@ -275,7 +275,7 @@ class ReviewFixesT004b(Base):
         self.assertNotIn('priority',h);self.assertEqual(self.final(layer,root)[:2],(True,[]))
 
 class ReviewFixesT004c(Base):
-    """Third review: wbs evidence and the box's contract are checked at the proposal; a revert keeps a record of the
+    """The wbs evidence and the box's contract are checked at the proposal; a revert keeps a record of the
     write's approval and the revert's; malformed new rows stop; the list that matches the proposals now is the one judged."""
     def test_wbs_evidence_is_checked_at_the_proposal(self):
         layer,root=self.box('we')
@@ -302,7 +302,7 @@ class ReviewFixesT004c(Base):
             with self.assertRaisesRegex(ValueError,msg):rex.redit(layer,self.inp(layer,[e]))
 
 class ReviewFixesT004d(Base):
-    """Fourth review: unquoted YAML dates, undecided references, the list chosen by the proposals now."""
+    """Unquoted YAML dates, undecided references, the list chosen by the proposals now."""
     def test_unquoted_dates_become_text(self):
         layer,root=self.box('ud');(layer/'Context/d.yaml').write_text('source: {kind: document, ref: synthetic}\nedits:\n- {op: add_row, register: issues, row_data: {question: "q?", priority: high, due: 2026-11-30}}\n- {op: add_row, register: wbs, row_data: {deliverable: d, exit_criteria: e, owner: "[unknown]", status: draft, schedule: {forecast: {start: 2026-11-01, end: 2026-11-30}}}}\n')
         rex.redit(layer,'Context/d.yaml',apply=True);self.adopt(layer);rex.redit_apply(layer,apply=True,approval_ref='s')
@@ -321,7 +321,7 @@ class ReviewFixesT004d(Base):
         rex.redit_apply(layer,apply=True,approval_ref='s2');self.assertEqual(len(package.load(root/'manifest.yaml')['register_edits']),1)   # L1 matches again
 
 class ReviewFixesT004e(Base):
-    """Fifth review: value types that would fail the check after writing stop at the proposal; the reply is in the list."""
+    """Value types that would fail the check after writing stop at the proposal; the reply is in the list."""
     def test_types_stop_at_the_proposal(self):
         layer,root=self.box('ty')
         for e,msg in (({'op':'add_row','register':'todo','row_data':{'title':'t','owner':'[unknown]','source':3}},'text or a list of ids'),

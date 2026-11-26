@@ -188,7 +188,7 @@ class SheetsOps(tops.Ops):
     setUp=sheets_ops_setup;layer=sheets_ops_layer;LAYOUT=package.SHEETS_LAYOUT
     def test_cli(self):
         """The CLI runs in another process, where registers_fixture's archived box is a saved box: since pm- writes
-        stop there (design §8), and issue.resolve still goes on to its own checks."""
+        stop there, and issue.resolve still goes on to its own checks."""
         import json, subprocess, sys
         layer,root=self.layer();ref=self.inp(layer,'i.yaml',{'question':'CLI の問い'})
         run=lambda *a:json.loads(subprocess.run([sys.executable,'-B',str(package.METHOD/'package.py'),'op','--layer',str(layer),*a],capture_output=True,text=True).stdout)

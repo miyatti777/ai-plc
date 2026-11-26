@@ -1,6 +1,6 @@
-"""T019: with task sync frozen, only Projects are pushed, pulled, backfilled.
+"""With task sync frozen, only Projects are pushed, pulled, backfilled.
 
-API-free and production-free: the T011 adopt-existing fixture in a temporary
+API-free and production-free: the adopt-existing fixture in a temporary
 directory, an in-memory fake Notion (``urlopen`` replaced by AssertionError),
 and the production ``ai_plc.db`` fingerprint asserted unchanged on cleanup.
 """
@@ -16,18 +16,18 @@ from unittest import mock
 
 try:  # unittest discovery imports test modules as top-level modules.
     from . import test_sync_identity as identity_tests
-    from . import test_t014_remote_backfill as t014_tests
+    from . import test_remote_backfill as t014_tests
 except ImportError:  # pragma: no cover - exercised by discovery invocation.
     import test_sync_identity as identity_tests
-    import test_t014_remote_backfill as t014_tests
+    import test_remote_backfill as t014_tests
 
 T014FakeNotion = t014_tests.T014FakeNotion
 
 
 class T019ProjectsOnlySyncTest(identity_tests.IdentityV2AdoptExistingTest):
-    """Reuses the T011 fixture; the inherited T011 tests are not re-run."""
+    """Reuses the adopt-existing fixture; its inherited tests are not re-run."""
 
-    def run(self, result=None):  # keep inherited T011 tests out of this class
+    def run(self, result=None):  # keep inherited adopt-existing tests out of this class
         if not self._testMethodName.startswith("test_t019_"):
             return result
         return super().run(result)
@@ -95,7 +95,7 @@ class T019ProjectsOnlySyncTest(identity_tests.IdentityV2AdoptExistingTest):
             ["tasks-sync", "--unfreeze", "--approved-by", "x"])
         self.assertEqual(2, result, output)
 
-    # ── AC1: push / reconciliation / backfill never touch tasks ───────
+    # ── Push / reconciliation / backfill never touch tasks ───────
 
     def test_t019_push_plans_only_projects_and_never_query_tasks_db(self):
         self._adopt()
@@ -160,7 +160,7 @@ class T019ProjectsOnlySyncTest(identity_tests.IdentityV2AdoptExistingTest):
         self.assertNotIn("link:task", checked)
         self.assertIn("project", checked)
 
-    # ── AC1 / AC2: pull ignores Notion tasks; local tasks stay frozen ─────
+    # ── Pull ignores Notion tasks; local tasks stay frozen ─────
 
     def test_t019_pull_ignores_tasks_and_keeps_local_tasks_unchanged(self):
         self._adopt()
@@ -184,7 +184,7 @@ class T019ProjectsOnlySyncTest(identity_tests.IdentityV2AdoptExistingTest):
         self.assertIn("frozen (not synced", output)
         self.assertNotIn("edited task", output)
 
-    # ── reviewer #1 follow-ups ───────────────────────────────
+    # ── follow-up cases ────────────────────────────────
 
     def test_t019_status_audit_does_not_count_frozen_tasks(self):
         self._adopt()
@@ -234,7 +234,7 @@ class T019ProjectsOnlySyncTest(identity_tests.IdentityV2AdoptExistingTest):
         self.assertEqual("blocked", report["status"])
         self.assertIn("TASK_FREEZE_RECORD_INVALID", json.dumps(report))
 
-    # ── AC3: projects still sync normally ──────────────────────────────
+    # ── Projects still sync normally ──────────────────────────────
 
     def test_t019_projects_still_push_with_post_verify(self):
         self._adopt()

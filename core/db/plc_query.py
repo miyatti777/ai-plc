@@ -17,6 +17,12 @@ Usage:
 
 タスクの正は各 Layer の backlog.yaml。tasks テーブルは古い写しで、凍結中
 （`python3 .claude/db/sync.py tasks-sync --status`）は読みも書きもしない。
+
+DB の場所は sync.py・init_db.py と同じく隣の aiplc_paths.py が決める（環境変数 AIPLC_DB →
+.ai-plc/config.yaml の id_allocation.db_path → git の共通ディレクトリから求めた本体の DB → 隣の ai_plc.db）。
+設定が無ければ今までどおり隣の ai_plc.db。書き込むコマンドは、決まった DB が worktree の中の写しなら
+DB_NOT_MAIN で止まる（exit 3。AIPLC_DB で明示したときは通す）。sql の SELECT・WITH・EXPLAIN は
+読むだけの接続で実行し、書き込みを含んでいたら書き込みとして扱い直す。
 """
 
 import datetime
@@ -27,11 +33,35 @@ import re
 import sqlite3
 import sys
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ai_plc.db")
+def _sibling_aiplc_paths():
+    """隣の aiplc_paths.py（DB の場所を決める共通の関数）を読み込む。無い単体コピーでは None（今までどおり隣の DB）。
+    名前で import しないのは、別の作業ツリーの aiplc_paths が先に読み込まれていても、必ず隣のものを使うため"""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "aiplc_paths.py")
+    if not os.path.isfile(path):
+        return None
+    spec = importlib.util.spec_from_file_location("_aiplc_paths_sibling", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+aiplc_paths = _sibling_aiplc_paths()  # DB の場所（AIPLC_DB → config → git-common-dir → ここ）
+
 # Project root: <root>/.claude/db/plc_query.py (or .cursor/db/) -> two levels up.
 BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# このスクリプトのあるフォルダ（Claude Code は .claude/db、Cursor は .cursor/db）
+SCRIPT_DB_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = (aiplc_paths.db_path(BASE) if aiplc_paths
+           else os.path.join(SCRIPT_DB_DIR, "ai_plc.db"))
 TASK_FREEZE_KEY = "task_sync_frozen"
 WORKSPACE_MANIFEST_PATH = os.path.join(os.path.dirname(DB_PATH), "workspace_identity.json")
+if not os.path.exists(WORKSPACE_MANIFEST_PATH):  # AIPLC_DB で DB だけ別の場所を指したとき
+    WORKSPACE_MANIFEST_PATH = os.path.join(SCRIPT_DB_DIR, "workspace_identity.json")
+WRITE_COMMANDS = {"add-project", "add-task", "someday-add", "someday-start", "someday-revert"}
+READ_SQL = ("SELECT", "WITH", "EXPLAIN")  # sql のうち、これで始まるもの（先頭のコメントは除く）は読むだけとみなす
+# 読むだけとみなした文は PRAGMA query_only=ON の接続で実行する（cmd_sql_read）。
+# WITH x AS (...) DELETE のように書き込みを含んでいたら SQLite が断るので、書き込みとして扱い直す。
+_LEADING_COMMENTS = re.compile(r"\A(?:\s+|--[^\n]*(?:\n|\Z)|/\*.*?\*/)*", re.S)
 SYNC_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sync.py")
 SYNC = None  # sync.py module (shared Identity resolver); tests may inject one
 SKIP_DIRS = {"node_modules", "Documents", "__pycache__", "venv"}
@@ -40,7 +70,7 @@ SKIP_DIRS = {"node_modules", "Documents", "__pycache__", "venv"}
 def get_conn():
     if not os.path.exists(DB_PATH):
         print(f"DB not found: {DB_PATH}")
-        print("Run: python3 .claude/db/init_db.py --import")
+        print("Create it with: python3 .claude/db/init_db.py --allow-production")
         sys.exit(1)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -256,6 +286,41 @@ def _identity_less_counts(conn):
         counts[table] = conn.execute(
             f"SELECT COUNT(*) FROM {table} WHERE {condition}").fetchone()[0]
     return counts
+
+
+def _looks_read_only(query):
+    """先頭のコメントと空白を除いて READ_SQL で始まるか（ここは目安。本当の判定は query_only）"""
+    return _LEADING_COMMENTS.sub("", query, count=1).upper().startswith(READ_SQL)
+
+
+def _is_write_refusal(exc):
+    if aiplc_paths:
+        return aiplc_paths.is_write_refusal(exc)
+    return isinstance(exc, sqlite3.DatabaseError) and (
+        "readonly database" in str(exc) or "not authorized" in str(exc))
+
+
+def cmd_sql_read(conn, query):
+    """読むだけとみなした sql を query_only の接続で実行する。
+    書き込みを含んでいて SQLite に断られたら、何も書かずに None を返す（呼び出し側が書き込みとして扱い直す）"""
+    if aiplc_paths:
+        aiplc_paths.make_query_only(conn)
+    else:  # pragma: no cover
+        conn.execute("PRAGMA query_only=ON")
+    try:
+        rows = conn.execute(query).fetchall()
+    except Exception as e:
+        if conn.in_transaction:
+            conn.rollback()
+        if _is_write_refusal(e):
+            return None
+        print(f"Error: {e}")
+        return 0
+    if rows:
+        print_table(rows)
+    else:
+        print("(no results)")
+    return 0
 
 
 def cmd_sql(conn, query):
@@ -609,6 +674,25 @@ def cmd_someday_revert(conn, args):
     return 0
 
 
+def _check_db_path(writes):
+    """`.ai-plc/config.yaml` の id_allocation.mode が local-db か git-ref のときだけ確かめる: 書き込みなら
+    check_write（決まった DB が worktree の中の写しなら DB_NOT_MAIN で 3 を返す）、読むだけなら警告だけ。
+    既定の solo と、aiplc_paths.py が無い単体コピーでは何も確かめない（今までどおり隣の DB）"""
+    if aiplc_paths is None:
+        return 0
+    if aiplc_paths.resolve_db(BASE).mode == "solo":
+        return 0  # 既定（設定で本体の DB を使うと決めていない）: 今までどおり隣の DB に読み書きする
+    try:
+        if writes:
+            aiplc_paths.check_write(DB_PATH)
+        else:
+            aiplc_paths.warn_read(DB_PATH)
+    except aiplc_paths.DbNotMain as exc:
+        print(f"[BLOCKED] {exc}")
+        return 3
+    return 0
+
+
 def main(argv=None):
     argv = list(sys.argv if argv is None else argv)
     if len(argv) < 2:
@@ -616,6 +700,11 @@ def main(argv=None):
         return
 
     cmd = argv[1]
+    writes = cmd in WRITE_COMMANDS or (
+        cmd == "sql" and len(argv) > 2 and not _looks_read_only(argv[2]))
+    blocked = _check_db_path(writes)
+    if blocked:
+        return blocked
     conn = get_conn()
     code = 0
 
@@ -631,8 +720,18 @@ def main(argv=None):
     elif cmd == "sql":
         if len(argv) < 3:
             print("Usage: sql 'SELECT ...'")
-        else:
+        elif writes:
             code = cmd_sql(conn, argv[2])
+        else:
+            code = cmd_sql_read(conn, argv[2])
+            if code is None:  # 読むだけに見えて書き込みを含む文（WITH … DELETE など）
+                conn.close()
+                code = _check_db_path(True)
+                if not code:
+                    conn = get_conn()
+                    code = cmd_sql(conn, argv[2])
+                else:
+                    return code
     elif cmd == "add-project":
         code = cmd_add_project(conn, argv[2:])
     elif cmd == "add-task":

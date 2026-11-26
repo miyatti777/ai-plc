@@ -93,7 +93,7 @@ def place(root,path,locator,before):
     return text
 def last_key(locator):return locator.split('.')[-1].strip()
 
-# ---- ripple (design §5) ----
+# ---- ripple ----
 def ids_of(*texts):return sorted({x for t in texts if isinstance(t,str) for x in ID_RE.findall(t)})
 def hits(text,ids,path):
     """The lines of a document that mention any of ids, each with the locator around it (heading or top-level key)."""
@@ -134,7 +134,7 @@ def _new_ids(layer,count):
     day=datetime.now(timezone.utc).astimezone().strftime('%Y%m%d');used=[int(x.group(1)) for q in _files(layer) for x in [re.fullmatch('C-'+day+r'-([0-9]+)',q.stem)] if x]
     n=max(used,default=0);return ['C-'+day+'-'+str(n+k).zfill(2) for k in range(1,count+1)]
 def content_sha(p):
-    """The proposal without judgment and merge: writing a judgement keeps the list digest (design §3)."""
+    """The proposal without judgment and merge: writing a judgement keeps the list digest."""
     return hashlib.sha256(json.dumps({k:v for k,v in p.items() if k not in ('judgment','merge')},ensure_ascii=False,sort_keys=True).encode()).hexdigest()
 
 def change(layer,input_path,*,apply=False):
@@ -271,7 +271,7 @@ def judge_change(layer,digest,quote,at,thread=None):
                 p['impact']=ripple(layer,c,root,m,docs,p['target']['path'],p['ids']);mark(p,proposals(layer))
         if kind in ('all','adopt') and p['judgment'].get('state')=='rejected':continue   # never reached: a rejected proposal has left the list
         p['judgment']=rec
-        if state=='rejected':p['merge']={'state':'not_applicable'}   # 差し戻し: out of every later list (design §7 対象外)
+        if state=='rejected':p['merge']={'state':'not_applicable'}   # 差し戻し: out of every later list
         changed.append((f,p))
     lold=lq.read_bytes();new_list=None;before_lists=set(safe_path(layer,CHANGES).glob('list_*.yaml'))
     try:

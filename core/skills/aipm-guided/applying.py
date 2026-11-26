@@ -57,7 +57,7 @@ def plan(layer,approval_ref=None):
         if k!=1:raise ValueError(p['id']+': before is '+('not' if k==0 else str(k)+' times')+' in '+path+' / '+p['target']['locator']+' now (an old proposal; nothing written)')
         i=text.index(p['before'],a);texts[path]=text[:i]+p['after']+text[i+len(p['before']):]
         new.setdefault(path,[]).append(p)
-    # design §4.3: an evidence row on a document this version changes would lose its source_sha256
+    # an evidence row on a document this version changes would lose its source_sha256
     on=[e.get('id') for e in m.get('evidence') or [] if isinstance(e,dict) and e.get('source') in {pkg+'/'+x for x in new}]
     if on:raise ValueError('evidence '+', '.join(map(str,on))+' points into a document this version changes; that is out of apply (nothing written)')
     after={path:texts[path].encode() for path in new}
@@ -65,9 +65,9 @@ def plan(layer,approval_ref=None):
     new_docs={**docs,**{path:hashlib.sha256(b).hexdigest() for path,b in after.items()}}
     for path in new:
         if new_docs[path]==docs[path]:raise ValueError(path+' would not change (nothing written)')
-    # the person's answers bound to a changed document: a new receipt from the judgement (design §4.2)
+    # the person's answers bound to a changed document: a new receipt from the judgement
     # each adopted judgement answered one saved list (judge_change keeps its digest even when 修正 saves a newer list): the
-    # apply_v<N> event starts when the earliest of those lists was made, so every judgement time lies in the event (design §4.2)
+    # apply_v<N> event starts when the earliest of those lists was made, so every judgement time lies in the event
     lists={}
     for v in new.values():
         for p in v:
@@ -89,7 +89,7 @@ def plan(layer,approval_ref=None):
         if not isinstance(r,dict) or not isinstance(r.get('target_path'),str) or not r['target_path'].startswith(pkg+'/'):continue
         path=r['target_path'][len(pkg)+1:]
         if path not in new:continue
-        js=sorted((p['judgment'] for p in new[path]),key=lambda j:datetime.fromisoformat(j['at']));j=js[-1]   # the last reply on this document is the answer (design §4.2); every reply is kept in the receipt
+        js=sorted((p['judgment'] for p in new[path]),key=lambda j:datetime.fromisoformat(j['at']));j=js[-1]   # the last reply on this document is the answer; every reply is kept in the receipt
         if not j.get('thread'):raise ValueError('the judgement of '+path+' (the target of the '+key+' answer) has no conversation id; judge it again with --thread (nothing written)')
         name='Context/receipt_apply_v'+str(n)+'_'+slug(key,'answer key')+'_'+lst['digest'][:12]+suffix+'.yaml'
         if safe_path(layer,name).exists():raise ValueError(name+' already exists; a receipt is never overwritten (nothing written)')

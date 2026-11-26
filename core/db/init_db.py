@@ -412,7 +412,7 @@ def migrate_classification_executors(conn):
         try:
             for name in tables:
                 counts[name] = [conn.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0], None]
-                conn.execute(f"ALTER TABLE {name} RENAME TO {name}__before_t012")
+                conn.execute(f"ALTER TABLE {name} RENAME TO {name}__before_migration")
             executors = ",".join("'%s'" % e for e in CLASSIFICATION_EXECUTORS)
             ddl = {"project_classification": f"""CREATE TABLE project_classification (
             scope_id    TEXT PRIMARY KEY,
@@ -430,8 +430,8 @@ def migrate_classification_executors(conn):
         )"""}
             for name in tables:
                 conn.execute(ddl[name])
-                conn.execute(f"INSERT INTO {name} ({cols[name]}) SELECT {cols[name]} FROM {name}__before_t012")
-                conn.execute(f"DROP TABLE {name}__before_t012")
+                conn.execute(f"INSERT INTO {name} ({cols[name]}) SELECT {cols[name]} FROM {name}__before_migration")
+                conn.execute(f"DROP TABLE {name}__before_migration")
                 counts[name][1] = conn.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]
                 if counts[name][0] != counts[name][1]:
                     raise sqlite3.DatabaseError(f"{name}: 行数が合わない {counts[name]}")

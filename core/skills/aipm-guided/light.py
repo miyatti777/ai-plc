@@ -6,14 +6,14 @@ Two shapes share these two sheets (Sheets/todo.yaml and Sheets/wbs.yaml, the sam
 - kind aipm_sheets: an aipm Layer without aipm.registers that got the two sheets (package.py add-sheets). Its box record
   is Sheets/light_sheets.yaml, beside (never instead of) the aipm package and its own format_contract.yaml.
 
-The reference fields are not used in either shape (decision 7): wbs issue_ids / milestone_id, and I/H ids in todo source.
+The reference fields are not used in either shape: wbs issue_ids / milestone_id, and I/H ids in todo source.
 Nothing here calls an external command, writes outside the Layer, or overwrites an existing file.
 """
 from pathlib import Path
 import copy, re
 import yaml
 
-import package as _package   # addon_selector through the module, so a patched selector is seen (review P1-2)
+import package as _package   # addon_selector through the module, so a patched selector is seen
 from package import (load, sha, safe_path, intent, registers_contract_path, registers_layout,
                      SHEETS_ROOT, SHEETS_LAYOUT, LEGACY_ROOT, saved_contract)
 
@@ -285,7 +285,7 @@ def validate(layer):
 
 
 def switch_ready(layer):
-    """aipm-light -> aipm (decision 6): True when the intent now selects aipm with aipm.registers and Sheets/ holds the
+    """aipm-light -> aipm: True when the intent now selects aipm with aipm.registers and Sheets/ holds the
     light box. package.init adopts the two sheets as part of the registers and adds the rest."""
     kind, q, saved = record(layer)
     if kind != LIGHT_KIND or method(layer)[0] != 'aipm':

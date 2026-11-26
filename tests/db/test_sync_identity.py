@@ -1,7 +1,7 @@
 """Deterministic, API-free contract harness for AI-PLC Sync Identity v2.
 
 This module intentionally does not import the production sync engine.  It provides
-reusable fakes and disposable SQLite fixtures for T003 and later tasks, while its
+reusable fakes and disposable SQLite fixtures for the later test classes, while its
 own tests prove that failures are deterministic and cannot reach the production
 database or the real Notion API.
 """
@@ -763,7 +763,7 @@ class ContractGate:
 
 
 class BreakGlassGate:
-    """Require all three T001 handoff-CAS recovery evidences."""
+    """Require all three handoff-CAS recovery evidences."""
 
     @staticmethod
     def authorize(
@@ -1636,7 +1636,7 @@ class IdentityHarnessTest(unittest.TestCase):
 
 
 class IdentityV2ReconciliationAuditTest(unittest.TestCase):
-    """T004 Identity-first schema, reconciliation, and audit contracts."""
+    """Identity-first schema, reconciliation, and audit contracts."""
 
     def setUp(self):
         self.production_before = file_fingerprint(PRODUCTION_DB)
@@ -1951,7 +1951,7 @@ class IdentityV2ReconciliationAuditTest(unittest.TestCase):
 
     def test_local_identity_schema_rejects_partial_and_mixed_profiles(self):
         init_db = load_module(DB_DIR / "init_db.py", f"identity_init_t004_{id(self)}")
-        with tempfile.TemporaryDirectory(prefix="ai-plc-identity-t004-schema-") as root:
+        with tempfile.TemporaryDirectory(prefix="ai-plc-identity-schema-") as root:
             path = Path(root) / "schema.db"
             with closing(sqlite3.connect(path)) as conn:
                 init_db.create_schema(conn)
@@ -2166,11 +2166,11 @@ class IdentityV2ReconciliationAuditTest(unittest.TestCase):
 
 
 class IdentityV2PlanJournalFencingTest(unittest.TestCase):
-    """T005 immutable Identity Plan and durable journal fencing contracts."""
+    """Immutable Identity Plan and durable journal fencing contracts."""
 
     def setUp(self):
         self.production_before = file_fingerprint(PRODUCTION_DB)
-        self.temp_dir = tempfile.TemporaryDirectory(prefix="ai-plc-identity-t005-")
+        self.temp_dir = tempfile.TemporaryDirectory(prefix="ai-plc-identity-plan-")
         self.addCleanup(self._assert_production_unchanged)
         self.addCleanup(self.temp_dir.cleanup)
         self.root = Path(self.temp_dir.name)
@@ -2635,11 +2635,11 @@ class IdentityV2PlanJournalFencingTest(unittest.TestCase):
 
 
 class IdentityV2ProductionMigrationTest(unittest.TestCase):
-    """T003 contract tests for the production migration/bootstrap helpers."""
+    """Contract tests for the production migration/bootstrap helpers."""
 
     def setUp(self):
         self.production_before = file_fingerprint(PRODUCTION_DB)
-        self.temp_dir = tempfile.TemporaryDirectory(prefix="ai-plc-identity-t003-")
+        self.temp_dir = tempfile.TemporaryDirectory(prefix="ai-plc-identity-bootstrap-")
         self.addCleanup(self._assert_production_unchanged)
         self.addCleanup(self.temp_dir.cleanup)
         self.root = Path(self.temp_dir.name)
@@ -3331,7 +3331,7 @@ class IdentityV2ProductionMigrationTest(unittest.TestCase):
 
 
 class FakeMigrationRemote:
-    """Minimal three-surface boundary for the T006 migration engine."""
+    """Minimal three-surface boundary for the migration engine."""
 
     def __init__(self):
         self.rows = {}
@@ -3352,7 +3352,7 @@ class FakeMigrationRemote:
 
 
 class IdentityV2MigrationPlanBackfillTest(unittest.TestCase):
-    """T006 failure-first contract using only disposable local surfaces."""
+    """Failure-first contract using only disposable local surfaces."""
 
     def setUp(self):
         self.tempdir = tempfile.TemporaryDirectory()
@@ -3681,7 +3681,7 @@ class IdentityV2MigrationPlanBackfillTest(unittest.TestCase):
     def test_fixture_cli_dry_run_execute_resume_and_status(self):
         fixture_db = self.root / "ai_plc.db"
         fixture_db.write_bytes(self.db_path.read_bytes())
-        (self.root / ".identity-migration-fixture").write_text("T006\n", encoding="utf-8")
+        (self.root / ".identity-migration-fixture").write_text("fixture\n", encoding="utf-8")
         (self.root / "remote.json").write_text("{}", encoding="utf-8")
         (self.root / "intents.json").write_text(
             json.dumps(self.intents), encoding="utf-8"
@@ -3719,7 +3719,7 @@ class IdentityV2MigrationPlanBackfillTest(unittest.TestCase):
         hardlink_root = self.root / "hardlink-fixture"
         hardlink_root.mkdir()
         (hardlink_root / ".identity-migration-fixture").write_text(
-            "T006\n", encoding="utf-8"
+            "fixture\n", encoding="utf-8"
         )
         # 公開版のリポジトリには ai_plc.db が無いので、一時の「本番」の DB を作って sync.DB_PATH をそこへ向ける
         production = self.root / "production" / "ai_plc.db"
@@ -3790,14 +3790,14 @@ class T007FakeNotion:
 
 
 class IdentityV2SyncCompatibilityTest(unittest.TestCase):
-    """T007 v1/v2 Sync, Identity selector, fork/activate-writer, v2.1 boundary."""
+    """v1/v2 Sync, Identity selector, fork/activate-writer, v2.1 boundary."""
 
     SCOPE = "L-T007"
 
     def setUp(self):
         self.production_before = file_fingerprint(PRODUCTION_DB)
         self.addCleanup(self._assert_production_unchanged)
-        self.temp_dir = tempfile.TemporaryDirectory(prefix="ai-plc-identity-t007-")
+        self.temp_dir = tempfile.TemporaryDirectory(prefix="ai-plc-identity-sync-")
         self.addCleanup(self.temp_dir.cleanup)
         self.root = Path(self.temp_dir.name)
         self.db_path = self.root / "ai_plc.db"
@@ -3840,7 +3840,7 @@ class IdentityV2SyncCompatibilityTest(unittest.TestCase):
         self.sync._now_iso = lambda: FIXED_NOW
         guard = mock.patch.object(
             self.sync.urllib.request, "urlopen",
-            side_effect=AssertionError("network access is forbidden in T007 tests"))
+            side_effect=AssertionError("network access is forbidden in these tests"))
         guard.start()
         self.addCleanup(guard.stop)
 
@@ -4000,7 +4000,7 @@ class IdentityV2SyncCompatibilityTest(unittest.TestCase):
         plan = json.loads(plan_path.read_text(encoding="utf-8"))
         return plan_path, plan
 
-    # ── AC1: selector ────────────────────────────────────────
+    # ── Selector ────────────────────────────────────────
 
     def test_t007_ac1_sync_uid_selector_limits_same_scope_to_one_identity(self):
         plan = self._build_plan(sync_uid=FIXED_PROJECT_A)
@@ -4079,7 +4079,7 @@ class IdentityV2SyncCompatibilityTest(unittest.TestCase):
         self.assertEqual(0, explicit["exit_code"])
         self.assertEqual(FIXED_PROJECT_B, explicit["project"]["sync_uid"])
 
-    # ── AC2: pull never merges another Identity ──────────────
+    # ── Pull never merges another Identity ──────────────
 
     def test_t007_ac2_pull_skips_foreign_and_legacy_rows_and_patches_exact(self):
         self._link_workspace_a_project()
@@ -4242,7 +4242,7 @@ class IdentityV2SyncCompatibilityTest(unittest.TestCase):
                 write_conn.assert_not_called()
                 self.assertEqual(before, self._snapshot())
 
-    # ── AC3: push/sync POST-VERIFY and rerun per Identity ────
+    # ── Push/sync POST-VERIFY and rerun per Identity ────
 
     def test_t007_ac3_workspace_push_post_verifies_only_current_identity(self):
         fake = T007FakeNotion(self.sync)
@@ -4313,7 +4313,7 @@ class IdentityV2SyncCompatibilityTest(unittest.TestCase):
                                         "notion_page_id IS NOT NULL",
                                         (FIXED_WORKSPACE_B,)))
 
-    # ── AC4: strict CLI and global/Scope Plan compatibility ──
+    # ── Strict CLI and global/Scope Plan compatibility ──
 
     def test_t007_ac4_strict_cli_rejects_identity_usage_before_handlers(self):
         handlers = ("cmd_push", "cmd_pull", "cmd_sync", "cmd_fork_workspace",
@@ -4410,7 +4410,7 @@ class IdentityV2SyncCompatibilityTest(unittest.TestCase):
             conn.row_factory = sqlite3.Row
             self.assertIsNone(self.sync.build_identity_status(conn))
 
-    # ── AC5: clone/path move keep Identity, fork issues once ─
+    # ── Clone/path move keep Identity, fork issues once ─
 
     def test_t007_ac5_clone_and_path_move_preserve_workspace_and_project_uid(self):
         original = self._build_plan(sync_uid=FIXED_PROJECT_A)
@@ -4519,7 +4519,7 @@ class IdentityV2SyncCompatibilityTest(unittest.TestCase):
         self.assertEqual(before, self._snapshot())
         self.assertFalse(drift_plan_path.exists())
 
-    # ── AC6: activate-writer is local activation only ────────
+    # ── activate-writer is local activation only ────────
 
     def test_t007_ac6_activate_writer_enables_verified_fork_locally(self):
         plan_path, plan = self._fork()
@@ -4759,7 +4759,7 @@ class IdentityV2SyncCompatibilityTest(unittest.TestCase):
             self.assertEqual(0, result, output)
             self.assertIn('"state": "verified"', output)
 
-    # ── AC7: transfer/takeover/handoff are V2_1_REQUIRED ─────
+    # ── Transfer/takeover/handoff are V2_1_REQUIRED ─────
 
     def test_t007_ac7_deferred_operations_stop_before_any_read_api_or_write(self):
         cases = (
@@ -4806,14 +4806,14 @@ T011_FAILPOINTS = ("after_planned", "after_checkpoint", "after_rows_commit",
 
 
 class IdentityV2AdoptExistingTest(unittest.TestCase):
-    """T011 adopt-existing: production manifest without v2.1 Authority."""
+    """adopt-existing: production manifest without v2.1 Authority."""
 
     WRITER = "writer-main"
 
     def setUp(self):
         self.production_before = file_fingerprint(PRODUCTION_DB)
         self.addCleanup(self._assert_production_unchanged)
-        self.temp_dir = tempfile.TemporaryDirectory(prefix="ai-plc-identity-t011-")
+        self.temp_dir = tempfile.TemporaryDirectory(prefix="ai-plc-identity-adopt-")
         self.addCleanup(self.temp_dir.cleanup)
         self.root = Path(self.temp_dir.name)
         self.db_path = self.root / "ai_plc.db"
@@ -4840,7 +4840,7 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
         self.sync._now_iso = lambda: FIXED_NOW
         guard = mock.patch.object(
             self.sync.urllib.request, "urlopen",
-            side_effect=AssertionError("network access is forbidden in T011 tests"))
+            side_effect=AssertionError("network access is forbidden in these tests"))
         guard.start()
         self.addCleanup(guard.stop)
 
@@ -5011,7 +5011,7 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
         }
 
     def _backfilled_remote(self):
-        """Remote as it looks after T009 migrate-identity backfilled Notion."""
+        """Remote as it looks after migrate-identity backfilled Notion."""
         tasks = [self._task_page("page-ta1", "L-A", "T001", T011_UID_A),
                  self._task_page("page-x1", "L-OLD-A-SG0", "T004"),
                  self._task_page("page-o2", "L-OLD-B-X1", "T020", T011_UID_X1)]
@@ -5044,7 +5044,7 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
             result = self.sync.cmd_status()
         return result, output.getvalue()
 
-    # ── AC1: fixed Plan -> manifest + Identity projection, 0 Authority/Notion ─
+    # ── Fixed Plan -> manifest + Identity projection, 0 Authority/Notion ─
 
     def test_t011_ac1_fixed_plan_builds_manifest_and_projection_without_authority_or_notion(self):
         before = self._snapshot()
@@ -5387,7 +5387,7 @@ class IdentityV2AdoptExistingTest(unittest.TestCase):
         self.assertFalse(any(op.get("scope_id") == "L-OLD-A-SG0"
                              for op in migration["operations"]))
 
-    # ── AC3: status/pull/push on the v2 path; manifest/cache mismatch -> 3 ──
+    # ── Status/pull/push on the v2 path; manifest/cache mismatch -> 3 ──
 
     def test_t011_ac3_status_pull_push_run_on_identity_v2_after_adopt(self):
         self._adopt()

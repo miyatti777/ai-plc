@@ -13,6 +13,19 @@ AI-PLC の変更履歴です。版は2種類あり、別々に数えます。
 
 ## [Unreleased]
 
+## [2.3.2] - 2026-11-26
+
+実験版パッケージ（`experimental/jev/`）は **1.12.0-exp.2 のまま**です。機能の追加はありません。
+
+### 修正
+
+- **`plc_query.py` が、`sync.py`・`init_db.py`・Registry ビューアと同じ決め方で DB を選ぶようになりました。** 順は、環境変数 `AIPLC_DB` → `.ai-plc/config.yaml` の `id_allocation.db_path` → （`id_allocation.mode` が `local-db` か `git-ref` のときだけ）git の作業ツリーから求めた本体の DB → 隣の DB です。今までは、`AIPLC_DB` や設定を使っていても、`plc_query.py` の全部のコマンドが隣の DB を使っていました。**環境変数も設定も無いときの動き（隣の DB に読み書きする）は変わりません**（git の worktree の中で使っている場合も同じです）
+- `id_allocation.mode` を `local-db` か `git-ref` にしている場合に限り、決まった DB が git の worktree の中の写しだったとき、`plc_query.py` の書き込みのコマンド（add-project・someday-add など）は `DB_NOT_MAIN`（終了コード 3）で止まります（`sync.py` と同じ動き）。その DB に書きたいときは `AIPLC_DB` で明示します
+- `plc_query.py sql` の `SELECT`・`WITH`・`EXPLAIN` で始まる文は、読むだけの接続で実行します（書き込みを含んでいれば、書き込みとして扱い直します）
+- `plc_query.py` の、DB が無いときの案内を今の `init_db.py --allow-production` に合わせました
+- `core/db/README.md` を今の内容に書き直しました。道具ごとの役割、DB の場所の決め方、Notion の DB に要る列の一覧（名前と型）、v1.14.0 までの DB を新しい識別子の形に移す手順（`sync.py preflight` → 決定ファイル → `adopt-existing` → `backfill-remote-identity`）と、決定ファイル（`--decisions`）の書式を載せています。この移行は合成の DB で確かめたもので、実際の Notion のワークスペースでの確認はしていません
+- コードとテストのコメント・説明文・メッセージから、開発時の内部向けの番号の記述を除きました。`sync.py import-legacy` が DB の除外の記録に書く理由の文字列も `legacy triage` になります（古い値のままの DB もそのまま使えます）。`tests/db/` のファイル名6本を、内容を表す名前に変えました
+
 ## [2.3.1] - 2026-11-26
 
 実験版パッケージ（`experimental/jev/`）は **1.12.0-exp.2 のまま**です。機能の追加はありません。

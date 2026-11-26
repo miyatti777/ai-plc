@@ -1,4 +1,4 @@
-"""T012: post-migration operations (plc_query Identity + init_db production guard).
+"""Post-migration operations (plc_query Identity + init_db production guard).
 
 API-free and production-free: every DB here is a temporary SQLite file, Notion
 is an in-memory fake with ``urlopen`` replaced by AssertionError, and every test
@@ -43,7 +43,7 @@ class _T012Base(unittest.TestCase):
     def setUp(self):
         self.production_before = file_fingerprint(PRODUCTION_DB)
         self.addCleanup(self._assert_production_unchanged)
-        self.temp_dir = tempfile.TemporaryDirectory(prefix="ai-plc-t012-")
+        self.temp_dir = tempfile.TemporaryDirectory(prefix="ai-plc-post-migration-")
         self.addCleanup(self.temp_dir.cleanup)
         self.root = Path(self.temp_dir.name)
         self.db_path = self.root / "ai_plc.db"
@@ -62,7 +62,7 @@ class _T012Base(unittest.TestCase):
         self.plc.SYNC = self.sync
         guard = mock.patch.object(
             self.sync.urllib.request, "urlopen",
-            side_effect=AssertionError("network access is forbidden in T012 tests"))
+            side_effect=AssertionError("network access is forbidden in these tests"))
         guard.start()
         self.addCleanup(guard.stop)
 
@@ -123,7 +123,7 @@ class _T012Base(unittest.TestCase):
 
 
 class T012PlcQueryIdentityTest(_T012Base):
-    """AC1: v2 add-project / add-task carry the current workspace Identity."""
+    """v2 add-project / add-task carry the current workspace Identity."""
 
     def _adopt(self):
         """Production path: v1 DB -> adopt-existing (dual_read v2 + manifest)."""
@@ -209,7 +209,7 @@ class T012PlcQueryIdentityTest(_T012Base):
                              (key, value))
             conn.commit()
 
-    # ── AC1: dual_read (post adopt-existing) ─────────────────
+    # ── dual_read (post adopt-existing) ─────────────────
 
     def test_t012_ac1_dual_read_added_rows_get_identity_and_are_pushed(self):
         self._adopt()
@@ -376,11 +376,11 @@ class T012PlcQueryIdentityTest(_T012Base):
         with closing(self._connect()) as conn:
             self.assertEqual(FIXED_WORKSPACE_A, real(conn)["context"]["workspace_id"])
 
-    # ── AC1: enforced v2 ─────────────────────────────────────
+    # ── enforced v2 ─────────────────────────────────────
 
     def test_t012_ac1_enforced_v2_add_rows_use_current_workspace_only(self):
         self._create_enforced_db()
-        # Before T012 the enforced schema rejected plc_query inserts (NOT NULL).
+        # Older versions: the enforced schema rejected plc_query inserts (NOT NULL).
         result, output = self._plc("add-task", "T001", "L-E", "enforced task")
         self.assertEqual(0, result, output)
         self.assertEqual((FIXED_WORKSPACE_A, FIXED_PROJECT_A, 1, 2), tuple(self._row(
@@ -427,7 +427,7 @@ class T012PlcQueryIdentityTest(_T012Base):
                             for op in plan["operations"]))
         self.assertEqual([], fake.mutations())
 
-    # ── AC1: other local add paths (sql) and error hints ─────
+    # ── Other local add paths (sql) and error hints ─────
 
     def test_t012_ac1_sql_guard_blocks_identity_less_rows_on_v2(self):
         self._adopt()
@@ -481,7 +481,7 @@ class T012PlcQueryIdentityTest(_T012Base):
         self.assertIn("WORKSPACE_IDENTITY_INVALID", output)
         self.assertNotIn("add-project first", output)
 
-    # ── AC1: v1 schema unchanged ─────────────────────────────
+    # ── v1 schema unchanged ─────────────────────────────
 
     def test_t012_ac1_v1_schema_inserts_exactly_as_before(self):
         self._create_legacy_db()
@@ -516,7 +516,7 @@ class T012PlcQueryIdentityTest(_T012Base):
 
 
 class T012InitDbGuardTest(_T012Base):
-    """AC2: --help never opens a DB; production writes need --allow-production."""
+    """--help never opens a DB; production writes need --allow-production."""
 
     def _forbid_side_effects(self):
         stack = contextlib.ExitStack()
