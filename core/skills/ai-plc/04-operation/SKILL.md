@@ -108,7 +108,7 @@ BT-B（節目再評価: 完了率50% / ゴールドリフト）と BT-C（全完
 
 RUL_plc_system §8 のチェックリストの全項目を「確認→判断→結果出力」で処理し、必ず出力する。**ステータス点検**は Registry DB 更新の後に `python3 .claude/ai-plc-jev/scripts/aiplc_status_audit.py --brief --layer <Layer>`（読み取り専用。SubLayer は `--layer` を重ねる）を実行し、候補があれば1行ずつ提示して承認を求める。反映は承認後に `--quiet --approval-template` で雛形 → 承認行だけ `approve` → `--apply <承認ファイル>`（dry-run）→ `--apply <承認ファイル> --yes`。終了コードは 0=食い違いなし／10=あり。スクリプトが無い／終了コード2なら理由1行でスキップ。Wiki波及はここが唯一の発動ポイント（RUL_plc_system §11）。本人専用情報の差分保存は §22 の発動条件に当たる Layer だけ。
 
-**native memory:** PJ の状態・進捗は書かない（backlog・Registry が正）。この Layer から得た、PJ をまたぐ判断パターン・好みは feedback 型、閉じた後も使う参照は reference 型に書く（既存ファイルへの追記を先に考える）。オーナーの残作業が残るときは、あなたの TODO 管理（AI-PLC の範囲外）へ書く提案行を出す。**Wiki波及** の中で、今月の軽量Lint が未実施なら knowledge-lint.md の手順で実行して log に1行残す。**log** は表の行だけ（RUL_plc_system §11⑥）。
+**native memory:** PJ の状態・進捗は書かない（backlog・Registry が正）。この Layer から得た、PJ をまたぐ判断パターン・好みは feedback 型、閉じた後も使う参照は reference 型に書く（既存ファイルへの追記を先に考える）。オーナーの残作業が残るときは、あなたの TODO 管理（同梱の日次の入口を使うなら `/ppm-todo` で TODO の一覧）へ書く提案行を出す。**Wiki波及** の中で、今月の軽量Lint が未実施なら knowledge-lint.md の手順で実行して log に1行残す。**log** は表の行だけ（RUL_plc_system §11⑥）。
 
 ### Phase 8: フル Knowledge Lint [手動]
 

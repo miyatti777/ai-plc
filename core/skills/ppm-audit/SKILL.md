@@ -33,5 +33,5 @@ description: AI-PLCのステータス点検。intent.yaml・backlog.yaml・Regis
 
 - 既定は読み取り専用。書き込むのは `--apply … --yes` のときだけ
 - `--jev` は外部送信を伴う（非機密の停滞 Layer だけ）。頼まれたときだけ使う
-- `todo/todo.md`（あれば読む）と native memory は書かない
+- `todo/todo.md`（あれば読む）と native memory は書かない。点検のスクリプトは `.ai-plc/config.yaml` の `ppm.todo.path` を読まないので、TODO の一覧の置き場を替えているときは `--todo <パス>` で渡す
 - いつかやるストック（Registry の planned かつ `S-` 始まりで Layer の無い行）は候補に出ない

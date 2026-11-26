@@ -75,7 +75,7 @@ AI 発の1行ヒント（RUL_plc_adaptive §5）とは逆向きの、ユーザ�
 | 判定 | 次に打つコマンド |
 | --- | --- |
 | 却下 | なし（理由だけ） |
-| いつかやる | 将来の PJ（Layer を切る規模）: `/ppm-someday <やりたいこと>` ／ Layer にならない小さな差し込み: あなたの TODO 管理へ（AI-PLC の範囲外） |
+| いつかやる | 将来の PJ（Layer を切る規模）: `/ppm-someday <やりたいこと>` ／ Layer にならない小さな差し込み: あなたの TODO 管理へ（同梱の日次の入口を使うなら `/ppm-capture <やること>`） |
 | Re-Collection | `/01-collection`（Layer パス＋`Re-Collection: <理由>`） |
 | Re-Inception | `/02-inception`（Layer パス＋`Re-Inception: <差分の要点>`）。Re-Inception で backlog の `construction` が required になる（足したタスクが RUL_plc_adaptive §6 の条件に当たる）ときだけ、そのタスクに `/03-construction` を通すことを1行添える |
 | 今のタスク内で修正 | `/04-operation`（Layer パス＋Task ID＋修正内容） |
@@ -87,7 +87,7 @@ AI 発の1行ヒント（RUL_plc_adaptive §5）とは逆向きの、ユーザ�
 
 - **goal の範囲内とは:** goal.description の目的に沿うもの。success_criteria に書かれていない付随の改善（使い勝手・手作業の置き換えなど）も範囲内に入れてよい
 - **「この Layer の完了を待たせるべきか」:** ユーザーの言葉（「この Layer でやり切りたい」「今回はいい」など）があればそれに従う。無ければ AI が判断し、もう一方を次点に置く
-- **いつかやるの規模:** 複数タスク・複数日になりそうなら `/ppm-someday`、1回・1時間程度で終わるなら、あなたの TODO 管理へ（AI-PLC の範囲外）
+- **いつかやるの規模:** 複数タスク・複数日になりそうなら `/ppm-someday`、1回・1時間程度で終わるなら、あなたの TODO 管理へ（同梱の日次の入口を使うなら `/ppm-capture`）
 - **deferred のタスク:** pending と同じ扱い。プロンプトに「deferred を解除して」と書く
 - **別 Layer の成果物に関わるアイデア:** 成果物の持ち主の Layer（Registry・output から分かるもの）を理由に書き、その Layer を指定して相談し直す案を次点に置く
 - **backlog が実態とずれている:** backlog の値を正として判定し、ずれに気づいたら1行で指摘する（直さない。点検は `/ppm-audit`）

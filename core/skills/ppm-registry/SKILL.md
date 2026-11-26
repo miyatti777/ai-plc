@@ -40,7 +40,7 @@ Inception の Re-Inception と Operation の節目（Phase 5.5 を通した成�
 
 - Project中止/再開は `/plc-lifecycle` の正式手順（RUL_plc_system §21）。`cancelled`はGoal未達の終了で、SQL status変更では判断記録が欠けるため拒否する。completedと別集計する。
 
-- **進行中の一覧の正本ではない。** 進行中の仕事はあなたの TODO 管理で見る（AI-PLC の範囲外）。`active` には閉じ忘れが混ざる（点検は `/ppm-audit`）
+- **進行中の一覧の正本ではない。** 進行中の仕事はあなたの TODO 管理で見る（同梱の日次の入口を使うなら TODO の一覧。`/ppm-status`）。`active` には閉じ忘れが混ざる（点検は `/ppm-audit`）
 - **Task は凍結中（2026-10-01〜）。** ローカルの tasks テーブルは backlog.yaml の古い写しで、読まない・書かない（`python3 .claude/db/sync.py tasks-sync --status` で確認できる）。タスクの状況は backlog.yaml を見る
 - **行の追加は add-project / add-task だけ。** SQL で直接 INSERT しない（追加の入口を1つにそろえる）。追加した後の列（mode・depth・top_page_url・start_date・deadline 等）は UPDATE で埋める
 - **task_id は `T001` の形。** scope_id は第2引数で渡すので、task_id に `L-xxxx-` を付けない

@@ -58,7 +58,7 @@ LLM Wiki方式（Karpathy Second Brain系）の構造化知識ベース。規約
 | TPL_* | Templates | TPL_role_developer |
 | AGT_plc_* | Agents | AGT_plc_linter |
 
-上は論理名。Claude Code で打つ名前は、パイプライン Stage が `/01-collection`〜`/04-operation`（Jev 実験版の `-jev` は凍結中 — RUL_plc_adaptive §5 ルール6）、ユーティリティが `/plc-<機能>`（`.claude/skills/plc-<機能>/SKILL.md`。この `ai-plc/` の下ではなく `.claude/skills/` 直下に置く）、案件をまたいで見る・振るもの（AI-PLC の PPM スキル）が `/ppm-<機能>`（同じく直下）。定義は RUL_plc_system §6、3層の区別は references/three-tiers.md。
+上は論理名。Claude Code で打つ名前は、パイプライン Stage が `/01-collection`〜`/04-operation`（Jev 実験版の `-jev` は凍結中 — RUL_plc_adaptive §5 ルール6）、ユーティリティが `/plc-<機能>`（`.claude/skills/plc-<機能>/SKILL.md`。この `ai-plc/` の下ではなく `.claude/skills/` 直下に置く）、案件をまたいで見る・振るもの（AI-PLC の PPM スキル）と任意で使える日次の入口が `/ppm`・`/ppm-<機能>`（同じく直下。日次の入口は使わなくても Stage の動きは変わらない。設定と書式は `.claude/skills/ppm/README.md`）。定義は RUL_plc_system §6、3層の区別は references/three-tiers.md。
 
 | ユーティリティ | 用途 |
 |---|---|
@@ -69,6 +69,14 @@ LLM Wiki方式（Karpathy Second Brain系）の構造化知識ベース。規約
 | `/ppm-pmo` | 複数案件の PMO（週次の整理・案件間の依存・共有資源の競合・判断メモ・決定の案件別の要求と反映の照合） |
 | `/ppm-scan` | 指定した範囲の Notion・本人の公開 Slack 発言から案件の候補を1回だけ集め、収集メモにする |
 | `/ppm-collection` | 依頼に似た既存の案件を最大3件出し、行き先を勧める（読み取り専用。`/01-collection` の前に呼べる） |
+| `/ppm` | 日次の入口（任意）。依頼の目的から日次の入口・他の PPM スキル・Stage のどれを使うかを1つ選び、既存の案件の再開も判定する |
+| `/ppm-plan` | 日次（任意）。翌日の WillDo を First Task → 差し込み → 繰り越し → TODO から → Daily Task の順で組み、空き時間と件数の上限に収めて案を見せ、OK の後に保存（溢れた分は翌日の日記へ） |
+| `/ppm-status` | 日次（任意）。進行中の案件を TODO の一覧から、今日やることをその日の WillDo から読み、短く見せる（読み取り専用） |
+| `/ppm-todo` | 日次（任意）。Layer と TODO の一覧の差分と待ちの行の見直しを提案し、承認した行だけ一覧に書く（WillDo には足さない） |
+| `/ppm-capture` | 日次（任意）。差し込みの「やること」を、今日の日記（緊急）・期日の日の日記・TODO の一覧・いつかやるへ振り分けて記録（迷ったら明日） |
+| `/ppm-update` | 日次（任意）。終わった仕事に合わせて WillDo の行を `- [x]` にし、載っていない仕事は振り返りの「DONE（WillDo外）」に書く（行は足さない） |
+| `/ppm-close` | 日次（任意）。終業。実行率を数え、振り返りを下書きし、未完了の行を振り分けて OK の後に書き、翌日の WillDo を組む（`/ppm-plan`） |
+| `/ppm-inflight` | 日次（任意）。Layer の intent から進行中の候補を集め、TODO の一覧との差分を示す（読み取り専用。反映は `/ppm-todo`） |
 | `/plc-jev-monitor` | Jev 判定の回収と記録（Jev 実験版パッケージ `--with-jev` に入っている。無ければ使わない） |
 | `/plc-consult` | アイデア相談（判定と次のコマンドだけ返す・読み取り専用） |
 | `/plc-backfill` | スキルを通さずに済ませた作業の事後記録（承認後に backlog へ ad-hoc で追加し Phase 5.5〜7 を通す） |

@@ -10,7 +10,8 @@
 | 2段目 | **プロジェクト層**（project tier） | AI-PLC（`0N-<stage>`・`plc-`） | 現場統括。1つの Goal を1つの案件（Layer）として進め、成果物と検証を残す |
 | 3段目 | **ワークパッケージ層**（work package tier） | `pm-`（AIPM の箱の操作） | 本当の現場。方式（AIPM など）の箱の中で、論点・仮説・ToDo・WBS などを細かく持つ |
 
-- **公開版に入っているポートフォリオ層のスキルは7つだけ:** `ppm-audit`（点検。スクリプトは Jev 実験版にある。無ければスキップ）・`ppm-registry`・`ppm-someday`・`ppm-viewer`・`ppm-pmo`（複数案件の PMO。週次の整理・依存・資源の競合・判断メモ・決定の反映の照合）・`ppm-scan`（指定した範囲の Notion・Slack から案件の候補を1回だけ集める）・`ppm-collection`（依頼に似た既存の案件を探し、行き先を勧める。読み取り専用）。日次の計画・差し込み・振り返り・棚卸しの入口は公開版に無い。人の今日の予定や残作業は、あなたの TODO 管理（AI-PLC の範囲外）で扱う
+- **公開版に入っているポートフォリオ層のスキル:** 案件をまたいで見る7つ — `ppm-audit`（点検。スクリプトは Jev 実験版にある。無ければスキップ）・`ppm-registry`・`ppm-someday`・`ppm-viewer`・`ppm-pmo`（複数案件の PMO。週次の整理・依存・資源の競合・判断メモ・決定の反映の照合）・`ppm-scan`（指定した範囲の Notion・Slack から案件の候補を1回だけ集める）・`ppm-collection`（依頼に似た既存の案件を探し、行き先を勧める。読み取り専用）
+- **任意で使える日次の入口:** 入口の `/ppm`（依頼の目的から行き先を1つ選ぶ）と、`ppm-plan`（翌日の WillDo を組む）・`ppm-status`（状況確認。読むだけ）・`ppm-todo`（TODO の一覧の見直し）・`ppm-capture`（差し込みの振り分け）・`ppm-update`（終わった仕事を WillDo に反映）・`ppm-close`（終業の振り返りと翌日の準備）・`ppm-inflight`（Layer から進行中の候補を洗い出す。読むだけ）。TODO の一覧（既定は `todo/todo.md`）と、日付フォルダの WillDo・日記を使う人のためのもので、置き場と見出しの名前は `.ai-plc/config.yaml` の `ppm:` で替えられる（設定と書式は `.claude/skills/ppm/README.md`）。**使わなくても Stage（01〜04）の動きは変わらない。** 別の TODO 管理を使う人は、今までどおりそちらで人の予定と残作業を扱う
 - **担い手と場所を呼び分ける。** 担い手は **オーケストレーター**（Claude Code の親セッション・Codex・Cursor など、Stage やスキルを動かす実行環境）、場所は **ポートフォリオ層**
 - 外に出すときは単独の「AI-PPM」ではなく「AI-PLC の PPM スキル」と書く
 - 層の外にあって全員が読むもの: 仕組みの正本（`.claude/rules`・`.claude/skills`・`.claude/commands`・`AGENTS.md`・`CLAUDE.md`）、横断の知見（`.claude/wiki/`）、本人専用のもの（native memory など）
@@ -20,10 +21,10 @@
 | | ポートフォリオ層 | プロジェクト層 | ワークパッケージ層 |
 | --- | --- | --- | --- |
 | **役割** | 仕事を下へ振り、下から結果を**引き継いで要約する**。細かい ToDo を全部並べる場所ではない | 1つの Goal を1つの案件として Collection〜Operation で進め、成果物と検証を残す | 案件の中で、方式に沿った文書と一覧を細かく持つ |
-| **持つもの** | Registry ビューア（画面）、いつかやる（Registry の S-）、点検の結果。人が今かかえている案件の一覧と1日の予定は、あなたの TODO 管理（AI-PLC の範囲外） | Layer の `intent.yaml`・`context.yaml`・`backlog.yaml`・`Context/`・`Documents/`・`Agents/`・`sublayers/`、Registry の projects（Layer の写し）、Stock（`Stock/programs/` の確定版） | AIPM の箱（新しい箱は Layer の直下の `Sheets/`、それより前の形は `Documents/aipm_project/`。文書・工程記録・一覧〔論点 I・仮説 H・ToDo D・WBS W・ロードマップ M。sheets_v1 は `Sheets/` の直下、それより前の形は `registers/`〕・nested_v1 だけ箱の中の `Stock/`） |
-| **正本** | 中身の正本は下の層にある（全部を見る場所ではない） | 案件の Goal・status は `intent.yaml`、Task は `backlog.yaml` が唯一の正。Registry の projects はその写し。Stock は**箱や Flow から抜き出して合わせたプロジェクト層の正本**（確定版・年月つき） | 論点・ToDo などは箱の一覧が正（TODO 管理へ書き写さない）。nested_v1 の箱の中の `Stock/` は検査に通った同じ版 |
-| **書く人・入口** | 人、オーケストレーター。`/ppm-someday`・`/ppm-registry`、点検の反映は `/ppm-audit` の承認行だけ（`/ppm-pmo`・`/ppm-scan` は自分の出力のファイルだけを書く） | 各案件の実行スレッド。`/01-collection`〜`/04-operation`・`/plc-backfill`・`/plc-lifecycle`。Registry の projects は Phase 7 で更新 | 人の確定の後に `/pm-issue`・`/pm-todo`・`/pm-hypothesis`、aipm-guided、04-operation Phase 6（WBS の完了候補） |
-| **読む人** | 人と全オーケストレーター（`/ppm-viewer`・`/ppm-registry`・`/ppm-collection`・`/ppm-pmo`） | その案件の担当、plc-brief・plc-consult・plc-next、ポートフォリオ層の集計（ppm-audit） | その案件の担当、`/pm-today` |
+| **持つもの** | Registry ビューア（画面）、いつかやる（Registry の S-）、点検の結果。人が今かかえている案件の一覧と1日の予定は、あなたの TODO 管理（同梱の日次の入口を使うなら、TODO の一覧〔案件1行〕・日付フォルダの WillDo と日記） | Layer の `intent.yaml`・`context.yaml`・`backlog.yaml`・`Context/`・`Documents/`・`Agents/`・`sublayers/`、Registry の projects（Layer の写し）、Stock（`Stock/programs/` の確定版） | AIPM の箱（新しい箱は Layer の直下の `Sheets/`、それより前の形は `Documents/aipm_project/`。文書・工程記録・一覧〔論点 I・仮説 H・ToDo D・WBS W・ロードマップ M。sheets_v1 は `Sheets/` の直下、それより前の形は `registers/`〕・nested_v1 だけ箱の中の `Stock/`） |
+| **正本** | 中身の正本は下の層にある（全部を見る場所ではない）。TODO の一覧は案件1行の写しで、案件の状態の正本ではない | 案件の Goal・status は `intent.yaml`、Task は `backlog.yaml` が唯一の正。Registry の projects はその写し。Stock は**箱や Flow から抜き出して合わせたプロジェクト層の正本**（確定版・年月つき） | 論点・ToDo などは箱の一覧が正（TODO 管理へ書き写さない）。nested_v1 の箱の中の `Stock/` は検査に通った同じ版 |
+| **書く人・入口** | 人、オーケストレーター。`/ppm-someday`・`/ppm-registry`、点検の反映は `/ppm-audit` の承認行だけ（`/ppm-pmo`・`/ppm-scan` は自分の出力のファイルだけを書く）。日次の入口を使うなら、TODO の一覧は `/ppm-todo` の承認行だけ、WillDo は `/ppm-plan`・`/ppm-update`・`/ppm-close`、日記は `/ppm-capture`（どれも本人の OK の後） | 各案件の実行スレッド。`/01-collection`〜`/04-operation`・`/plc-backfill`・`/plc-lifecycle`。Registry の projects は Phase 7 で更新 | 人の確定の後に `/pm-issue`・`/pm-todo`・`/pm-hypothesis`、aipm-guided、04-operation Phase 6（WBS の完了候補） |
+| **読む人** | 人と全オーケストレーター（`/ppm-viewer`・`/ppm-registry`・`/ppm-collection`・`/ppm-pmo`。日次の入口を使うなら `/ppm-status`・`/ppm-inflight`） | その案件の担当、plc-brief・plc-consult・plc-next、ポートフォリオ層の集計（ppm-audit） | その案件の担当、`/pm-today` |
 
 ## 2. 上下の受け渡し
 
@@ -35,7 +36,7 @@
 | ワークパッケージ層 → プロジェクト層 | WBS の完了候補（backlog の完了の証拠）、validate の issues_summary、箱の archive → Stock |
 | ポートフォリオ層 → 人 | 要約・選択肢・質問 |
 
-期限を過ぎた箱の ToDo や期限の近い論点は、その案件の `/pm-today` で見る。公開版には、それをポートフォリオ層の日次の画面へ直接上げる入口は無い。
+期限を過ぎた箱の ToDo や期限の近い論点は、その案件の `/pm-today` で見る。日次の入口の `/ppm-plan` を使うなら、TODO の一覧の進行中に載っている案件のうち箱に ToDo のシートがあるものから、「期限を過ぎた ToDo」と「7日以内が期限の論点」が翌日の WillDo の「TODOから」の欄の候補に上がる（`/pm-today` と同じ選び方。人の言葉の1行に書き直して載せ、論点・ToDo は TODO の一覧へ書き写さない。一覧に載っていない案件は件数だけ示す）。`/ppm-plan` を使わなければ、箱の期限は `/pm-today` だけで見る。
 
 ## 3. データの流れとしての読み方（例え）
 
@@ -44,7 +45,7 @@
 | 素材 | 生の素材（ソース） | 集めた文脈・会議メモ・資料 | Layer の `Context/` など |
 | ワークパッケージ層 | 加工した構造（例えではウェアハウス） | 論点・仮説・ToDo・WBS・ロードマップの一覧、ペルソナ・ストーリー | AIPM の箱 |
 | プロジェクト層 | 抜き出して合わせた確定版（例えではマート） | 案件ごとの確定版 | Stock、Layer の intent・backlog |
-| ポートフォリオ層 | 束ねて見る・振る | 全体の一覧 | Registry の画面・いつかやる |
+| ポートフォリオ層 | 束ねて見る・振る | 全体の一覧 | Registry の画面・いつかやる（日次の入口を使うなら TODO の一覧・WillDo） |
 
 例えは読み方の助けで、層の名前ではない（データ分析の用語と混ざらないよう、名前には PMBOK の語を使う）。
 
@@ -85,4 +86,4 @@
 | Agent 定義の Lite・Full | **定義の型** | Lite・Full | ティア（旧称。tier と重なる） |
 
 ---
-**作成日:** 2026-10-23 ｜ **更新日:** 2026-11-25（公開版向けに、公開版に無い日次の入口と個人の運用を外した） ｜ **ステータス:** Active
+**作成日:** 2026-10-23 ｜ **更新日:** 2026-11-26（任意で使える日次の入口〔/ppm と ppm-plan・ppm-status・ppm-todo・ppm-capture・ppm-update・ppm-close・ppm-inflight〕を足した）／2026-11-25（公開版向けに、個人の運用を外した） ｜ **ステータス:** Active
