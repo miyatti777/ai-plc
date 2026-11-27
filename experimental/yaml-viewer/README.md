@@ -1,4 +1,4 @@
-# experimental/yaml-viewer — YamlViewer（AI-PLC の YAML を読みやすく見る・アルファ版 0.1.0-alpha）
+# experimental/yaml-viewer — YamlViewer（AI-PLC の YAML を読みやすく見る・アルファ版 0.2.0-alpha）
 
 AI-PLC が出す YAML を、エディタの生の文字列ではなく「表＋札」で読むためのローカル専用・閲覧専用のビューアです。何も書きません。127.0.0.1 の中だけで動き、外に送りません。
 
@@ -29,7 +29,7 @@ cp -R experimental/yaml-viewer <プロジェクト>/tools/YamlViewer
 | 状態・種類・優先 | 日本語の札（未判定／支持／反証、未解決／解決、下書き／受入待ち／受入、最重要／高 など。語彙は `.claude/skills/aipm-guided/registers_contract.yaml`） |
 | Layer の intent・context・backlog（タブ「案件」「Context」「タスク」。箱のタブの右に仕切りで並ぶ） | 案件: Goal・成功条件・分類・業務所属・原要求。Context: 文書の名前と要約。タスク: ID・名前・状態・優先・依存・受入条件の数・実行時期・期限・成果物（行を押すと やること・受け入れ条件・結果）。進み具合の図は作らず、タスクの上の「BacklogLive で見る」で飛ぶ（8770。起動していないときは開けない） |
 
-箱の形は両方読めます: 新しい形 `<Layer>/Sheets/`、古い形 `<Layer>/Documents/aipm_project/registers/`。置き場は画面上の「置き場」で選びます（`--path` で渡したものが先頭、その後にプロジェクトの Flow の新しい3か月分から見つけた箱のある Layer）。箱の無い Layer は Flow の走査では出ないので、見たいときは `--path <Layer>` で渡します（タブは案件・Context・タスクだけ）。
+箱の形は両方読めます: 新しい形 `<Layer>/Sheets/`、古い形 `<Layer>/Documents/aipm_project/registers/`。置き場は画面上の「置き場」で選びます（`--path` で渡したものが先頭、その後にプロジェクトの Flow の新しい3か月分から見つけた箱のある Layer）。箱の無い Layer は Flow の走査では出ないので、見たいときは URL で Layer を指定する（下の「Layer を指定して開く」）か、`--path <Layer>` で渡します（タブは案件・Context・タスクだけ）。
 
 YAML が壊れている（保存の途中など）ときは、画面上部に赤い1行を出し、最後に正しく読めた状態を表示し続けます。保存すると数秒で表示が変わります（再読込は要りません）。
 
@@ -46,7 +46,17 @@ python3 tools/YamlViewer/server.py
 - `http://127.0.0.1:8772/` が開きます。Ctrl-C で止まります。常駐はしません
 - Flow の外の箱を見る: `python3 tools/YamlViewer/server.py --path <Layer のフォルダ>`（`--path` は複数可。箱・Layer・registers フォルダのどれを渡してもよい）
 - Flow を走査しない: `--no-flow`（`--path` だけ）。別のポート: `--port 0`（空いている番号）
-- 画面の位置は URL の `#i=<置き場の番号>&tab=<ファイル>&id=<行の ID>` に残るので、ブックマークできます
+- 画面の位置は URL の `#i=<置き場の番号>&tab=<ファイル>&id=<行の ID>` に残ります。置き場の番号はサーバを起動し直すと変わることがあるので、ブックマークには下の `?layer=` を使います
+
+### Layer を指定して開く
+
+`http://127.0.0.1:8772/?layer=<scope_id>`（`<scope_id>` は Layer の intent.yaml の scope_id）で、その Layer が選ばれた状態で開きます。BacklogLive の `?layer=` と同じ書き方です。
+
+- サーバを起動した後にできた箱も、起動し直さずに開けます（指定されたときに Flow を探し直す）。箱の無い Layer も開けます（タブは案件・Context・タスクだけ。後から箱ができたら、同じ URL を開き直すと箱のタブが出る）
+- 探すのは `--path` で渡した置き場と、プロジェクトの Flow の新しい3か月分です。同じ scope_id が両方にあれば `--path` の方を開きます。見つからないときは画面の上に「Layer … が見つかりません」と出し、一覧の先頭（`#i=` があればその置き場）を表示します
+- `?layer=` と `#i=` の両方があるときは `?layer=` を優先します。タブと行は `#tab=<ファイル>&id=<行の ID>` で足せます（例: `?layer=<scope_id>#tab=todo`）。画面で置き場を選び直すと、URL から `?layer=` が外れます
+- 受けるのは scope_id の文字（英数字で始まり、英数字と `.` `_` `:` `-` を使う 80 字まで）だけです。パスは受け取りません
+- AIPM ライトの箱（WBS と ToDo だけ）のように、無いファイルのあるタブは「なし」と出し、開いたときはファイルのあるタブを選びます
 
 ## 一般の YAML（汎用モード）
 
@@ -69,14 +79,14 @@ python3 tools/YamlViewer/server.py
 ## 作法（守っていること）
 
 - 書き込みの口が無い（POST/PUT/PATCH/DELETE は 405）。listen は 127.0.0.1 だけ。Host が 127.0.0.1／localhost 以外なら 403
-- 画面から任意のパスを受け取らない（サーバが見つけた、または `--path` で渡した一覧の番号だけ）。8MB を超えるファイルは読まない
+- 画面から任意のパスを受け取らない（サーバが見つけた、または `--path` で渡した一覧の番号と、`?layer=` の scope_id だけ。scope_id からの置き場探しはサーバが Flow の中で行う）。8MB を超えるファイルは読まない
 - 外部ライブラリは PyYAML だけ（Python 3.9 以上。`python3 -c "import yaml"` が通ればよい）
 - 画面の文字は textContent／createElement で組み立て、innerHTML は使わない
 
 ## 知っておく制約
 
 - ID のリンクは「今の置き場にある ID」だけに付きます。文章の中の「別の案件の T003」のように別の案件の番号でも、今の Layer の backlog に同じ番号があれば今の Layer のタスクへ飛びます（別の案件へは飛びません）
-- Flow の走査は新しい3か月分・箱のある Layer だけです。古い月や箱の無い Layer は `--path` で渡します
+- Flow の走査は新しい3か月分・箱のある Layer だけです（`?layer=` で指定した Layer は箱が無くても出る）。古い月の Layer は `--path` で渡します
 - 画面側（JS）の自動テストはありません（サーバ側の合成テストと、作成時のブラウザ確認のみ）
 
 ## テスト
@@ -86,4 +96,4 @@ python3 -m unittest discover -s experimental/yaml-viewer/tests   # AI-PLC のリ
 python3 -m unittest discover -s tools/YamlViewer/tests           # コピーした先で
 ```
 
-合成の箱を一時フォルダに作って、両方の形の検出・`--path`・壊れた YAML の保持・GET 以外の拒否・Host の検査を確かめます。本物の箱には触りません。
+合成の箱を一時フォルダに作って、両方の形の検出・`--path`・壊れた YAML の保持・GET 以外の拒否・Host の検査・Layer の指定（起動後にできた箱、箱の無い Layer、読めない ID の拒否）を確かめます。本物の箱には触りません。

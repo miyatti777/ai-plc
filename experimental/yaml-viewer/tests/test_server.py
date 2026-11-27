@@ -217,6 +217,80 @@ class ServerTest(unittest.TestCase):
                 server.MAX_BYTES = old; server._read_yaml = orig
             self.assertEqual(server._key_name(True), "true"); self.assertEqual(server._key_name(None), "null")
 
+    def test_find_by_scope_id(self):
+        st, body = self.get("/api/find?layer=L-registers"); self.assertEqual(st, 200)
+        j = json.loads(body); self.assertTrue(j["ok"])
+        st, body = self.get(f"/api/state?i={j['index']}")
+        d = json.loads(body); self.assertEqual(d["scope_id"], "L-registers"); self.assertEqual(d["form"], "registers")
+        # --path で渡した置き場と Flow の箱が同じ scope_id のときは、--path の方（渡した順が先）
+        st, body = self.get("/api/find?layer=L-sheets"); j = json.loads(body)
+        self.assertEqual(json.loads(self.get(f"/api/state?i={j['index']}")[1])["origin"], "path")
+
+    def test_find_rejects_bad_and_unknown(self):
+        st, body = self.get("/api/find?layer=L-does-not-exist"); j = json.loads(body)
+        self.assertEqual(st, 200); self.assertFalse(j["ok"]); self.assertIn("見つかりません", j["error"])
+        for bad in ("", "..%2F..%2Fetc", "%2FUsers%2Fx", "a%20b", "L-" + "x" * 90):
+            st, _ = self.get(f"/api/find?layer={bad}"); self.assertEqual(st, 400, bad)
+        st, _ = self.get("/api/find"); self.assertEqual(st, 400)
+        st, _ = self.get("/api/find?layer=L-sheets", method="POST"); self.assertEqual(st, 405)
+        st, _ = self.get("/api/find?layer=L-sheets", host="evil.example"); self.assertEqual(st, 403)
+
+
+class FindTest(unittest.TestCase):
+    """起動した後に Flow が変わる場合（ServerTest の箱の並びを変えないよう、別の一時フォルダと別のサーバで確かめる）。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.root = Path(cls.tmp.name)
+        cls.flow = cls.root / "Flow"
+        make_box(cls.flow, "sheets")
+        server.RELOAD_TTL = 0.0
+        cls.srv = server.build_server([], 0, cls.root, flow=True)
+        cls.port = cls.srv.server_address[1]
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown(); cls.srv.server_close(); cls.tmp.cleanup()
+
+    get = ServerTest.get
+
+    def test_find_new_box_without_restart(self):
+        # 起動した後にできた箱は、SCAN_TTL を待たずに /api/find で拾う（一覧にはまだ無い）
+        new = self.flow / "202610" / "2026-10-28" / "box-late"
+        (new / "Sheets").mkdir(parents=True)
+        (new / "intent.yaml").write_text(INTENT.replace("L-TEST", "L-late"), encoding="utf-8")
+        (new / "Sheets" / "todo.yaml").write_text(TODO, encoding="utf-8")
+        (new / "Sheets" / "wbs.yaml").write_text(WBS, encoding="utf-8")
+        before = [it["scope_id"] for it in json.loads(self.get("/api/list")[1])["items"]]
+        self.assertNotIn("L-late", before)
+        st, body = self.get("/api/find?layer=L-late"); j = json.loads(body)
+        self.assertEqual(st, 200); self.assertTrue(j["ok"])
+        d = json.loads(self.get(f"/api/state?i={j['index']}")[1])
+        self.assertEqual(d["scope_id"], "L-late"); self.assertTrue(d["has_registers"])
+        self.assertEqual(d["files"]["todo"]["rows"][0]["id"], "D1")
+
+    def test_find_layer_then_box_created(self):
+        # 箱の無い Layer も scope_id で開ける。後から箱ができたら、次の /api/find で箱つきになる
+        layer = self.flow / "202610" / "2026-10-28" / "no-box-yet"
+        layer.mkdir(parents=True)
+        (layer / "intent.yaml").write_text(INTENT.replace("L-TEST", "L-nobox"), encoding="utf-8")
+        j = json.loads(self.get("/api/find?layer=L-nobox")[1]); self.assertTrue(j["ok"])
+        d = json.loads(self.get(f"/api/state?i={j['index']}")[1])
+        self.assertFalse(d["has_registers"]); self.assertTrue(d["has_layer"])
+        (layer / "Sheets").mkdir()
+        (layer / "Sheets" / "todo.yaml").write_text(TODO, encoding="utf-8")
+        j2 = json.loads(self.get("/api/find?layer=L-nobox")[1])
+        self.assertEqual(j2["index"], j["index"])
+        d = json.loads(self.get(f"/api/state?i={j['index']}")[1])
+        self.assertTrue(d["has_registers"]); self.assertEqual(d["files"]["todo"]["rows"][0]["id"], "D1")
+        # 消えたファイルは、最後の正常な行を残したままエラーを返す（画面はこれを「読めません」に数える）。一度も無いファイルは行なし
+        (layer / "Sheets" / "todo.yaml").unlink()
+        f = json.loads(self.get(f"/api/state?i={j['index']}")[1])["files"]
+        self.assertFalse(f["todo"]["exists"]); self.assertTrue(f["todo"]["error"]); self.assertEqual(f["todo"]["rows"][0]["id"], "D1")
+        self.assertFalse(f["hypotheses"]["exists"]); self.assertEqual(f["hypotheses"]["rows"], [])
+
 
 class HelperTest(unittest.TestCase):
     def test_jsonable(self):
