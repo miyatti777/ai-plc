@@ -1,4 +1,4 @@
-/* YamlViewer — 表＋札で registers を読む（閲覧専用）。サーバの /api/list と /api/state だけを使う。 */
+/* YamlViewer — 表＋札で registers を読む（閲覧専用）。サーバの /api/list・/api/state・/api/find（Layer の指定）だけを使う。 */
 (function () {
   "use strict";
   const $ = (s) => document.querySelector(s);
@@ -104,7 +104,7 @@
     return [];
   }
 
-  const state = { items: [], index: null, data: null, tab: "hypotheses", filter: "", sort: null, sel: null, sig: "" };
+  const state = { items: [], index: null, data: null, tab: "hypotheses", filter: "", sort: null, sel: null, sig: "", layer: null, notice: "" };
   const known = {}; // id -> file（リンクにするのは今ある ID だけ）
 
   function valuesText(v) {
@@ -422,10 +422,14 @@
   }
   function ensureTab() {
     const files = state.data ? state.data.files : null;
-    if (!files || files[state.tab]) return;
+    if (!files) return;
+    const cur = files[state.tab];
+    if (cur && (cur.exists || rowsOf(state.tab, cur).length || cur.data != null)) return;  // ファイルの無いタブ（AIPM ライトの箱の仮説・論点・節目など）には留まらない
     const first = FILES.find((f) => files[f.key] && (files[f.key].exists || rowsOf(f.key, files[f.key]).length));
     const prefer = files.plain ? "plain" : (files.intent && !files.hypotheses ? "intent" : null);
-    state.tab = prefer || (first ? first.key : state.tab);
+    const next = prefer || (first ? first.key : state.tab);
+    if (next === state.tab) return;  // 移る先が無い（同じタブ）なら、選んでいる行や並びを消さない
+    state.tab = next;
     state.sel = null; state.sort = null; pushHash();
   }
   function render() {
@@ -444,13 +448,29 @@
     for (const f of FILES) { if (f.key === "context" || f.key === "intent") continue; for (const r of rowsOf(f.key, files[f.key])) if (r.id != null) known[String(r.id)] = f.key; }
   }
 
-  // --- URL ハッシュ（#i=0&tab=wbs&id=W2.1） ---------------------------------
+  // --- URL（?layer=<scope_id> で Layer を指定。#i=0&tab=wbs&id=W2.1 で画面の位置） ----
   function pushHash() {
     const p = new URLSearchParams();
     if (state.index != null) p.set("i", String(state.index));
     p.set("tab", state.tab);
     if (state.sel) p.set("id", state.sel);
-    history.replaceState(null, "", "#" + p.toString());
+    // ?layer= は、指定された Layer を見ている間だけ URL に残す（置き場を選び直したら外す）
+    const cur = state.items.find((x) => x.index === state.index);
+    const keep = state.layer && cur && String(cur.scope_id) === state.layer;
+    history.replaceState(null, "", location.pathname + (keep ? "?layer=" + encodeURIComponent(state.layer) : "") + "#" + p.toString());
+  }
+  function readSearch() {
+    const l = new URLSearchParams(location.search).get("layer");
+    if (l) state.layer = l;
+  }
+  // ?layer= の scope_id から置き場の番号を引く（#i= より優先。番号はサーバの起動ごとに変わりうるため）
+  async function resolveLayer() {
+    if (!state.layer) return;
+    try {
+      const j = await getJSON("/api/find?layer=" + encodeURIComponent(state.layer));
+      if (j.ok) { state.index = j.index; state.notice = ""; }
+      else { state.notice = j.error || `Layer ${state.layer} が見つかりません`; state.layer = null; }
+    } catch (e) { state.notice = "Layer の指定を確かめられません（サーバに届きません）"; state.layer = null; }
   }
   function readHash() {
     const p = new URLSearchParams(location.hash.slice(1));
@@ -478,9 +498,10 @@
       const changed = sig !== state.sig;
       state.data = j; state.sig = sig;
       if (changed) { rebuildKnown(); render(); }
-      const errs = Object.values(j.files).filter((v) => v.error).length;
+      const errs = Object.values(j.files).filter((v) => v.error && (v.exists || (v.rows && v.rows.length) || v.data != null)).length;  // 一度も無かったファイル（AIPM ライトの箱の仮説など）はタブの「なし」で示し、ここでは数えない。消えたファイル（最後の正常な状態が残る）は数える
       st.classList.toggle("err", errs > 0);
       st.textContent = errs ? `${errs} ファイルが読めません（最後の正常な状態を表示）` : `更新 ${j.generated_at}`;
+      if (state.notice) { st.textContent = state.notice + " ／ " + st.textContent; st.classList.add("err"); }
     } catch (e) {
       st.textContent = "サーバに届きません"; st.classList.add("err");
     }
@@ -488,10 +509,11 @@
 
   // --- 起動 -----------------------------------------------------------------
   readHash();
-  $("#source").addEventListener("change", (ev) => { state.index = Number(ev.target.value); state.sel = null; state.sig = ""; pushHash(); poll(); });
+  readSearch();
+  $("#source").addEventListener("change", (ev) => { state.index = Number(ev.target.value); state.sel = null; state.sig = ""; state.notice = ""; state.layer = null; pushHash(); poll(); });
   $("#filter").addEventListener("input", (ev) => { state.filter = ev.target.value; if (state.tab !== "plain") renderTable(); });
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && state.sel) { state.sel = null; pushHash(); render(); } });
   window.addEventListener("hashchange", () => { const before = state.index; readHash(); if (state.index !== before) { state.sig = ""; renderSources(); } poll().then(render); });
-  loadList().then(poll).catch(() => poll());
+  resolveLayer().then(loadList).then(poll).catch(() => poll());
   setInterval(() => { poll(); if (Math.random() < 0.1) loadList().catch(() => {}); }, POLL_MS);
 })();

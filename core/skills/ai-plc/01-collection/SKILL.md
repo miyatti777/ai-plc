@@ -156,6 +156,8 @@ intent.yamlのsync_targetsを設定する: ユーザー指定の同期先があ�
 3. OK の後に参照先の手順で初期化を実行し、intent に `mode_init: {state: done, done_at: <ISO 日時>, outputs: [{path, sha256}]}` を書く。既にあるもの（既存の Project など）は上書きしない
 4. 失敗・保留なら `state: pending` のまま理由を1行残し、Inception・Operation へ進めない（02-inception と 04-operation が Hold する）。pending の間は Phase 7 の自動完走の /goal を出さない
 
+**YamlViewer（任意）:** `tools/YamlViewer/server.py`（公開版では `experimental/yaml-viewer` を手でコピーしたもの）があり、`tools/YamlViewer/VERSION` が 0.2.0-alpha 以降で、手順3の初期化の後に参照先が作った箱（`Sheets/` など）があれば、`http://127.0.0.1:8772/?layer=<scope_id>` を開く。開く前に `curl -s --max-time 2 "http://127.0.0.1:8772/api/find?layer=<scope_id>"` が `"ok": true` を返すことを確かめる（応答が無ければ `python3 tools/YamlViewer/server.py --no-browser` をバックグラウンドで起動し、1秒おきに3回まで同じ curl を試す。Claude Code デスクトップで `.claude/launch.json` に `yaml-viewer` があればそのプレビューで起動する）。本人が「開かないで」と言ったとき・サブエージェントとして実行中は開かない。開いたら、初期化の結果を伝える応答に URL を1行添える。ツールが無いとき・版が古いとき・初期化が失敗したとき・保留のとき・起動や表示ができないとき（ポート 8772 が使用中、`"ok": true` が返らない＝前の版のサーバが動いているか Layer が見つからない、など）は何もせずに続ける（止めない。動いているサーバは止めない）。
+
 `mode_init` の無い旧い Layer は今までどおり扱い、一括で書き足さない。
 
 ## Re-Collection（Backtrack対応）

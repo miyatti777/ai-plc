@@ -5,6 +5,7 @@
 古い形は Documents/aipm_project/registers/）と、Layer の intent・context・backlog。
 127.0.0.1 だけで listen し、GET 以外は受けない。何も書かない。
 画面から任意のパスは受け取らず、サーバが見つけた（または --path で渡された）一覧の番号だけを受ける。
+Layer を指定して開くとき（/?layer=<scope_id>）も、受けるのは scope_id の文字だけで、置き場はサーバが Flow から探す。
 YAML が壊れていても最後の正常な状態を返す。
 """
 from __future__ import annotations
@@ -43,6 +44,7 @@ DAY_DIR = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 SCAN_TTL = 30.0
 RELOAD_TTL = 1.5
 MAX_BYTES = 8 * 1024 * 1024
+SCOPE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$")  # /api/find が受ける scope_id の形（パスの文字は通さない）
 
 
 MAX_NODES = 200_000
@@ -168,6 +170,16 @@ def scan_flow(flow_root: Path, months: int = 3) -> list[Path]:
             if "intent.yaml" in filenames:
                 found.append(Path(dirpath))
     return found
+
+
+def _scope_id_of(layer: Path) -> Optional[str]:
+    """Layer の intent.yaml の scope_id（読めなければ None）。"""
+    try:
+        data = _read_yaml(layer / "intent.yaml", layer)
+    except Exception:
+        return None
+    sid = data.get("scope_id") if isinstance(data, dict) else None
+    return str(sid) if sid is not None else None
 
 
 # --- 読み込み ---------------------------------------------------------------
@@ -357,6 +369,45 @@ class Catalog:
                     if registers_dir_of(layer) is not None:
                         self._add(layer, "flow")
 
+    def _match(self, scope_id: str) -> Optional[int]:
+        for i in list(self._order):  # --path で渡したものが先
+            sid = self._sources[i].head()["scope_id"]
+            if sid is not None and str(sid) == scope_id:
+                return i
+        return None
+
+    def find(self, scope_id: str) -> dict:
+        """scope_id から置き場の番号を引く（/?layer=<scope_id>）。
+
+        一覧に無ければ Flow を走査し直す（起動した後にできた箱を、SCAN_TTL を待たずに拾う）。
+        箱の無い Layer も、scope_id が合えば置き場に足す。先に Layer だけで開いていて後から箱ができたときは、箱つきで読み直す。
+        """
+        idx = self._match(scope_id)
+        if idx is None and self.flow_root is not None:
+            with self._lock:
+                self._scanned = time.monotonic()
+                hit: Optional[Path] = None
+                for layer in scan_flow(self.flow_root):
+                    if registers_dir_of(layer) is not None:
+                        self._add(layer, "flow")
+                    elif hit is None and _scope_id_of(layer) == scope_id:
+                        hit = layer
+                if hit is not None:
+                    self._add(hit, "flow")
+            idx = self._match(scope_id)
+        if idx is None:
+            where = "Flow の新しい3か月分に無い。古い Layer は --path で渡す" if self.flow_root is not None else "--path で渡した置き場に無い"
+            return {"ok": False, "error": f"Layer {scope_id} が見つかりません（{where}）"}
+        with self._lock:
+            src = self._sources[idx]
+            if src.plain is None and src.registers is None and src.layer is not None and registers_dir_of(src.layer) is not None:
+                fresh = Source(idx, src.layer, self.repo_root, src.origin)
+                if fresh.registers is not None:
+                    fresh.opened = src.opened
+                    self._sources[idx] = fresh
+                    self._by_path[str(fresh.registers)] = idx
+        return {"ok": True, "index": idx, "scope_id": scope_id}
+
     def list(self) -> dict:
         self._refresh()
         items = [self._sources[i].head() for i in self._order]
@@ -423,6 +474,15 @@ def make_handler(catalog: Catalog):
             path = parts.path
             if path == "/api/list":
                 return self._json(200, catalog.list())
+            if path == "/api/find":
+                try:
+                    qs = parse_qs(parts.query, keep_blank_values=False, max_num_fields=4)
+                except ValueError:
+                    return self._json(400, {"ok": False, "error": "クエリが多すぎます"})
+                layer = (qs.get("layer") or [""])[0]
+                if not SCOPE_ID.match(layer):
+                    return self._json(400, {"ok": False, "error": "Layer の ID が読めません"})
+                return self._json(200, catalog.find(layer))
             if path == "/api/state":
                 try:
                     qs = parse_qs(parts.query, keep_blank_values=False, max_num_fields=4)
